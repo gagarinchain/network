@@ -1,0 +1,73 @@
+syntax = "proto3";
+option go_package = "pb";
+
+import "google/protobuf/any.proto";
+
+message Message {
+    MessageType type = 1;
+    bytes signature = 2;
+
+    google.protobuf.Any payload = 3;
+
+    enum MessageType {
+        HELLO   = 0;
+        VOTE    = 1;
+        PROPOSAL = 2;
+        BLOCK_REQUEST = 3;
+        BLOCK_RESPONSE = 4;
+    }
+}
+
+message HelloPayload {
+    string helloMessage = 1;
+}
+
+message ProposalPayload {
+    QuorumCertificate cert = 1;
+    Block block = 2;
+
+}
+
+message BlockRequestPayload {
+    //TODO Think about using oneof here
+    bytes hash = 1;
+    int32 height = 2;
+}
+
+message BlockResponsePayload {
+    oneof response {
+        Block block = 1;
+        Error errorCode = 2;
+    }
+}
+
+message Error {
+    ErrorCode code = 1;
+    string    desc = 2;
+
+    enum ErrorCode {
+        NO_FOUND   = 0;
+        BAD_REQUEST    = 1;
+    }
+}
+message QuorumCertificate {
+    BlockHeader header = 1;
+    bytes signatureAggregate = 2;
+}
+
+message Block {
+    BlockHeader header = 1;
+    QuorumCertificate cert = 2;
+    BlockData data = 3;
+}
+
+message BlockHeader {
+    bytes parentHash = 1;
+    bytes dataHash = 2;
+    int32 height = 3;
+    int64 timestamp = 4;
+}
+
+message BlockData {
+    bytes data = 1;
+}
