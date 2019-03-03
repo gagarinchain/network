@@ -9,47 +9,85 @@ import (
 )
 
 type Synchronizer interface {
-	RequestBlock(hash common.Hash)
+	RequestBlock(hash common.Hash, respChan chan<- *Block)
 	Bootstrap()
 	RequestBlockWithDeps(header *Header)
 }
 
-
 type SynchronizerImpl struct {
 	bchan <-chan *Block
-	me *network.Peer
-	srv network.Service
-	bc *Blockchain
+	me    *network.Peer
+	srv   network.Service
+	bc    *Blockchain
 }
 
-//TODO: IMPORTANT think whether we MUST wait until we receive absent blocks to go on processing
+func CreateSynchronizer(bchan <-chan *Block, me *network.Peer, srv network.Service, bc *Blockchain) Synchronizer {
+	return &SynchronizerImpl{bchan: bchan, me: me, srv: srv, bc: bc}
+}
+
+//IMPORTANT: think whether we MUST wait until we receive absent blocks to go on processing
+//I think we must, if we have unknown block in the 3-chain we can't push protocol forward
 func (s *SynchronizerImpl) RequestBlockWithDeps(header *Header) {
+	var headChan chan *Block
+	var parentChan chan *Block
+	var qrefChan chan *Block
+
 	if header != nil && !s.bc.Contains(header.hash) {
-		s.RequestBlockSynchronously(header.hash)
+		headChan = make(chan *Block)
+		go s.RequestBlock(header.hash, headChan)
 	}
 
-	if header.parent!= nil && !s.bc.Contains(header.parent.hash) {
-		s.RequestBlockSynchronously(header.parent.hash)
+	if header.parent != nil && !s.bc.Contains(header.parent.hash) {
+		parentChan = make(chan *Block)
+		go s.RequestBlock(header.parent.hash, parentChan)
 	}
 
 	//TODO think about first two conditions, they probably never should be true, because every block we receive contains qc and must be validated
 	//Wrong, we can pass here qref block header, which won't contain QC itself
 	if header.qc != nil && header.qc.qrefBlock != nil && !s.bc.Contains(header.qc.qrefBlock.hash) {
-		s.RequestBlockSynchronously(header.qc.qrefBlock.hash)
+		qrefChan = make(chan *Block)
+		go s.RequestBlock(header.qc.qrefBlock.hash, parentChan)
+	}
+
+	for headChan != nil || parentChan != nil || qrefChan != nil {
+		select {
+		case headBlock, ok := <-headChan:
+			if !ok {
+				headChan = nil
+			}
+			if e := s.bc.AddBlock(headBlock); e != nil {
+				log.Error(e)
+			}
+		case parentBlock, ok := <-headChan:
+			if !ok {
+				headChan = nil
+			}
+			if e := s.bc.AddBlock(parentBlock); e != nil {
+				log.Error(e)
+			}
+		case qrefBlock, ok := <-headChan:
+			if !ok {
+				headChan = nil
+			}
+			if e := s.bc.AddBlock(qrefBlock); e != nil {
+				log.Error(e)
+			}
+		}
 	}
 
 }
 
-finish me
-func (s *SynchronizerImpl) RequestBlockSynchronously(hash common.Hash) {
-	payload := &pb.BlockRequestPayload{Hash:hash.Bytes()}
+func (s *SynchronizerImpl) RequestBlock(hash common.Hash, respChan chan<- *Block) {
+	payload := &pb.BlockRequestPayload{Hash: hash.Bytes()}
 	any, e := ptypes.MarshalAny(payload)
 	if e != nil {
 		log.Error("Can't assemble message", e)
 	}
 
 	msg := message.CreateMessage(pb.Message_BLOCK_REQUEST, s.me.GetPrivateKey(), any)
-	resp := s.srv.SendMessageToRandomPeerAndGetResponse(msg)
+
+	resp := s.srv.SendMessageToRandomPeer(msg)
+
 	if resp.Type != pb.Message_BLOCK_RESPONSE {
 		log.Errorf("Received message of type %v, but expected %v", resp.Type.String(), pb.Message_BLOCK_RESPONSE.String())
 	}
@@ -59,7 +97,10 @@ func (s *SynchronizerImpl) RequestBlockSynchronously(hash common.Hash) {
 		log.Error("Couldn't unmarshal response")
 	}
 
-	rp.GetBlock()
+	blockMsg := rp.GetBlock()
+	block := CreateBlockFromMessage(blockMsg)
+	//TODO validate block
+	respChan <- block
 }
 
 func (s *SynchronizerImpl) Bootstrap() {
@@ -68,7 +109,7 @@ func (s *SynchronizerImpl) Bootstrap() {
 
 func (s *SynchronizerImpl) sync() {
 	for {
-		block := <- s.bchan
+		block := <-s.bchan
 		e := s.bc.AddBlock(block)
 		if e != nil {
 			log.Error("Error while adding block", e)

@@ -139,3 +139,14 @@ func (b *Block) Serialize() []byte {
 
 	return bytes
 }
+
+func CreateBlockFromMessage(block *pb.Block) *Block {
+	header := CreateBlockHeaderFromMessage(block.Header)
+
+	return &Block{header: header, data: block.Data.Data}
+}
+
+//TODO Implement me
+func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
+	return createHeader(header.Height, header.DataHash, nil, header.Timestamp)
+}

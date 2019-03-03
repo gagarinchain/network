@@ -21,7 +21,18 @@ func (_m *Service) SendMessage(peer *network.Peer, msg *message.Message) {
 	_m.Called(peer, msg)
 }
 
-// SendMessageToRandomPeerAndGetResponse provides a mock function with given fields: msg
-func (_m *Service) SendMessageToRandomPeer(msg *message.Message) {
-	_m.Called(msg)
+// SendMessageToRandomPeerAndGetResponse provides a mock function with given fields: req
+func (_m *Service) SendMessageToRandomPeer(req *message.Message) *message.Message {
+	ret := _m.Called(req)
+
+	var r0 *message.Message
+	if rf, ok := ret.Get(0).(func(*message.Message) *message.Message); ok {
+		r0 = rf(req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*message.Message)
+		}
+	}
+
+	return r0
 }

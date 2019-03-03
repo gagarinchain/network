@@ -16,9 +16,9 @@ func (_m *Synchronizer) Bootstrap() {
 	_m.Called()
 }
 
-// RequestBlockSynchronously provides a mock function with given fields: hash
-func (_m *Synchronizer) RequestBlock(hash common.Hash) {
-	_m.Called(hash)
+// RequestBlock provides a mock function with given fields: hash, respChan
+func (_m *Synchronizer) RequestBlock(hash common.Hash, respChan chan<- *blockchain.Block) {
+	_m.Called(hash, respChan)
 }
 
 // RequestBlockWithDeps provides a mock function with given fields: header
