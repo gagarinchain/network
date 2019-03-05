@@ -3,6 +3,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/emirpasic/gods/utils"
 	"github.com/gogo/protobuf/proto"
 	"github.com/op/go-logging"
@@ -42,13 +43,6 @@ func CreateBlockchainFromGenesisBlock() *Blockchain {
 func (bc *Blockchain) GetBlockByHash(hash common.Hash) *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
-
-	log.Info(common.Bytes2Hex(hash.Bytes()))
-
-	for k := range bc.blocksIndexedByHash {
-		log.Info(common.Bytes2Hex(k.Bytes()))
-
-	}
 
 	block := bc.blocksIndexedByHash[hash]
 
@@ -93,6 +87,8 @@ func (bc *Blockchain) GetThreeChainForHead(hash common.Hash) (zero *Block, one *
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
 func (bc *Blockchain) GetThreeChainForTwo(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
+	spew.Dump(bc.blocksIndexedByHash)
+
 	two = bc.GetBlockByHash(twoHash)
 	if two == nil {
 		return nil, nil, nil
@@ -104,7 +100,7 @@ func (bc *Blockchain) GetThreeChainForTwo(twoHash common.Hash) (zero *Block, one
 	}
 
 	zero = bc.GetBlockByHash(one.QRef().Hash())
-	if one == nil {
+	if zero == nil {
 		return nil, one, two
 	}
 

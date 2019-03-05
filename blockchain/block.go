@@ -80,7 +80,8 @@ func CreateHeader2(parent *Header) *Header {
 func CreateBlockFromMessage(block *pb.Block) *Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
 
-	return &Block{header: header, data: block.Data.Data}
+	certificate := CreateQuorumCertificate(block.Cert.GetSignatureAggregate(), CreateBlockHeaderFromMessage(block.Cert.Header))
+	return &Block{header: header, qc: certificate, data: block.Data.Data}
 }
 
 func (h *Header) IsGenesisBlock() bool {
@@ -89,6 +90,5 @@ func (h *Header) IsGenesisBlock() bool {
 
 //TODO Implement me
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
-	return nil
-	//return createHeader(header.Height, header.DataHash, nil, header.Timestamp)
+	return createHeader(header.Height, common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(header.Timestamp, 0))
 }

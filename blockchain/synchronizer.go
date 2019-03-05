@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/eth/common"
 	"github.com/poslibp2p/message"
@@ -46,15 +47,13 @@ func (s *SynchronizerImpl) RequestBlockWithParent(header *Header) {
 		case headBlock, ok := <-headChan:
 			if !ok {
 				headChan = nil
-			}
-			if e := s.bc.AddBlock(headBlock); e != nil {
+			} else if e := s.bc.AddBlock(headBlock); e != nil {
 				log.Error(e)
 			}
 		case parentBlock, ok := <-parentChan:
 			if !ok {
-				headChan = nil
-			}
-			if e := s.bc.AddBlock(parentBlock); e != nil {
+				parentChan = nil
+			} else if e := s.bc.AddBlock(parentBlock); e != nil {
 				log.Error(e)
 			}
 		}
@@ -77,15 +76,18 @@ func (s *SynchronizerImpl) RequestBlock(hash common.Hash, respChan chan<- *Block
 		log.Errorf("Received message of type %v, but expected %v", resp.Type.String(), pb.Message_BLOCK_RESPONSE.String())
 	}
 
-	rp := &pb.BlockResponsePayload{}
+	rp := &pb.Block{}
 	if err := ptypes.UnmarshalAny(resp.Payload, rp); err != nil {
-		log.Error("Couldn't unmarshal response")
+		log.Error("Couldn't unmarshal response", err)
 	}
 
-	blockMsg := rp.GetBlock()
-	block := CreateBlockFromMessage(blockMsg)
+	block := CreateBlockFromMessage(rp)
+
+	log.Info("Received new block")
+	spew.Dump(block)
 	//TODO validate block
 	respChan <- block
+	close(respChan)
 }
 
 func (s *SynchronizerImpl) Bootstrap() {

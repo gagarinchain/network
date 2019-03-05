@@ -3,6 +3,7 @@ package hotstuff
 import (
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/op/go-logging"
 	bc "github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/eth/common"
@@ -59,8 +60,11 @@ func (p *Protocol) GetPref() *bc.Block {
 }
 
 func (p *Protocol) CheckCommit() bool {
-	log.Info("Check commit for", common.Bytes2Hex(p.hqc.QrefBlock().Hash().Bytes()))
+	log.Info("Check commit for", p.hqc.QrefBlock().Hash().Hex())
 	zero, one, two := p.blockchain.GetThreeChainForTwo(p.hqc.QrefBlock().Hash())
+	spew.Dump(zero)
+	spew.Dump(one)
+	spew.Dump(two)
 	if two.Header().Parent() == one.Header().Hash() && one.Header().Parent() == zero.Header().Hash() {
 		p.onCommit(zero)
 		return true
@@ -81,7 +85,7 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 		}
 
 		log.Infof("Got new HQC block[%v], updating height [%v] -> [%v]",
-			qc.QrefBlock().Hash(), p.hqc.QrefBlock().Height(), qc.QrefBlock().Height())
+			qc.QrefBlock().Hash().Hex(), p.hqc.QrefBlock().Height(), qc.QrefBlock().Height())
 
 		p.hqc = qc
 		p.CheckCommit()
