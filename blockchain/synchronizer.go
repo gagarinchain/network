@@ -11,7 +11,7 @@ import (
 type Synchronizer interface {
 	RequestBlock(hash common.Hash, respChan chan<- *Block)
 	Bootstrap()
-	RequestBlockWithDeps(header *Header)
+	RequestBlockWithParent(header *Header)
 }
 
 type SynchronizerImpl struct {
@@ -27,29 +27,21 @@ func CreateSynchronizer(bchan <-chan *Block, me *network.Peer, srv network.Servi
 
 //IMPORTANT: think whether we MUST wait until we receive absent blocks to go on processing
 //I think we must, if we have unknown block in the 3-chain we can't push protocol forward
-func (s *SynchronizerImpl) RequestBlockWithDeps(header *Header) {
+func (s *SynchronizerImpl) RequestBlockWithParent(header *Header) {
 	var headChan chan *Block
 	var parentChan chan *Block
-	var qrefChan chan *Block
 
 	if header != nil && !s.bc.Contains(header.hash) {
 		headChan = make(chan *Block)
 		go s.RequestBlock(header.hash, headChan)
 	}
 
-	if header.parent != nil && !s.bc.Contains(header.parent.hash) {
+	if !s.bc.Contains(header.parent) {
 		parentChan = make(chan *Block)
-		go s.RequestBlock(header.parent.hash, parentChan)
+		go s.RequestBlock(header.parent, parentChan)
 	}
 
-	//TODO think about first two conditions, they probably never should be true, because every block we receive contains qc and must be validated
-	//Wrong, we can pass here qref block header, which won't contain QC itself
-	if header.qc != nil && header.qc.qrefBlock != nil && !s.bc.Contains(header.qc.qrefBlock.hash) {
-		qrefChan = make(chan *Block)
-		go s.RequestBlock(header.qc.qrefBlock.hash, parentChan)
-	}
-
-	for headChan != nil || parentChan != nil || qrefChan != nil {
+	for headChan != nil || parentChan != nil {
 		select {
 		case headBlock, ok := <-headChan:
 			if !ok {
@@ -58,18 +50,11 @@ func (s *SynchronizerImpl) RequestBlockWithDeps(header *Header) {
 			if e := s.bc.AddBlock(headBlock); e != nil {
 				log.Error(e)
 			}
-		case parentBlock, ok := <-headChan:
+		case parentBlock, ok := <-parentChan:
 			if !ok {
 				headChan = nil
 			}
 			if e := s.bc.AddBlock(parentBlock); e != nil {
-				log.Error(e)
-			}
-		case qrefBlock, ok := <-headChan:
-			if !ok {
-				headChan = nil
-			}
-			if e := s.bc.AddBlock(qrefBlock); e != nil {
 				log.Error(e)
 			}
 		}

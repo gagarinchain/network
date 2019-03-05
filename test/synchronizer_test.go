@@ -18,16 +18,16 @@ func TestSynchronizer(t *testing.T) {
 	toTest := blockchain.CreateSynchronizer(make(chan *blockchain.Block), me, srv, bc)
 
 	head := bc.GetHead()
-	newBlock := blockchain.NewBlock(head, bc.GetGenesisCert(), []byte(""))
+	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
 	//newQC := blockchain.CreateQuorumCertificate([]byte("New QC"), newBlock.Header())
 	log.Info("Head ", common.Bytes2Hex(newBlock.Header().Hash().Bytes()))
 
-	pbBlock := newBlock.GetMessage()
+	pbBlock := bc.GetMessageForBlock(newBlock)
 	any, _ := ptypes.MarshalAny(pbBlock)
 	msg := message.CreateMessage(pb.Message_BLOCK_REQUEST, me.GetPrivateKey(), any)
 
 	srv.On("SendMessageToRandomPeer", mock.AnythingOfType("*message.Message")).Return(msg)
 
-	toTest.RequestBlockWithDeps(newBlock.Header())
+	toTest.RequestBlockWithParent(newBlock.Header())
 
 }

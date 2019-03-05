@@ -73,11 +73,11 @@ func TestProtocolUpdateCertificate(t *testing.T) {
 
 	p := hotstuff.CreateProtocol(config)
 
-	newBlock := blockchain.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
+	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", common.Bytes2Hex(newBlock.Header().Hash().Bytes()))
 	newQC := blockchain.CreateQuorumCertificate([]byte("New QC"), newBlock.Header())
 
-	synchr.On("RequestBlockWithDeps", mock.AnythingOfType("*blockchain.Header")).Run(func(args mock.Arguments) {
+	synchr.On("RequestBlockWithParent", mock.AnythingOfType("*blockchain.Header")).Run(func(args mock.Arguments) {
 		assert.Equal(t, newQC.QrefBlock(), args[0].(*blockchain.Header))
 	}).Once()
 

@@ -21,7 +21,7 @@ func (_m *Synchronizer) RequestBlock(hash common.Hash, respChan chan<- *blockcha
 	_m.Called(hash, respChan)
 }
 
-// RequestBlockWithDeps provides a mock function with given fields: header
-func (_m *Synchronizer) RequestBlockWithDeps(header *blockchain.Header) {
+// RequestBlockWithParent provides a mock function with given fields: header
+func (_m *Synchronizer) RequestBlockWithParent(header *blockchain.Header) {
 	_m.Called(header)
 }

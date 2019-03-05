@@ -53,7 +53,7 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 }
 
 //We return qref(qref(HQC_Block))
-func (p *Protocol) GetPref() *bc.Header {
+func (p *Protocol) GetPref() *bc.Block {
 	_, one, _ := p.blockchain.GetThreeChainForTwo(p.hqc.QrefBlock().Hash())
 	return one
 }
@@ -61,7 +61,7 @@ func (p *Protocol) GetPref() *bc.Header {
 func (p *Protocol) CheckCommit() bool {
 	log.Info("Check commit for", common.Bytes2Hex(p.hqc.QrefBlock().Hash().Bytes()))
 	zero, one, two := p.blockchain.GetThreeChainForTwo(p.hqc.QrefBlock().Hash())
-	if two.Parent().Hash() == one.Hash() && one.Parent().Hash() == zero.Hash() {
+	if two.Header().Parent() == one.Header().Hash() && one.Header().Parent() == zero.Header().Hash() {
 		p.onCommit(zero)
 		return true
 	}
@@ -77,7 +77,7 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 
 	if qc.QrefBlock().Height() > p.hqc.QrefBlock().Height() {
 		if !p.blockchain.Contains(qc.QrefBlock().Hash()) {
-			p.synchronizer.RequestBlockWithDeps(qc.QrefBlock())
+			p.synchronizer.RequestBlockWithParent(qc.QrefBlock())
 		}
 
 		log.Infof("Got new HQC block[%v], updating height [%v] -> [%v]",
@@ -88,23 +88,24 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 	}
 }
 
-func (p *Protocol) onCommit(header *bc.Header) {
-	if p.lastExecutedBlock.Height() < header.Height() {
-		p.onCommit(header.Parent())
+func (p *Protocol) onCommit(block *bc.Block) {
+	if p.lastExecutedBlock.Height() < block.Header().Height() {
+		parent := p.blockchain.GetBlockByHash(block.Header().Parent())
+		p.onCommit(parent)
 
-		err := p.blockchain.Execute(header)
+		err := p.blockchain.Execute(block)
 		//TODO decide whether we should panic when we can't execute some block in the middle of the commit chain
 		if err != nil {
-			panic(fmt.Sprintf("Fatal error, commiting block %s which can't be executed properly", header.Hash))
+			panic(fmt.Sprintf("Fatal error, commiting block %s which can't be executed properly", block.Header().Hash()))
 		}
-		p.lastExecutedBlock = header
+		p.lastExecutedBlock = block.Header()
 	}
 
 }
 
 func (p *Protocol) OnReceiveProposal(proposal *bc.Proposal) {
 	p.Update(proposal.HQC)
-	if proposal.NewBlock.Header().Height() > p.vheight && proposal.NewBlock.Header().IsSibling(p.GetPref()) {
+	if proposal.NewBlock.Header().Height() > p.vheight && p.blockchain.IsSibling(proposal.NewBlock.Header(), p.GetPref().Header()) {
 		p.vheight = proposal.NewBlock.Header().Height()
 
 		newBlock := p.blockchain.GetBlockByHash(proposal.NewBlock.Header().Hash())
@@ -138,7 +139,7 @@ func (p *Protocol) OnReceiveVote(vote *bc.Vote) error {
 }
 
 func (p *Protocol) OnPropose(data []byte) {
-	block := bc.NewBlock(p.blockchain.GetHead(), p.hqc, data)
+	block := p.blockchain.NewBlock(p.blockchain.GetHead(), p.hqc, data)
 	proposal := &bc.Proposal{Sender: p.me, NewBlock: block, HQC: p.hqc}
 
 	msg, _ := proposal.GetMessage()

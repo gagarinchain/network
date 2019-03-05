@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/emirpasic/gods/utils"
+	"github.com/gogo/protobuf/proto"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/eth/common"
+	"github.com/poslibp2p/eth/crypto"
+	"github.com/poslibp2p/message/protobuff"
 	"sync"
 )
 import "github.com/emirpasic/gods/maps/treemap"
@@ -14,6 +17,8 @@ type Blockchain struct {
 	indexGuard            *sync.RWMutex
 	blocksIndexedByHash   map[common.Hash]*Block
 	blocksIndexedByHeight *treemap.Map
+
+	synchronizer Synchronizer
 
 	genesisCert *QuorumCertificate
 }
@@ -60,24 +65,24 @@ func (bc *Blockchain) Contains(hash common.Hash) bool {
 
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
-func (bc *Blockchain) GetThreeChainForHead(hash common.Hash) (zero *Header, one *Header, two *Header) {
+func (bc *Blockchain) GetThreeChainForHead(hash common.Hash) (zero *Block, one *Block, two *Block) {
 
 	head := bc.GetBlockByHash(hash)
 	if head == nil {
 		return nil, nil, nil
 	}
 
-	two = head.Header().QRef()
+	two = bc.GetBlockByHash(head.QRef().Hash())
 	if two == nil {
 		return nil, nil, nil
 	}
 
-	one = two.QRef()
+	one = bc.GetBlockByHash(two.QRef().Hash())
 	if one == nil {
 		return nil, nil, two
 	}
 
-	zero = one.QRef()
+	zero = bc.GetBlockByHash(one.QRef().Hash())
 	if one == nil {
 		return nil, one, two
 	}
@@ -87,19 +92,18 @@ func (bc *Blockchain) GetThreeChainForHead(hash common.Hash) (zero *Header, one 
 
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
-func (bc *Blockchain) GetThreeChainForTwo(hash common.Hash) (zero *Header, one *Header, two *Header) {
-	head := bc.GetBlockByHash(hash)
-	if head == nil {
+func (bc *Blockchain) GetThreeChainForTwo(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
+	two = bc.GetBlockByHash(twoHash)
+	if two == nil {
 		return nil, nil, nil
 	}
 
-	two = head.header
-	one = two.QRef()
+	one = bc.GetBlockByHash(two.QRef().Hash())
 	if one == nil {
 		return nil, nil, two
 	}
 
-	zero = one.QRef()
+	zero = bc.GetBlockByHash(one.QRef().Hash())
 	if one == nil {
 		return nil, one, two
 	}
@@ -107,8 +111,8 @@ func (bc *Blockchain) GetThreeChainForTwo(hash common.Hash) (zero *Header, one *
 	return zero, one, two
 }
 
-func (bc *Blockchain) Execute(h *Header) error {
-	log.Infof("Applying transactions to state for block [%s]", h.Hash)
+func (bc *Blockchain) Execute(b *Block) error {
+	log.Infof("Applying transactions to state for block [%s]", b.Header().Hash())
 
 	return nil
 }
@@ -147,4 +151,88 @@ func (bc *Blockchain) GetGenesisBlock() *Block {
 
 func (bc *Blockchain) GetGenesisCert() *QuorumCertificate {
 	return bc.genesisCert
+}
+
+func (bc *Blockchain) Parent(hash common.Hash) *Block {
+	block := bc.GetBlockByHash(hash)
+
+	if block == nil {
+		resp := make(chan *Block)
+		go bc.synchronizer.RequestBlock(hash, resp)
+		block = <-resp
+	}
+	return block
+}
+
+func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
+	//Genesis block is ancestor of every block
+	if ancestor.IsGenesisBlock() {
+		return true
+	}
+
+	parent := bc.Parent(sibling.Hash())
+	if parent.Header().Hash() == ancestor.Hash() && parent.Header().IsGenesisBlock() {
+		return true
+	}
+
+	return bc.IsSibling(parent.Header(), ancestor)
+}
+
+func (bc *Blockchain) GetMessageForHeader(h *Header) (msg *pb.BlockHeader) {
+	parent := bc.Parent(h.Parent())
+	return &pb.BlockHeader{ParentHash: parent.Header().Hash().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().Unix()}
+}
+
+func (bc *Blockchain) GetMessageForBlock(b *Block) (msg *pb.Block) {
+	pdata := &pb.BlockData{Data: b.Data()}
+	qc := b.QC()
+	var pqrefHeader = bc.GetMessageForHeader(qc.QrefBlock())
+	pcert := &pb.QuorumCertificate{Header: pqrefHeader, SignatureAggregate: qc.SignatureAggregate()}
+
+	return &pb.Block{Header: bc.GetMessageForHeader(b.Header()), Data: pdata, Cert: pcert}
+}
+
+func (bc *Blockchain) SerializeHeader(h *Header) []byte {
+	msg := bc.GetMessageForHeader(h)
+
+	bytes, e := proto.Marshal(msg)
+	if e != nil {
+		log.Error("Can't marshall message", e)
+	}
+
+	return bytes
+}
+
+func (bc *Blockchain) SerializeBlock(b *Block) []byte {
+	msg := bc.GetMessageForBlock(b)
+
+	bytes, e := proto.Marshal(msg)
+	if e != nil {
+		log.Error("Can't marshall message", e)
+	}
+
+	return bytes
+}
+
+func (bc *Blockchain) CreateBlockAndSetHash(header *Header, data []byte) *Block {
+	b := &Block{header: header, data: data}
+	bc.SetHash(b)
+	return b
+}
+
+func (bc *Blockchain) SetHash(b *Block) {
+	msg := bc.GetMessageForBlock(b)
+	bytes, e := proto.Marshal(msg)
+	if e == nil {
+		b.header.hash = crypto.Keccak256Hash(bytes)
+	}
+}
+
+func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
+	hash := common.BytesToHash([]byte(""))
+	header := &Header{height: parent.Header().Height() + 1, hash: hash, parent: parent.Header().Hash()}
+	block := &Block{header: header, data: data, qc: qc}
+
+	bc.SetHash(block)
+	return block
 }
