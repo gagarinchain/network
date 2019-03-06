@@ -28,6 +28,11 @@ message ProposalPayload {
 
 }
 
+message VotePayload {
+    QuorumCertificate cert = 1;
+    Block block = 2;
+}
+
 message BlockRequestPayload {
     //TODO Think about using oneof here
     bytes hash = 1;

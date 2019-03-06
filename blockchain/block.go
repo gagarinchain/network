@@ -77,6 +77,10 @@ func CreateHeader2(parent *Header) *Header {
 	return createHeader(parent.height+1, common.BytesToHash(make([]byte, common.HashLength)), parent.Hash(), time.Now())
 }
 
+func (h *Header) IsGenesisBlock() bool {
+	return h.Height() == 0
+}
+
 func CreateBlockFromMessage(block *pb.Block) *Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
 
@@ -84,11 +88,14 @@ func CreateBlockFromMessage(block *pb.Block) *Block {
 	return &Block{header: header, qc: certificate, data: block.Data.Data}
 }
 
-func (h *Header) IsGenesisBlock() bool {
-	return h.Height() == 0
+func (b *Block) GetMessage() *pb.Block {
+	return &pb.Block{Header: b.Header().GetMessage(), Cert: b.QC().GetMessage(), Data: &pb.BlockData{Data: b.Data()}}
 }
 
-//TODO Implement me
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
 	return createHeader(header.Height, common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(header.Timestamp, 0))
+}
+
+func (h *Header) GetMessage() *pb.BlockHeader {
+	return &pb.BlockHeader{ParentHash: h.Parent().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().Unix()}
 }

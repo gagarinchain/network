@@ -23,54 +23,22 @@ import (
 var log = logging.MustGetLogger("hotstuff")
 
 func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
-	identity := generateIdentity(t)
-	current := generateIdentity(t)
-	next := generateIdentity(t)
-	mockSrv := &mocks.Service{}
-	mockSynch := &mocks.Synchronizer{}
-	var srv network.Service = mockSrv
+	_, p, cfg := initProtocol(t)
+	mocksrv := (cfg.Srv).(*mocks.Service)
 
-	config := &hotstuff.ProtocolConfig{
-		F:               10,
-		Blockchain:      blockchain.CreateBlockchainFromGenesisBlock(),
-		Me:              identity,
-		CurrentProposer: current,
-		NextProposer:    next,
-		Srv:             srv,
-		Synchronizer:    mockSynch,
-	}
-
-	p := hotstuff.CreateProtocol(config)
 	log.Info("Protocol ", p)
 
-	mockSrv.On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+	mocksrv.On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
 		assert.Equal(t, pb.Message_PROPOSAL, args[0].(*msg.Message).Type)
 	}).Once()
 
 	p.OnPropose([]byte("proposing something"))
 
-	mockSrv.AssertCalled(t, "Broadcast", mock.AnythingOfType("*message.Message"))
+	mocksrv.AssertCalled(t, "Broadcast", mock.AnythingOfType("*message.Message"))
 }
 
-func TestProtocolUpdateCertificate(t *testing.T) {
-	identity := generateIdentity(t)
-	current := generateIdentity(t)
-	next := generateIdentity(t)
-	srv := &mocks.Service{}
-	synchr := &mocks.Synchronizer{}
-
-	bc := blockchain.CreateBlockchainFromGenesisBlock()
-	config := &hotstuff.ProtocolConfig{
-		F:               10,
-		Blockchain:      bc,
-		Me:              identity,
-		CurrentProposer: current,
-		NextProposer:    next,
-		Srv:             srv,
-		Synchronizer:    synchr,
-	}
-
-	p := hotstuff.CreateProtocol(config)
+func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
+	bc, p, _ := initProtocol(t)
 
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
@@ -83,6 +51,137 @@ func TestProtocolUpdateCertificate(t *testing.T) {
 	hqc := p.HQC()
 
 	assert.Equal(t, newQC, hqc)
+}
+
+func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
+	bc, p, _ := initProtocol(t)
+
+	head := bc.GetHead()
+	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
+	log.Info("Head ", newBlock.Header().Hash().Hex())
+	newQC := blockchain.CreateQuorumCertificate([]byte("New QC"), newBlock.Header())
+	if e := bc.AddBlock(newBlock); e != nil {
+		t.Error(e)
+	}
+
+	p.Update(newQC)     //Update to new
+	p.Update(head.QC()) //Revert to old
+	hqc := p.HQC()
+
+	assert.Equal(t, newQC, hqc)
+}
+
+func TestOnReceiveProposal(t *testing.T) {
+	bc, p, cfg := initProtocol(t)
+	head := bc.GetHead()
+	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	if e := bc.AddBlock(newBlock); e != nil {
+		t.Error("can't add block", e)
+	}
+
+	proposal := &hotstuff.Proposal{Sender: cfg.CurrentProposer, NewBlock: newBlock, HQC: head.QC()}
+	srv := (cfg.Srv).(*mocks.Service)
+	var vote *hotstuff.Vote
+	srv.On("SendMessage", cfg.CurrentProposer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		m := (args[1]).(*msg.Message)
+		var err error
+		if vote, err = hotstuff.CreateVoteFromMessage(m, cfg.Me); err != nil {
+			t.Error("can't create vote", err)
+		}
+	}).Once()
+
+	if err := p.OnReceiveProposal(proposal); err != nil {
+		t.Error("Error while receiving proposal", err)
+	}
+
+	srv.AssertCalled(t, "SendMessage", cfg.CurrentProposer, mock.AnythingOfType("*message.Message"))
+	assert.Equal(t, proposal.NewBlock.Header().Hash(), vote.NewBlock.Header().Hash())
+	assert.Equal(t, vote.NewBlock.Header().Height(), p.Vheight())
+
+}
+
+func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
+	bc, p, cfg := initProtocol(t)
+	head := bc.GetHead()
+	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	if e := bc.AddBlock(newBlock); e != nil {
+		t.Error("can't add block", e)
+	}
+
+	proposal := &hotstuff.Proposal{Sender: cfg.NextProposer, NewBlock: newBlock, HQC: head.QC()}
+
+	assert.Error(t, p.OnReceiveProposal(proposal), "peer equivocated")
+	assert.Equal(t, int32(2), p.Vheight())
+}
+
+func TestOnReceiveVoteForNotProposer(t *testing.T) {
+	bc, p, cfg := initProtocol(t)
+	p.SetCurrentProposer(cfg.Me)
+
+	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	vote := createVote(bc, newBlock, t)
+
+	if err := p.OnReceiveVote(vote); err != nil {
+		t.Error("failed OnReceive", err)
+	}
+
+	//todo assert that text was print
+}
+
+func TestOnReceiveVote(t *testing.T) {
+	bc, p, cfg := initProtocol(t)
+	p.SetCurrentProposer(cfg.Me)
+
+	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	if e := bc.AddBlock(newBlock); e != nil {
+		t.Error("can't add block", e)
+	}
+
+	votes := createVotes(cfg.F/3+1, bc, newBlock, t)
+
+	for _, vote := range votes {
+		if err := p.OnReceiveVote(vote); err != nil {
+			t.Error("failed OnReceive", err)
+		}
+	}
+
+	assert.Equal(t, newBlock.Header().Hash(), p.HQC().QrefBlock().Hash())
+
+}
+
+func createVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) *hotstuff.Vote {
+	vote := hotstuff.CreateVote(newBlock, bc.GetGenesisCert(), generateIdentity(t))
+	return vote
+}
+
+func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) []*hotstuff.Vote {
+	votes := make([]*hotstuff.Vote, count)
+
+	for i := 0; i < count; i++ {
+		votes[i] = createVote(bc, newBlock, t)
+	}
+
+	return votes
+}
+
+func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig) {
+	identity := generateIdentity(t)
+	current := generateIdentity(t)
+	next := generateIdentity(t)
+	srv := &mocks.Service{}
+	synchr := &mocks.Synchronizer{}
+	bc := blockchain.CreateBlockchainFromGenesisBlock()
+	bc.SetSynchronizer(synchr)
+	config := &hotstuff.ProtocolConfig{
+		F:               10,
+		Blockchain:      bc,
+		Me:              identity,
+		CurrentProposer: current,
+		NextProposer:    next,
+		Srv:             srv,
+	}
+	p := hotstuff.CreateProtocol(config)
+	return bc, p, config
 }
 
 func generateIdentity(t *testing.T) *network.Peer {

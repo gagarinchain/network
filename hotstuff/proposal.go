@@ -1,7 +1,8 @@
-package blockchain
+package hotstuff
 
 import (
 	"github.com/golang/protobuf/ptypes"
+	"github.com/poslibp2p/blockchain"
 	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
@@ -9,8 +10,8 @@ import (
 
 type Proposal struct {
 	Sender   *network.Peer
-	NewBlock *Block
-	HQC      *QuorumCertificate
+	NewBlock *blockchain.Block
+	HQC      *blockchain.QuorumCertificate
 }
 
 func (p *Proposal) GetMessage() (*msg.Message, error) {

@@ -24,6 +24,10 @@ type Blockchain struct {
 	genesisCert *QuorumCertificate
 }
 
+func (bc *Blockchain) SetSynchronizer(synchronizer Synchronizer) {
+	bc.synchronizer = synchronizer
+}
+
 var log = logging.MustGetLogger("blockchain")
 
 func CreateBlockchainFromGenesisBlock() *Blockchain {
@@ -50,6 +54,25 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) *Block {
 	//	panic(fmt.Sprintf("Can't find expected block for [%hash]", hash))
 	//}
 	//
+	return block
+}
+
+func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) *Block {
+	if block := bc.GetBlockByHash(hash); block != nil {
+		return block
+	}
+	block := bc.LoadBlock(hash)
+	return block
+}
+
+func (bc *Blockchain) LoadBlock(hash common.Hash) *Block {
+	log.Infof("Loading block with hash [%v]", hash.Hex())
+	ch := make(chan *Block)
+	go bc.synchronizer.RequestBlock(hash, ch)
+	block := <-ch
+	if err := bc.AddBlock(block); err != nil {
+		log.Error("Can't add loaded block", err)
+	}
 	return block
 }
 
@@ -123,6 +146,9 @@ func (bc *Blockchain) GetHead() *Block {
 }
 
 func (bc *Blockchain) AddBlock(block *Block) error {
+	log.Infof("Adding block with hash [%v]", block.header.Hash().Hex())
+	//spew.Dump(block)
+
 	bc.indexGuard.Lock()
 	defer bc.indexGuard.Unlock()
 
@@ -149,25 +175,19 @@ func (bc *Blockchain) GetGenesisCert() *QuorumCertificate {
 	return bc.genesisCert
 }
 
-func (bc *Blockchain) Parent(hash common.Hash) *Block {
-	block := bc.GetBlockByHash(hash)
-
-	if block == nil {
-		resp := make(chan *Block)
-		go bc.synchronizer.RequestBlock(hash, resp)
-		block = <-resp
-	}
-	return block
-}
-
 func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 	//Genesis block is ancestor of every block
 	if ancestor.IsGenesisBlock() {
 		return true
 	}
 
-	parent := bc.Parent(sibling.Hash())
-	if parent.Header().Hash() == ancestor.Hash() && parent.Header().IsGenesisBlock() {
+	parent := bc.GetBlockByHashOrLoad(sibling.parent)
+
+	if parent.Header().IsGenesisBlock() || parent.header.height < ancestor.height {
+		return false
+	}
+
+	if parent.Header().Hash() == ancestor.Hash() {
 		return true
 	}
 
@@ -175,7 +195,7 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 }
 
 func (bc *Blockchain) GetMessageForHeader(h *Header) (msg *pb.BlockHeader) {
-	parent := bc.Parent(h.Parent())
+	parent := bc.GetBlockByHashOrLoad(h.Parent())
 	return &pb.BlockHeader{ParentHash: parent.Header().Hash().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().Unix()}
 }
 
