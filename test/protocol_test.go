@@ -137,7 +137,7 @@ func TestOnReceiveVote(t *testing.T) {
 		t.Error("can't add block", e)
 	}
 
-	votes := createVotes(cfg.F/3+1, bc, newBlock, t)
+	votes := createVotes((cfg.F/3)*2+1, bc, newBlock, t)
 
 	for _, vote := range votes {
 		if err := p.OnReceiveVote(vote); err != nil {

@@ -57,7 +57,7 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 	}
 }
 
-//We return qref(qref(HQC_Block))
+//We return qref(qref(HQC_Block)) Pref block is the one that saw at least f+1 honest peers
 func (p *Protocol) GetPref() *bc.Block {
 	_, one, _ := p.blockchain.GetThreeChainForTwo(p.hqc.QrefBlock().Hash())
 	return one
@@ -70,7 +70,7 @@ func (p *Protocol) CheckCommit() bool {
 	spew.Dump(one)
 	spew.Dump(two)
 	if two.Header().Parent() == one.Header().Hash() && one.Header().Parent() == zero.Header().Hash() {
-		p.onCommit(zero)
+		p.blockchain.OnCommit(zero)
 		return true
 	}
 
@@ -91,21 +91,6 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 		p.hqc = qc
 		p.CheckCommit()
 	}
-}
-
-func (p *Protocol) onCommit(block *bc.Block) {
-	if p.lastExecutedBlock.Height() < block.Header().Height() {
-		parent := p.blockchain.GetBlockByHash(block.Header().Parent())
-		p.onCommit(parent)
-
-		err := p.blockchain.Execute(block)
-		//TODO decide whether we should panic when we can't execute some block in the middle of the commit chain
-		if err != nil {
-			panic(fmt.Sprintf("Fatal error, commiting block %s which can't be executed properly", block.Header().Hash()))
-		}
-		p.lastExecutedBlock = block.Header()
-	}
-
 }
 
 func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
@@ -165,6 +150,7 @@ func (p *Protocol) OnReceiveVote(vote *Vote) error {
 
 	if p.CheckConsensus() {
 		p.FinishQC(vote.NewBlock)
+		//TODO we can prepare block here and propose it
 	}
 	return nil
 }
@@ -195,19 +181,22 @@ func (p *Protocol) CheckConsensus() bool {
 		}
 	}
 
-	if secondBestStat.score >= p.f/3+1 {
+	if secondBestStat.score >= (p.f/3)*2+1 {
 		panic(fmt.Sprintf("at list two blocks [%v], [%v]  got consensus score, reload chain than go on",
 			bestStat.block, secondBestStat.block))
 	}
 
-	if bestStat.score >= p.f/3+1 {
+	if bestStat.score >= (p.f/3)*2+1 {
 		return true
 	}
 
 	return false
 }
 
+//We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block
+//determined by it."
 func (p *Protocol) OnPropose(data []byte) {
+	//TODO here we must find out which block on the head to choose
 	block := p.blockchain.NewBlock(p.blockchain.GetHead(), p.hqc, data)
 	proposal := &Proposal{Sender: p.me, NewBlock: block, HQC: p.hqc}
 
@@ -222,7 +211,9 @@ func (*Protocol) equivocate(peer *network.Peer) {
 func (p *Protocol) FinishQC(block *bc.Block) {
 	//TODO Probably null votes map
 	//TODO Aggregate signatures
+	//we get new QC, it means it is a good time to propose
 	p.hqc = bc.CreateQuorumCertificate([]byte("new QC"), block.Header())
+
 }
 
 func (p *Protocol) HQC() *bc.QuorumCertificate {

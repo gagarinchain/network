@@ -15,9 +15,16 @@ import (
 import "github.com/emirpasic/gods/maps/treemap"
 
 type Blockchain struct {
-	indexGuard            *sync.RWMutex
-	blocksIndexedByHash   map[common.Hash]*Block
-	blocksIndexedByHeight *treemap.Map
+	indexGuard *sync.RWMutex
+	//index for storing blocks by their hash
+	blocksByHash map[common.Hash]*Block
+
+	//indexes for storing blocks according to their height,
+	// <int32, *Block>
+	committedTailByHeight *treemap.Map
+	//indexes for storing block arrays according to their height, while not committed head may contain forks,
+	//<int32, []*Block>
+	uncommittedHeadByHeight *treemap.Map
 
 	synchronizer Synchronizer
 
@@ -32,8 +39,11 @@ var log = logging.MustGetLogger("blockchain")
 
 func CreateBlockchainFromGenesisBlock() *Blockchain {
 	zero, one, two, certToHead := CreateGenesisTriChain()
-	blockchain := &Blockchain{blocksIndexedByHash: make(map[common.Hash]*Block),
-		blocksIndexedByHeight: treemap.NewWith(utils.Int32Comparator), indexGuard: &sync.RWMutex{}}
+	blockchain := &Blockchain{
+		blocksByHash:            make(map[common.Hash]*Block),
+		committedTailByHeight:   treemap.NewWith(utils.Int32Comparator),
+		uncommittedHeadByHeight: treemap.NewWith(utils.Int32Comparator),
+		indexGuard:              &sync.RWMutex{}}
 
 	blockchain.AddBlock(zero)
 	blockchain.AddBlock(one)
@@ -48,7 +58,7 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
-	block := bc.blocksIndexedByHash[hash]
+	block := bc.blocksByHash[hash]
 
 	//if block == nil {
 	//	panic(fmt.Sprintf("Can't find expected block for [%hash]", hash))
@@ -110,7 +120,7 @@ func (bc *Blockchain) GetThreeChainForHead(hash common.Hash) (zero *Block, one *
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
 func (bc *Blockchain) GetThreeChainForTwo(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
-	spew.Dump(bc.blocksIndexedByHash)
+	spew.Dump(bc.blocksByHash)
 
 	two = bc.GetBlockByHash(twoHash)
 	if two == nil {
@@ -130,7 +140,33 @@ func (bc *Blockchain) GetThreeChainForTwo(twoHash common.Hash) (zero *Block, one
 	return zero, one, two
 }
 
+//move uncommitted chain with b as head to committed and analyze rejected forks
+func (bc *Blockchain) OnCommit(b *Block) {
+	bc.indexGuard.RLock()
+	uncommittedTail := bc.uncommittedHeadByHeight.Select(func(key interface{}, value interface{}) bool {
+		return key.(int32) <= b.Header().height
+	})
+	bc.indexGuard.RUnlock()
+
+	for i := 0; i < uncommittedTail.Size(); i++ {
+		bc.indexGuard.Lock()
+		bc.committedTailByHeight.Put(b.Header().Height(), b)
+		bc.uncommittedHeadByHeight.Remove(b.Header().Height())
+		bc.indexGuard.Unlock()
+
+		b = bc.GetBlockByHash(b.Header().Hash())
+	}
+
+	analyze(uncommittedTail)
+}
+
+//TODO analyze forks and find where peers equivocated, than possibly slash them
+func analyze(uncommittedTail *treemap.Map) {
+	log.Infof("Analyzing")
+}
+
 func (bc *Blockchain) Execute(b *Block) error {
+
 	log.Infof("Applying transactions to state for block [%s]", b.Header().Hash())
 
 	return nil
@@ -139,10 +175,9 @@ func (bc *Blockchain) GetHead() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
-	//TODO find out can we have several heads by design? what fork choice rule we have
-	_, block := bc.blocksIndexedByHeight.Max()
-	var b = block.(*Block)
-	return b
+	_, blocks := bc.uncommittedHeadByHeight.Max()
+	var b = blocks.([]*Block)
+	return b[0]
 }
 
 func (bc *Blockchain) AddBlock(block *Block) error {
@@ -152,12 +187,18 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	bc.indexGuard.Lock()
 	defer bc.indexGuard.Unlock()
 
-	if bc.blocksIndexedByHash[block.Header().Hash()] != nil {
+	if bc.blocksByHash[block.Header().Hash()] != nil {
 		return errors.New(fmt.Sprintf("block with hash [%v] already exist", block.Header().Hash()))
 	}
 
-	bc.blocksIndexedByHeight.Put(block.Header().Height(), block)
-	bc.blocksIndexedByHash[block.Header().Hash()] = block
+	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
+	if value == nil {
+		value = make([]*Block, 0)
+	}
+
+	value = append(value.([]*Block), block)
+	bc.blocksByHash[block.Header().Hash()] = block
+	bc.uncommittedHeadByHeight.Put(block.Header().Height(), value)
 
 	return nil
 }
@@ -166,7 +207,12 @@ func (bc *Blockchain) GetGenesisBlock() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
-	_, value := bc.blocksIndexedByHeight.Min()
+	value, ok := bc.committedTailByHeight.Get(int32(0))
+	if !ok {
+		if h, okk := bc.uncommittedHeadByHeight.Get(int32(0)); okk {
+			value = h.([]*Block)[0]
+		}
+	}
 
 	return value.(*Block)
 }
