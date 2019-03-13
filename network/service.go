@@ -6,7 +6,7 @@ import (
 
 type Service interface {
 	//Send message to particular peer
-	SendMessage(peer *Peer, msg *msg.Message)
+	SendMessage(peer *msg.Peer, msg *msg.Message)
 
 	//Send message to a random peer
 	SendMessageToRandomPeer(req *msg.Message) (resp *msg.Message)
@@ -18,7 +18,7 @@ type Service interface {
 type ServiceImpl struct {
 }
 
-func (s *ServiceImpl) SendMessage(peer *Peer, msg *msg.Message) {
+func (s *ServiceImpl) SendMessage(peer *msg.Peer, msg *msg.Message) {
 
 }
 func (s *ServiceImpl) SendMessageToRandomPeer(msg *msg.Message) (resp *msg.Message) {

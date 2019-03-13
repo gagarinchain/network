@@ -11,7 +11,6 @@ import (
 	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/mocks"
-	"github.com/poslibp2p/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	mrnd "math/rand"
@@ -26,7 +25,7 @@ func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
 	_, p, cfg := initProtocol(t)
 	mocksrv := (cfg.Srv).(*mocks.Service)
 
-	log.Info("Protocol ", p)
+	log.Info("BlockProtocol ", p)
 
 	mocksrv.On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
 		assert.Equal(t, pb.Message_PROPOSAL, args[0].(*msg.Message).Type)
@@ -85,7 +84,7 @@ func TestOnReceiveProposal(t *testing.T) {
 	srv.On("SendMessage", cfg.CurrentProposer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
 		m := (args[1]).(*msg.Message)
 		var err error
-		if vote, err = hotstuff.CreateVoteFromMessage(m, cfg.Me); err != nil {
+		if vote, err = hotstuff.CreateVoteFromMessage(m, newBlock, cfg.Me); err != nil {
 			t.Error("can't create vote", err)
 		}
 	}).Once()
@@ -116,7 +115,7 @@ func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 
 func TestOnReceiveVoteForNotProposer(t *testing.T) {
 	bc, p, cfg := initProtocol(t)
-	p.SetCurrentProposer(cfg.Me)
+	p.SetCurrentProposer(cfg.NextProposer)
 
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	vote := createVote(bc, newBlock, t)
@@ -124,8 +123,27 @@ func TestOnReceiveVoteForNotProposer(t *testing.T) {
 	if err := p.OnReceiveVote(vote); err != nil {
 		t.Error("failed OnReceive", err)
 	}
+}
 
-	//todo assert that text was print
+func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
+	bc, p, cfg := initProtocol(t)
+	p.SetCurrentProposer(cfg.Me)
+
+	id := generateIdentity(t)
+	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock2 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
+	vote1 := hotstuff.CreateVote(newBlock1, bc.GetGenesisCert(), id)
+	vote2 := hotstuff.CreateVote(newBlock2, bc.GetGenesisCert(), id)
+
+	if err := p.OnReceiveVote(vote1); err != nil {
+		t.Error("failed OnReceive", err)
+	}
+	err := p.OnReceiveVote(vote2)
+	if err == nil {
+		t.Fail()
+	}
+
+	assert.Error(t, err)
 }
 
 func TestOnReceiveVote(t *testing.T) {
@@ -184,7 +202,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	return bc, p, config
 }
 
-func generateIdentity(t *testing.T) *network.Peer {
+func generateIdentity(t *testing.T) *msg.Peer {
 	privateKey, e := crypto.GenerateKey()
 	if e != nil {
 		t.Errorf("failed to generate key")
@@ -210,7 +228,7 @@ func generateIdentity(t *testing.T) *network.Peer {
 		Addrs: []ma.Multiaddr{a, b},
 	}
 
-	return network.CreatePeer(&privateKey.PublicKey, privateKey, pi)
+	return msg.CreatePeer(&privateKey.PublicKey, privateKey, pi)
 }
 
 func mustAddr(t *testing.T, s string) ma.Multiaddr {

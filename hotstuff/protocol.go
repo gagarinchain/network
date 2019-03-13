@@ -8,7 +8,7 @@ import (
 	"github.com/op/go-logging"
 	bc "github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/message"
+	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
 )
@@ -18,9 +18,9 @@ var log = logging.MustGetLogger("hotstuff")
 type ProtocolConfig struct {
 	F               int
 	Blockchain      *bc.Blockchain
-	Me              *network.Peer
-	CurrentProposer *network.Peer
-	NextProposer    *network.Peer
+	Me              *msg.Peer
+	CurrentProposer *msg.Peer
+	NextProposer    *msg.Peer
 	Srv             network.Service
 }
 
@@ -32,9 +32,9 @@ type Protocol struct {
 	votes             map[common.Address]*Vote
 	lastExecutedBlock *bc.Header
 	hqc               *bc.QuorumCertificate
-	me                *network.Peer
-	currentProposer   *network.Peer
-	nextProposer      *network.Peer
+	me                *msg.Peer
+	currentProposer   *msg.Peer
+	nextProposer      *msg.Peer
 	srv               network.Service
 }
 
@@ -59,13 +59,13 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 
 //We return qref(qref(HQC_Block)) Pref block is the one that saw at least f+1 honest peers
 func (p *Protocol) GetPref() *bc.Block {
-	_, one, _ := p.blockchain.GetThreeChainForTwo(p.hqc.QrefBlock().Hash())
+	_, one, _ := p.blockchain.GetThreeChain(p.hqc.QrefBlock().Hash())
 	return one
 }
 
 func (p *Protocol) CheckCommit() bool {
 	log.Info("Check commit for", p.hqc.QrefBlock().Hash().Hex())
-	zero, one, two := p.blockchain.GetThreeChainForTwo(p.hqc.QrefBlock().Hash())
+	zero, one, two := p.blockchain.GetThreeChain(p.hqc.QrefBlock().Hash())
 	spew.Dump(zero)
 	spew.Dump(one)
 	spew.Dump(two)
@@ -108,20 +108,21 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 
 		newBlock := p.blockchain.GetBlockByHash(proposal.NewBlock.Header().Hash())
 		vote := CreateVote(newBlock, p.hqc, p.me)
+		vote.Sign(p.me.GetPrivateKey())
 
 		vMsg := vote.GetMessage()
 		any, e := ptypes.MarshalAny(vMsg)
 		if e != nil {
 			log.Error(e)
 		}
-		msg := message.CreateMessage(pb.Message_VOTE, p.me.GetPrivateKey(), any)
+		m := msg.CreateMessage(pb.Message_VOTE, any)
 
-		p.srv.SendMessage(proposal.Sender, msg)
+		p.srv.SendMessage(proposal.Sender, m)
 	}
 
 	return nil
 }
-func (p *Protocol) SetCurrentProposer(peer *network.Peer) {
+func (p *Protocol) SetCurrentProposer(peer *msg.Peer) {
 	p.currentProposer = peer
 }
 
@@ -136,7 +137,7 @@ func (p *Protocol) OnReceiveVote(vote *Vote) error {
 	id := vote.Sender.GetAddress()
 
 	if v, ok := p.votes[id]; ok {
-		log.Info("Already got vote [%v] from [%v]", v, id)
+		log.Infof("Already got vote for block [%v] from [%v]", v.NewBlock.Header().Hash().Hex(), id.Hex())
 
 		//check whether peer voted again for the same block
 		if v.NewBlock.Header().Hash() != vote.NewBlock.Header().Hash() {
@@ -196,26 +197,79 @@ func (p *Protocol) CheckConsensus() bool {
 //We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block
 //determined by it."
 func (p *Protocol) OnPropose(data []byte) {
-	//TODO here we must find out which block on the head to choose
+	//TODO    write test to fail on signature
 	block := p.blockchain.NewBlock(p.blockchain.GetHead(), p.hqc, data)
-	proposal := &Proposal{Sender: p.me, NewBlock: block, HQC: p.hqc}
+	proposal := CreateProposal(block, p.hqc, p.me)
 
-	msg, _ := proposal.GetMessage()
-	p.srv.Broadcast(msg)
+	proposal.Sign(p.me.GetPrivateKey())
+
+	payload := proposal.GetMessage()
+	any, e := ptypes.MarshalAny(payload)
+	if e != nil {
+		log.Error(e)
+	}
+	m := msg.CreateMessage(pb.Message_PROPOSAL, any)
+	p.srv.Broadcast(m)
 }
 
-func (*Protocol) equivocate(peer *network.Peer) {
-	log.Warningf("Peer [%v] equivocated", peer)
+func (*Protocol) equivocate(peer *msg.Peer) {
+	log.Warningf("Peer [%v] equivocated", peer.GetAddress().Hex())
 }
 
 func (p *Protocol) FinishQC(block *bc.Block) {
-	//TODO Probably null votes map
-	//TODO Aggregate signatures
-	//we get new QC, it means it is a good time to propose
-	p.hqc = bc.CreateQuorumCertificate([]byte("new QC"), block.Header())
+	//Simply concatenate votes for now
+	var aggregate []byte
+	for _, v := range p.votes {
+		aggregate = append(aggregate, v.Signature...)
+	}
+	p.hqc = bc.CreateQuorumCertificate(aggregate, block.Header())
 
+	//we get new QC, it means it is a good time to propose
 }
 
 func (p *Protocol) HQC() *bc.QuorumCertificate {
 	return p.hqc
+}
+
+func (p *Protocol) OnProposerChange(peer *msg.Peer) {
+	p.nextProposer = peer
+	p.votes = make(map[common.Address]*Vote)
+}
+
+func (p *Protocol) Run(msgChan chan *msg.Message, nextProposerChan chan *msg.Peer) {
+	for {
+		select {
+		case m := <-msgChan:
+			switch m.Type {
+			case pb.Message_VOTE:
+				//TODO remove this shitty code
+				vp := &pb.VotePayload{}
+				if err := ptypes.UnmarshalAny(m.Payload, vp); err != nil {
+					log.Error("Couldn't unmarshal response", err)
+				}
+				block := p.blockchain.GetBlockByHash(common.BytesToHash(vp.BlockHash))
+
+				v, err := CreateVoteFromMessage(m, block, &msg.Peer{})
+				if err != nil {
+					log.Error(err)
+					break
+				}
+				if err := p.OnReceiveVote(v); err != nil {
+					log.Error("Error while handling vote", err)
+				}
+			case pb.Message_PROPOSAL:
+				pr, err := CreateProposalFromMessage(m, &msg.Peer{})
+				if err != nil {
+					log.Error(err)
+					break
+				}
+				if err := p.OnReceiveProposal(pr); err != nil {
+					log.Error("Error while handling vote", err)
+				}
+			}
+		case nextProposer := <-nextProposerChan:
+			p.OnProposerChange(nextProposer)
+		}
+	}
+
 }

@@ -14,10 +14,10 @@ func TestDispatch(t *testing.T) {
 
 	mockHandler := &mocks.Handler{}
 	handlers := map[pb.Message_MessageType]message.Handler{
-		pb.Message_HELLO: mockHandler,
+		pb.Message_HELLO_REQUEST: mockHandler,
 	}
 
-	outM := &message.Message{Message: &pb.Message{Type: pb.Message_HELLO}}
+	outM := &message.Message{Message: &pb.Message{Type: pb.Message_HELLO_REQUEST}}
 
 	var wg = sync.WaitGroup{}
 	wg.Add(1)
@@ -42,7 +42,7 @@ func TestDispatchWithDefaultDispatcher(t *testing.T) {
 
 	mockHandler := &mocks.Handler{}
 	handlers := map[pb.Message_MessageType]message.Handler{
-		pb.Message_HELLO: mockHandler,
+		pb.Message_HELLO_REQUEST: mockHandler,
 	}
 
 	outM := &message.Message{Message: &pb.Message{Type: -1}}

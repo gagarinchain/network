@@ -1,6 +1,8 @@
 package blockchain
 
 import (
+	"crypto/ecdsa"
+	"github.com/gogo/protobuf/proto"
 	"github.com/poslibp2p/eth/common"
 	"github.com/poslibp2p/eth/crypto"
 	"github.com/poslibp2p/message/protobuff"
@@ -50,18 +52,18 @@ func (b *Block) QRef() *Header {
 
 func CreateGenesisTriChain() (zero *Block, one *Block, two *Block, certToHead *QuorumCertificate) {
 	//TODO find out what to do with alfa cert
-	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)), time.Now())
+	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)), time.Now().Round(time.Millisecond))
 	zeroHeader.hash = crypto.Keccak256Hash([]byte("Block zero"))
 	//We need block to calculate it's hash
 	z := &Block{header: zeroHeader, data: []byte("Zero")}
 	zeroCert := CreateQuorumCertificate([]byte("Valid"), z.header)
 
-	firstHeader := createHeader(1, common.BytesToHash(make([]byte, common.HashLength)), zeroHeader.Hash(), time.Now())
+	firstHeader := createHeader(1, common.BytesToHash(make([]byte, common.HashLength)), zeroHeader.Hash(), time.Now().Round(time.Millisecond))
 	firstHeader.hash = crypto.Keccak256Hash([]byte("Block one"))
 	first := &Block{header: firstHeader, data: []byte("First"), qc: zeroCert}
 	firstCert := CreateQuorumCertificate([]byte("Valid"), firstHeader)
 
-	secondHeader := createHeader(2, common.BytesToHash(make([]byte, common.HashLength)), firstHeader.Hash(), time.Now())
+	secondHeader := createHeader(2, common.BytesToHash(make([]byte, common.HashLength)), firstHeader.Hash(), time.Now().Round(time.Millisecond))
 	secondHeader.hash = crypto.Keccak256Hash([]byte("Block two"))
 	second := &Block{header: secondHeader, data: []byte("Second"), qc: firstCert}
 	secondCert := CreateQuorumCertificate([]byte("Valid"), secondHeader)
@@ -71,10 +73,6 @@ func CreateGenesisTriChain() (zero *Block, one *Block, two *Block, certToHead *Q
 
 func createHeader(height int32, hash common.Hash, parent common.Hash, timestamp time.Time) *Header {
 	return &Header{height: height, hash: hash, parent: parent, timestamp: timestamp}
-}
-
-func CreateHeader2(parent *Header) *Header {
-	return createHeader(parent.height+1, common.BytesToHash(make([]byte, common.HashLength)), parent.Hash(), time.Now())
 }
 
 func (h *Header) IsGenesisBlock() bool {
@@ -93,9 +91,36 @@ func (b *Block) GetMessage() *pb.Block {
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
-	return createHeader(header.Height, common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(header.Timestamp, 0))
+	return createHeader(header.Height, common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(0, header.Timestamp))
 }
 
 func (h *Header) GetMessage() *pb.BlockHeader {
-	return &pb.BlockHeader{ParentHash: h.Parent().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().Unix()}
+	return &pb.BlockHeader{ParentHash: h.Parent().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().UnixNano()}
+}
+
+func (h *Header) SetHash() {
+	h.hash = HashHeader(*h)
+}
+
+//We intentionally use this method on structure not on pointer to it, we need of blockHeader here
+func HashHeader(h Header) common.Hash {
+	h.hash = common.Hash{}
+	m := h.GetMessage()
+	bytes, e := proto.Marshal(m)
+	if e != nil {
+		log.Error("Can't marshal message")
+	}
+
+	return common.BytesToHash(crypto.Keccak256(bytes))
+}
+
+//returns 65 byte of header signature in [R || S || V] format
+func (h *Header) Sign(key *ecdsa.PrivateKey) []byte {
+	sig, err := crypto.Sign(h.hash.Bytes(), key)
+
+	if err != nil {
+		log.Error("Can't sign message", err)
+	}
+
+	return sig
 }

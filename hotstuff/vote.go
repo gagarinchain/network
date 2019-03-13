@@ -1,26 +1,34 @@
 package hotstuff
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
 	bc "github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/message"
+	"github.com/poslibp2p/eth/common"
+	"github.com/poslibp2p/eth/crypto"
+	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
-	"github.com/poslibp2p/network"
 )
 
 type Vote struct {
-	Sender   *network.Peer
+	Sender   *msg.Peer
 	NewBlock *bc.Block
-	HQC      *bc.QuorumCertificate
+	//We should not allow to change header if we want signature to be consistent with block
+	Signature []byte
+	HQC       *bc.QuorumCertificate
 }
 
-func CreateVote(newBlock *bc.Block, hqc *bc.QuorumCertificate, me *network.Peer) *Vote {
-	return &Vote{Sender: me, NewBlock: newBlock, HQC: hqc}
+func CreateVote(newBlock *bc.Block, hqc *bc.QuorumCertificate, sender *msg.Peer) *Vote {
+	return &Vote{Sender: sender, NewBlock: newBlock, HQC: hqc}
 }
 
-func CreateVoteFromMessage(msg *message.Message, p *network.Peer) (*Vote, error) {
+func (v *Vote) Sign(key *ecdsa.PrivateKey) {
+	v.Signature = v.NewBlock.Header().Sign(key)
+}
+
+func CreateVoteFromMessage(msg *msg.Message, b *bc.Block, sender *msg.Peer) (*Vote, error) {
 	if msg.Type != pb.Message_VOTE {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_VOTE.String(), msg.Type))
@@ -31,9 +39,17 @@ func CreateVoteFromMessage(msg *message.Message, p *network.Peer) (*Vote, error)
 		log.Error("Couldn't unmarshal response", err)
 	}
 	qc := bc.CreateQuorumCertificateFromMessage(vp.Cert)
-	return CreateVote(bc.CreateBlockFromMessage(vp.Block), qc, p), nil
+
+	pub, e := crypto.SigToPub(vp.BlockHash, vp.Signature)
+	if e != nil {
+		return nil, errors.New("bad signature")
+	}
+	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
+	sender.SetAddress(a)
+
+	return CreateVote(b, qc, sender), nil
 }
 
 func (v *Vote) GetMessage() *pb.VotePayload {
-	return &pb.VotePayload{Cert: v.HQC.GetMessage(), Block: v.NewBlock.GetMessage()}
+	return &pb.VotePayload{Cert: v.HQC.GetMessage(), BlockHash: v.NewBlock.Header().Hash().Bytes(), Signature: v.Signature}
 }

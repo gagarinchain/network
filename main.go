@@ -1,12 +1,9 @@
 package main
 
 import (
-	"context"
 	"crypto/rand"
 	"flag"
 	"fmt"
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
 	golog "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-crypto"
 	"github.com/libp2p/go-libp2p-peer"
@@ -17,11 +14,9 @@ import (
 	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
 	gologging "github.com/whyrusleeping/go-logging"
-	"io"
 	"os"
 	"path"
 	"strconv"
-	"time"
 )
 
 var stdoutLogFormat = logging.MustStringFormatter(
@@ -113,7 +108,7 @@ func main() {
 	fullAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", *listenF, node.Host.ID().Pretty())
 	log.Infof("Now run \"./poslibp2p -l %d -d %s\" on a different terminal\n", *listenF+1, fullAddr)
 
-	go subscribeAndListen(node)
+	go node.SubscribeAndListen("shard")
 
 	// Ok now we can bootstrap the node. This could take a little bit if we we're
 	// running on a live network.
@@ -123,70 +118,41 @@ func main() {
 	}
 
 	// Publish to the topic
-	var text = "Hello"
-	any, e := ptypes.MarshalAny(&pb.HelloPayload{HelloMessage: text})
-	if e != nil {
-		log.Fatal(err)
-	}
+	//var text = "Hello"
+	//any, e := ptypes.MarshalAny(&pb.HelloPayload{HelloMessage: text})
+	//if e != nil {
+	//	log.Fatal(err)
+	//}
+	//
+	//var msg = &pb.Message{Type: pb.Message_HELLO, Payload: any}
+	//marshalled, e := proto.Marshal(msg)
+	//if e != nil {
+	//	log.Fatal(err)
+	//}
 
-	var msg = &pb.Message{Type: pb.Message_HELLO, Payload: any}
-	marshalled, e := proto.Marshal(msg)
-	if e != nil {
-		log.Fatal(err)
-	}
-
-	log.Infof("Publishing message [%s] to topic..", marshalled)
-
-	tick := func() {
-		err = node.PubSub.Publish(context.Background(), "shard", marshalled)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	t := time.NewTicker(11 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-t.C:
-				log.Debugf("Sending...")
-				tick()
-			}
-		}
-	}()
-	tick()
+	//log.Infof("Publishing message [%s] to topic..", marshalled)
+	//
+	//tick := func() {
+	//	err = node.PubSub.Publish(context.Background(), "shard", marshalled)
+	//	if err != nil {
+	//		log.Fatal(err)
+	//	}
+	//}
+	//
+	//t := time.NewTicker(11 * time.Second)
+	//go func() {
+	//	for {
+	//		select {
+	//		case <-t.C:
+	//			log.Debugf("Sending...")
+	//			tick()
+	//		}
+	//	}
+	//}()
+	//tick()
 
 	// hang
 	select {}
-
-}
-
-func subscribeAndListen(node *network.Node) {
-	// Subscribe to the topic
-	sub, err := node.PubSub.SubscribeAndProvide(context.Background(), "shard")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for {
-		msg, err := sub.Next(context.Background())
-		if err == io.EOF || err == context.Canceled {
-			break
-		} else if err != nil {
-			log.Error(err)
-			break
-		}
-		pid, err := peer.IDFromBytes(msg.From)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Infof("Received Pubsub message: %s from %s\n", string(msg.Data), pid.Pretty())
-
-		//We do several very easy checks here and give control to dispatcher
-		m := message.CreateFromSerialized(msg.Data)
-		log.Info(m)
-
-	}
 
 }
 

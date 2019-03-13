@@ -1,4 +1,4 @@
-package network
+package message
 
 import (
 	"crypto/ecdsa"
@@ -15,12 +15,14 @@ type Peer struct {
 }
 
 func (p *Peer) GetAddress() common.Address {
-	//TODO Implement
 	return p.address
 }
 
+func (p *Peer) SetAddress(address common.Address) {
+	p.address = address
+}
+
 func (p *Peer) GetPrivateKey() *ecdsa.PrivateKey {
-	//TODO Implement
 	return p.privateKey
 }
 

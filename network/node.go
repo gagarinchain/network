@@ -10,12 +10,14 @@ import (
 	"github.com/libp2p/go-libp2p-host"
 	"github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/opts"
+	"github.com/libp2p/go-libp2p-peer"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-record"
 	"github.com/libp2p/go-libp2p-routing"
 	"github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
+	"io"
 	"path"
 )
 
@@ -46,7 +48,7 @@ type Node struct {
 	// handlers
 	Dispatcher *message.Dispatcher
 
-	Identity *Peer
+	Identity *message.Peer
 
 	bootstrapPeers []peerstore.PeerInfo
 }
@@ -102,7 +104,7 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 		Datastore:      dstore,
 		bootstrapPeers: config.BootstrapPeers,
 		Dispatcher:     dispatcher,
-		Identity:       CreatePeer(nil, nil, &info),
+		Identity:       message.CreatePeer(nil, nil, &info),
 	}
 	return node, nil
 }
@@ -118,4 +120,33 @@ func (n *Node) Bootstrap() error {
 // disconnecting all peers in the process.
 func (n *Node) Shutdown() {
 	n.Host.Close()
+}
+
+func (n *Node) SubscribeAndListen(topic string) {
+	// Subscribe to the topic
+	sub, err := n.PubSub.SubscribeAndProvide(context.Background(), topic)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for {
+		msg, err := sub.Next(context.Background())
+		if err == io.EOF || err == context.Canceled {
+			break
+		} else if err != nil {
+			log.Error(err)
+			break
+		}
+		pid, err := peer.IDFromBytes(msg.From)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Infof("Received Pubsub message: %s from %s\n", string(msg.Data), pid.Pretty())
+
+		//We do several very easy checks here and give control to dispatcher
+		m := message.CreateFromSerialized(msg.Data)
+		log.Info(m)
+	}
+
 }

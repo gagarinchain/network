@@ -11,6 +11,7 @@ import (
 	"github.com/poslibp2p/eth/crypto"
 	"github.com/poslibp2p/message/protobuff"
 	"sync"
+	"time"
 )
 import "github.com/emirpasic/gods/maps/treemap"
 
@@ -92,34 +93,7 @@ func (bc *Blockchain) Contains(hash common.Hash) bool {
 
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
-func (bc *Blockchain) GetThreeChainForHead(hash common.Hash) (zero *Block, one *Block, two *Block) {
-
-	head := bc.GetBlockByHash(hash)
-	if head == nil {
-		return nil, nil, nil
-	}
-
-	two = bc.GetBlockByHash(head.QRef().Hash())
-	if two == nil {
-		return nil, nil, nil
-	}
-
-	one = bc.GetBlockByHash(two.QRef().Hash())
-	if one == nil {
-		return nil, nil, two
-	}
-
-	zero = bc.GetBlockByHash(one.QRef().Hash())
-	if one == nil {
-		return nil, one, two
-	}
-
-	return zero, one, two
-}
-
-// Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
-// B|zero <-- B|one <-- B|two <--...--  B|head
-func (bc *Blockchain) GetThreeChainForTwo(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
+func (bc *Blockchain) GetThreeChain(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
 	spew.Dump(bc.blocksByHash)
 
 	two = bc.GetBlockByHash(twoHash)
@@ -292,7 +266,7 @@ func (bc *Blockchain) SetHash(b *Block) {
 
 func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
 	hash := common.BytesToHash([]byte(""))
-	header := &Header{height: parent.Header().Height() + 1, hash: hash, parent: parent.Header().Hash()}
+	header := &Header{height: parent.Header().Height() + 1, hash: hash, parent: parent.Header().Hash(), timestamp: time.Now().Round(time.Second)}
 	block := &Block{header: header, data: data, qc: qc}
 
 	bc.SetHash(block)

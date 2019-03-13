@@ -1,29 +1,58 @@
 package hotstuff
 
 import (
+	"crypto/ecdsa"
+	"errors"
+	"fmt"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/poslibp2p/blockchain"
+	bc "github.com/poslibp2p/blockchain"
+	"github.com/poslibp2p/eth/common"
+	"github.com/poslibp2p/eth/crypto"
 	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
-	"github.com/poslibp2p/network"
 )
 
 type Proposal struct {
-	Sender   *network.Peer
-	NewBlock *blockchain.Block
-	HQC      *blockchain.QuorumCertificate
+	Sender   *msg.Peer
+	NewBlock *bc.Block
+	//We should not allow to change header if we want signature to be consistent with block
+	Signature []byte
+	HQC       *bc.QuorumCertificate
 }
 
-func (p *Proposal) GetMessage() (*msg.Message, error) {
+func (p *Proposal) GetMessage() *pb.ProposalPayload {
+	return &pb.ProposalPayload{Cert: p.HQC.GetMessage(), Block: p.NewBlock.GetMessage(), Signature: p.Signature}
 
-	//TODO FILL ME
-	payload := &pb.ProposalPayload{}
+}
 
-	any, e := ptypes.MarshalAny(payload)
-	if e != nil {
-		return nil, e
+func CreateProposal(newBlock *bc.Block, hqc *bc.QuorumCertificate, me *msg.Peer) *Proposal {
+	return &Proposal{Sender: me, NewBlock: newBlock, HQC: hqc}
+}
+
+func (p *Proposal) Sign(key *ecdsa.PrivateKey) {
+	p.Signature = p.NewBlock.Header().Sign(key)
+}
+
+func CreateProposalFromMessage(msg *msg.Message, sender *msg.Peer) (*Proposal, error) {
+	if msg.Type != pb.Message_PROPOSAL {
+		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
+			pb.Message_PROPOSAL.String(), msg.Type))
 	}
-	m := msg.CreateMessage(pb.Message_PROPOSAL, p.Sender.GetPrivateKey(), any)
+	pp := &pb.ProposalPayload{}
+	block := bc.CreateBlockFromMessage(pp.Block)
 
-	return m, nil
+	if err := ptypes.UnmarshalAny(msg.Payload, pp); err != nil {
+		log.Error("Couldn't unmarshal response", err)
+	}
+	qc := bc.CreateQuorumCertificateFromMessage(pp.Cert)
+
+	pub, e := crypto.SigToPub(block.Header().Hash().Bytes(), pp.Signature)
+	if e != nil {
+		return nil, errors.New("bad signature")
+	}
+	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
+
+	sender.SetAddress(a)
+
+	return CreateProposal(block, qc, sender), nil
 }

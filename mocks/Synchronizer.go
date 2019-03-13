@@ -25,3 +25,13 @@ func (_m *Synchronizer) RequestBlock(hash common.Hash, respChan chan<- *blockcha
 func (_m *Synchronizer) RequestBlockWithParent(header *blockchain.Header) {
 	_m.Called(header)
 }
+
+// RequestBlocks provides a mock function with given fields: low, high
+func (_m *Synchronizer) RequestBlocks(low int32, high int32) {
+	_m.Called(low, high)
+}
+
+// RequestBlocksAtHeight provides a mock function with given fields: height, respChan
+func (_m *Synchronizer) RequestBlocksAtHeight(height int32, respChan chan<- *blockchain.Block) {
+	_m.Called(height, respChan)
+}

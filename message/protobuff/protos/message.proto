@@ -5,32 +5,35 @@ import "google/protobuf/any.proto";
 
 message Message {
     MessageType type = 1;
-    bytes signature = 2;
-
     google.protobuf.Any payload = 3;
 
     enum MessageType {
-        HELLO   = 0;
-        VOTE    = 1;
-        PROPOSAL = 2;
-        BLOCK_REQUEST = 3;
-        BLOCK_RESPONSE = 4;
+        HELLO_REQUEST   = 0;
+        HELLO_RESPONSE   = 1;
+        VOTE    = 2;
+        PROPOSAL = 3;
+        BLOCK_REQUEST = 4;
+        BLOCK_RESPONSE = 5;
     }
 }
 
 message HelloPayload {
-    string helloMessage = 1;
+    int32 version = 1;
+    int32 topBlockHeight = 2;
+    int64 time = 3;
 }
 
 message ProposalPayload {
     QuorumCertificate cert = 1;
-    Block block = 2;
+    bytes signature = 2;
+    Block block = 3;
 
 }
 
 message VotePayload {
     QuorumCertificate cert = 1;
-    Block block = 2;
+    bytes signature = 2;
+    bytes blockHash = 3;
 }
 
 message BlockRequestPayload {
@@ -41,7 +44,7 @@ message BlockRequestPayload {
 
 message BlockResponsePayload {
     oneof response {
-        Block block = 1;
+        Blocks blocks = 1;
         Error errorCode = 2;
     }
 }
@@ -51,7 +54,7 @@ message Error {
     string    desc = 2;
 
     enum ErrorCode {
-        NO_FOUND   = 0;
+        NOT_FOUND   = 0;
         BAD_REQUEST    = 1;
     }
 }
@@ -64,6 +67,9 @@ message Block {
     BlockHeader header = 1;
     QuorumCertificate cert = 2;
     BlockData data = 3;
+}
+message Blocks {
+    repeated Block blocks = 1;
 }
 
 message BlockHeader {
