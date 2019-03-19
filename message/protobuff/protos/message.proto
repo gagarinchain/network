@@ -10,10 +10,11 @@ message Message {
     enum MessageType {
         HELLO_REQUEST   = 0;
         HELLO_RESPONSE   = 1;
-        VOTE    = 2;
-        PROPOSAL = 3;
-        BLOCK_REQUEST = 4;
-        BLOCK_RESPONSE = 5;
+        EPOCH_START   = 2;
+        VOTE    = 3;
+        PROPOSAL = 4;
+        BLOCK_REQUEST = 5;
+        BLOCK_RESPONSE = 6;
     }
 }
 
@@ -21,6 +22,11 @@ message HelloPayload {
     int32 version = 1;
     int32 topBlockHeight = 2;
     int64 time = 3;
+}
+
+message EpochStartPayload {
+    bytes signature = 2;
+    int32 epoch_number = 3;
 }
 
 message ProposalPayload {

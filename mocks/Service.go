@@ -35,3 +35,8 @@ func (_m *Service) SendMessageToRandomPeer(req *message.Message) *message.Messag
 
 	return r0
 }
+
+// SendMessageTriggered provides a mock function with given fields: peer, msg, trigger
+func (_m *Service) SendMessageTriggered(peer *message.Peer, msg *message.Message, trigger chan interface{}) {
+	_m.Called(peer, msg, trigger)
+}

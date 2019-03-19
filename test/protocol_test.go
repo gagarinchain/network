@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 var log = logging.MustGetLogger("hotstuff")
@@ -25,13 +26,17 @@ func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
 	_, p, cfg := initProtocol(t)
 	mocksrv := (cfg.Srv).(*mocks.Service)
 
-	log.Info("BlockProtocol ", p)
-
+	msgChan := make(chan *msg.Message)
 	mocksrv.On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[0]).(*msg.Message)
 		assert.Equal(t, pb.Message_PROPOSAL, args[0].(*msg.Message).Type)
 	}).Once()
 
-	p.OnPropose([]byte("proposing something"))
+	go p.OnPropose([]byte("proposing something"))
+
+	<-cfg.RoundEndChan
+	m := <-msgChan
+	assert.Equal(t, pb.Message_PROPOSAL, m.Type)
 
 	mocksrv.AssertCalled(t, "Broadcast", mock.AnythingOfType("*message.Message"))
 }
@@ -74,26 +79,37 @@ func TestOnReceiveProposal(t *testing.T) {
 	bc, p, cfg := initProtocol(t)
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
-	if e := bc.AddBlock(newBlock); e != nil {
-		t.Error("can't add block", e)
+	//if e := bc.AddBlock(newBlock); e != nil {
+	//	t.Error("can't add block", e)
+	//}
+
+	for _, peer := range cfg.Pacer.Committee() {
+		log.Info(peer.GetAddress().Hex())
 	}
 
-	proposal := &hotstuff.Proposal{Sender: cfg.CurrentProposer, NewBlock: newBlock, HQC: head.QC()}
+	currentProposer := cfg.Pacer.Committee()[3]
+	nextProposer := cfg.Pacer.Committee()[4]
+	proposal := hotstuff.CreateProposal(newBlock, head.QC(), currentProposer)
 	srv := (cfg.Srv).(*mocks.Service)
-	var vote *hotstuff.Vote
-	srv.On("SendMessage", cfg.CurrentProposer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		m := (args[1]).(*msg.Message)
-		var err error
-		if vote, err = hotstuff.CreateVoteFromMessage(m, newBlock, cfg.Me); err != nil {
-			t.Error("can't create vote", err)
-		}
+	msgChan := make(chan *msg.Message)
+	srv.On("SendMessage", nextProposer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[1]).(*msg.Message)
 	}).Once()
 
-	if err := p.OnReceiveProposal(proposal); err != nil {
-		t.Error("Error while receiving proposal", err)
+	go func() {
+		if err := p.OnReceiveProposal(proposal); err != nil {
+			t.Error("Error while receiving proposal", err)
+		}
+	}()
+	m := <-msgChan
+	<-cfg.RoundEndChan
+
+	vote, err := hotstuff.CreateVoteFromMessage(m, newBlock, cfg.Me)
+	if err != nil {
+		t.Error("can't create vote", err)
 	}
 
-	srv.AssertCalled(t, "SendMessage", cfg.CurrentProposer, mock.AnythingOfType("*message.Message"))
+	srv.AssertCalled(t, "SendMessage", nextProposer, mock.AnythingOfType("*message.Message"))
 	assert.Equal(t, proposal.NewBlock.Header().Hash(), vote.NewBlock.Header().Hash())
 	assert.Equal(t, vote.NewBlock.Header().Height(), p.Vheight())
 
@@ -107,15 +123,15 @@ func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 		t.Error("can't add block", e)
 	}
 
-	proposal := &hotstuff.Proposal{Sender: cfg.NextProposer, NewBlock: newBlock, HQC: head.QC()}
+	nextProposer, _ := cfg.Pacer.CurrentProposerOrStartEpoch()
+	proposal := &hotstuff.Proposal{Sender: nextProposer, NewBlock: newBlock, HQC: head.QC()}
 
 	assert.Error(t, p.OnReceiveProposal(proposal), "peer equivocated")
 	assert.Equal(t, int32(2), p.Vheight())
 }
 
 func TestOnReceiveVoteForNotProposer(t *testing.T) {
-	bc, p, cfg := initProtocol(t)
-	p.SetCurrentProposer(cfg.NextProposer)
+	bc, p, _ := initProtocol(t)
 
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	vote := createVote(bc, newBlock, t)
@@ -126,9 +142,7 @@ func TestOnReceiveVoteForNotProposer(t *testing.T) {
 }
 
 func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
-	bc, p, cfg := initProtocol(t)
-	p.SetCurrentProposer(cfg.Me)
-
+	bc, p, _ := initProtocol(t)
 	id := generateIdentity(t)
 	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	newBlock2 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
@@ -148,8 +162,7 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 
 func TestOnReceiveVote(t *testing.T) {
 	bc, p, cfg := initProtocol(t)
-	p.SetCurrentProposer(cfg.Me)
-
+	cfg.Pacer.Committee()[4] = cfg.Me
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	if e := bc.AddBlock(newBlock); e != nil {
 		t.Error("can't add block", e)
@@ -157,13 +170,28 @@ func TestOnReceiveVote(t *testing.T) {
 
 	votes := createVotes((cfg.F/3)*2+1, bc, newBlock, t)
 
-	for _, vote := range votes {
+	msgChan := make(chan *msg.Message)
+	(cfg.Srv).(*mocks.Service).On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[0]).(*msg.Message)
+	})
+
+	for _, vote := range votes[:(cfg.F/3)*2] {
 		if err := p.OnReceiveVote(vote); err != nil {
 			t.Error("failed OnReceive", err)
 		}
 	}
 
+	go func() {
+		if e := p.OnReceiveVote(votes[(cfg.F/3)*2]); e != nil {
+			t.Error("failed OnReceive", e)
+		}
+	}()
+
+	<-cfg.RoundEndChan
+	m := <-msgChan
+
 	assert.Equal(t, newBlock.Header().Hash(), p.HQC().QrefBlock().Hash())
+	assert.Equal(t, m.Type, pb.Message_PROPOSAL)
 
 }
 
@@ -184,21 +212,33 @@ func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Bloc
 
 func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig) {
 	identity := generateIdentity(t)
-	current := generateIdentity(t)
-	next := generateIdentity(t)
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
+	loader := &mocks.CommitteeLoader{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock()
 	bc.SetSynchronizer(synchr)
 	config := &hotstuff.ProtocolConfig{
 		F:               10,
+		Delta:           5 * time.Second,
 		Blockchain:      bc,
 		Me:              identity,
-		CurrentProposer: current,
-		NextProposer:    next,
 		Srv:             srv,
+		CommitteeLoader: loader,
+		RoundEndChan:    make(chan interface{}),
 	}
+
+	peers := make([]*msg.Peer, 10)
+	for i := 0; i < 10; i++ {
+		peers[i] = generateIdentity(t)
+	}
+
+	loader.On("LoadFromFile").Return(peers)
+
+	pacer := hotstuff.CreatePacer(config)
+	config.Pacer = pacer
+
 	p := hotstuff.CreateProtocol(config)
+
 	return bc, p, config
 }
 

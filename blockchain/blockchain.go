@@ -272,3 +272,11 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 	bc.SetHash(block)
 	return block
 }
+
+func (bc *Blockchain) PadEmptyBlock() {
+	block := bc.NewBlock(bc.GetHead(), bc.GetHead().QC(), []byte(""))
+
+	if e := bc.AddBlock(block); e != nil {
+		log.Error("Can't add empty block")
+	}
+}

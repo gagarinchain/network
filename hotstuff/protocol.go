@@ -11,31 +11,39 @@ import (
 	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
+	"math/rand"
+	"strconv"
+	"time"
 )
 
 var log = logging.MustGetLogger("hotstuff")
 
 type ProtocolConfig struct {
 	F               int
+	Delta           time.Duration
 	Blockchain      *bc.Blockchain
 	Me              *msg.Peer
-	CurrentProposer *msg.Peer
-	NextProposer    *msg.Peer
 	Srv             network.Service
+	Pacer           *StaticPacer
+	CommitteeLoader msg.CommitteeLoader
+	RoundEndChan    chan interface{}
 }
 
 type Protocol struct {
 	f          int
+	delta      time.Duration
 	blockchain *bc.Blockchain
-	// height of last voted block, the height of genesis block is 2
+	// number of last voted block, the number of genesis block is 2
 	vheight           int32
 	votes             map[common.Address]*Vote
 	lastExecutedBlock *bc.Header
 	hqc               *bc.QuorumCertificate
 	me                *msg.Peer
-	currentProposer   *msg.Peer
-	nextProposer      *msg.Peer
+	pacer             *StaticPacer
 	srv               network.Service
+
+	roundEndChan chan interface{}
+	stopChan     chan bool
 }
 
 func (p *Protocol) Vheight() int32 {
@@ -45,15 +53,17 @@ func (p *Protocol) Vheight() int32 {
 func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 	return &Protocol{
 		f:                 cfg.F,
+		delta:             cfg.Delta,
 		blockchain:        cfg.Blockchain,
 		vheight:           2,
 		votes:             make(map[common.Address]*Vote),
 		lastExecutedBlock: cfg.Blockchain.GetGenesisBlock().Header(),
 		hqc:               cfg.Blockchain.GetGenesisCert(),
 		me:                cfg.Me,
-		currentProposer:   cfg.CurrentProposer,
-		nextProposer:      cfg.NextProposer,
+		pacer:             cfg.Pacer,
 		srv:               cfg.Srv,
+		roundEndChan:      cfg.RoundEndChan,
+		stopChan:          make(chan bool),
 	}
 }
 
@@ -78,14 +88,14 @@ func (p *Protocol) CheckCommit() bool {
 }
 
 func (p *Protocol) Update(qc *bc.QuorumCertificate) {
-	//if new block has cert to block with greater height means that it is new HQC block
+	//if new block has cert to block with greater number means that it is new HQC block
 	// and we must consider it as new HEAD
 
 	log.Infof("Qcs new [%v], old[%v]", qc.QrefBlock().Height(), p.hqc.QrefBlock().Height())
 
 	if qc.QrefBlock().Height() > p.hqc.QrefBlock().Height() {
 
-		log.Infof("Got new HQC block[%v], updating height [%v] -> [%v]",
+		log.Infof("Got new HQC block[%v], updating number [%v] -> [%v]",
 			qc.QrefBlock().Hash().Hex(), p.hqc.QrefBlock().Height(), qc.QrefBlock().Height())
 
 		p.hqc = qc
@@ -94,15 +104,34 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 }
 
 func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
-	if !proposal.Sender.Equals(p.currentProposer) {
+	//-At first i thought it should be equivocation, but later i found out that we must process all proposers
+	// n. g. bad proposers can isolate us and make progress separately, the problem with it is that  in that case we have no way
+	// to synchronize proposal rotation with others. Accepting all proposals we will build forks,
+	// but it is ok, since we will have proof of equivocation later on and synchronize eventually
+	//-It is not ok, we must store proposal that was sent out of order, to collect equivocation proofs
+
+	p.Update(proposal.HQC)
+
+	log.Info(p.pacer.GetCurrent().GetAddress().Hex())
+	//TODO move this two validations
+	if !proposal.Sender.Equals(p.pacer.GetCurrent()) {
+		log.Warningf("This proposer [%v] is not expected", proposal.Sender.GetAddress().Hex())
+		p.equivocate(proposal.Sender)
+		return errors.New("peer equivocated")
+	}
+	if proposal.NewBlock.Header().Height() != p.pacer.GetCurrentHeight() {
+		log.Warningf("This proposer [%v] is expected to propose at height [%v], not on [%v]",
+			proposal.Sender.GetAddress().Hex(), p.pacer.GetCurrentHeight(), proposal.NewBlock.Header().Height())
 		p.equivocate(proposal.Sender)
 		return errors.New("peer equivocated")
 	}
 
-	p.Update(proposal.HQC)
+	if err := p.blockchain.AddBlock(proposal.NewBlock); err != nil {
+		return err
+	}
 
 	if proposal.NewBlock.Header().Height() > p.vheight && p.blockchain.IsSibling(proposal.NewBlock.Header(), p.GetPref().Header()) {
-		log.Infof("Received proposal for block [%v] with higher height [%v] from current proposer [%v], voting for it",
+		log.Infof("Received proposal for block [%v] with higher number [%v] from proposer [%v], voting for it",
 			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex())
 		p.vheight = proposal.NewBlock.Header().Height()
 
@@ -117,41 +146,51 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 		}
 		m := msg.CreateMessage(pb.Message_VOTE, any)
 
-		p.srv.SendMessage(proposal.Sender, m)
+		peer, isSync := p.pacer.CurrentProposerOrStartEpoch()
+		if isSync {
+			trigger := make(chan interface{})
+			p.pacer.SubscribeEpochChange(trigger)
+			go p.srv.SendMessageTriggered(peer, m, trigger)
+		} else {
+			go p.srv.SendMessage(peer, m)
+		}
 	}
 
+	p.roundEndChan <- struct{}{}
 	return nil
-}
-func (p *Protocol) SetCurrentProposer(peer *msg.Peer) {
-	p.currentProposer = peer
 }
 
 func (p *Protocol) OnReceiveVote(vote *Vote) error {
 	p.Update(vote.HQC)
 
-	if p.me != p.currentProposer {
-		log.Infof("Got stale vote from [%v], i'm not proposer now", vote.Sender.GetAddress())
-		return nil
+	// if we got vote we are not proposer is not a problem for us,
+	// we will store this vote, may be we will be current proposer
+	if p.me != p.pacer.GetCurrent() {
+		log.Infof("Got unexpected vote from [%v], i'm not proposer now", vote.Sender.GetAddress())
 	}
 
-	id := vote.Sender.GetAddress()
+	addr := vote.Sender.GetAddress()
 
-	if v, ok := p.votes[id]; ok {
-		log.Infof("Already got vote for block [%v] from [%v]", v.NewBlock.Header().Hash().Hex(), id.Hex())
+	if stored, ok := p.votes[addr]; ok {
+		log.Infof("Already got vote for block [%v] from [%v]", stored.NewBlock.Header().Hash().Hex(), addr.Hex())
 
-		//check whether peer voted again for the same block
-		if v.NewBlock.Header().Hash() != vote.NewBlock.Header().Hash() {
+		//check whether peer voted previously for block with higher number
+		if stored.NewBlock.Header().Height() > vote.NewBlock.Header().Height() {
 			p.equivocate(vote.Sender)
-			return errors.New("peer equivocated")
+			return errors.New("peer voted for block with lower number")
 		}
-		return nil
+		if stored.NewBlock.Header().Height() == vote.NewBlock.Header().Height() &&
+			stored.NewBlock.Header().Hash() != vote.NewBlock.Header().Hash() {
+			p.equivocate(vote.Sender)
+			return errors.New("peer voted for different blocks on the same number")
+		}
 	}
 
-	p.votes[id] = vote
+	p.votes[addr] = vote
 
 	if p.CheckConsensus() {
 		p.FinishQC(vote.NewBlock)
-		//TODO we can prepare block here and propose it
+		p.OnPropose([]byte(strconv.Itoa(rand.Int()))) //propose random
 	}
 	return nil
 }
@@ -209,7 +248,8 @@ func (p *Protocol) OnPropose(data []byte) {
 		log.Error(e)
 	}
 	m := msg.CreateMessage(pb.Message_PROPOSAL, any)
-	p.srv.Broadcast(m)
+	go p.srv.Broadcast(m)
+	p.roundEndChan <- struct{}{}
 }
 
 func (*Protocol) equivocate(peer *msg.Peer) {
@@ -231,24 +271,25 @@ func (p *Protocol) HQC() *bc.QuorumCertificate {
 	return p.hqc
 }
 
-func (p *Protocol) OnProposerChange(peer *msg.Peer) {
-	p.nextProposer = peer
-	p.votes = make(map[common.Address]*Vote)
-}
-
 func (p *Protocol) Run(msgChan chan *msg.Message, nextProposerChan chan *msg.Peer) {
 	for {
 		select {
 		case m := <-msgChan:
+			if p.pacer.IsStarting {
+				log.Warningf("Received message [%v] while starting new epoch, skipping...", m.Type)
+				break
+			}
+
 			switch m.Type {
 			case pb.Message_VOTE:
-				//TODO remove this shitty code
+				//tis is a little bit awkward to parse payload to get block, double parsing when creating vote
 				vp := &pb.VotePayload{}
 				if err := ptypes.UnmarshalAny(m.Payload, vp); err != nil {
 					log.Error("Couldn't unmarshal response", err)
 				}
 				block := p.blockchain.GetBlockByHash(common.BytesToHash(vp.BlockHash))
 
+				//put real sender here, we don't know ip, name
 				v, err := CreateVoteFromMessage(m, block, &msg.Peer{})
 				if err != nil {
 					log.Error(err)
@@ -266,10 +307,22 @@ func (p *Protocol) Run(msgChan chan *msg.Message, nextProposerChan chan *msg.Pee
 				if err := p.OnReceiveProposal(pr); err != nil {
 					log.Error("Error while handling vote", err)
 				}
+			case pb.Message_EPOCH_START:
+				p.pacer.OnEpochStart(m, &msg.Peer{})
 			}
-		case nextProposer := <-nextProposerChan:
-			p.OnProposerChange(nextProposer)
+		case <-p.stopChan:
+			log.Info("Stopping pacer...")
+			return
 		}
+
 	}
 
+}
+
+func (p *Protocol) Delta() time.Duration {
+	return p.delta
+}
+
+func (p *Protocol) Stop() {
+	p.stopChan <- true
 }
