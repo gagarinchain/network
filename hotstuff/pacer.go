@@ -148,10 +148,11 @@ func (p *StaticPacer) Run() {
 	for {
 		select {
 		case <-timer.C:
-			log.Info("Received no votes from peers in delta, proposing with last QC")
+			if p.GetCurrent() == p.config.Me {
+				log.Info("Received no votes from peers in delta, proposing with last QC")
 
-			p.config.ControlChan <- Event(PROPOSE)
-
+				p.config.ControlChan <- Event(PROPOSE)
+			}
 		case <-ticker.C:
 			//TODO ignore when synchronizing
 			log.Info("Received no signal from underlying protocol about round ending, force proposer change")
@@ -165,6 +166,7 @@ func (p *StaticPacer) Run() {
 
 			p.config.Blockchain.PadEmptyBlock()
 			ticker = time.NewTicker(2 * p.config.Delta)
+			timer = time.NewTimer(p.config.Delta)
 		case <-p.roundEndChan:
 			log.Info("Protocol round ended gracefully")
 			ticker.Stop()
@@ -176,6 +178,7 @@ func (p *StaticPacer) Run() {
 			}
 			ticker.Stop()
 			ticker = time.NewTicker(2 * p.config.Delta)
+			timer = time.NewTimer(p.config.Delta)
 		case <-p.stopChan:
 			ticker.Stop()
 			return

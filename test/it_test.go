@@ -137,7 +137,6 @@ func TestScenario1c(t *testing.T) {
 
 	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
 	assert.Equal(t, int32(3), payload.Block.GetCert().GetHeader().GetHeight())
-
 }
 
 //Scenario 2:
@@ -185,6 +184,60 @@ func TestScenario3(t *testing.T) {
 	p := ctx.createProposal(newBlock, 3)
 	ctx.protocolChan <- p
 	<-ctx.voteChan
+
+	proposal := <-ctx.proposalCHan
+
+	payload := &pb.ProposalPayload{}
+	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
+		log.Error(err)
+	}
+
+	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+}
+
+//Scenario 4:
+//Start new epoch
+//Next Proposer
+//Proposer equivocates, no proposal sent
+//Propose block with previous QC (2) after 2*Delta
+func TestScenario4(t *testing.T) {
+	ctx := initContext(t)
+	ctx.StartFirstEpoch()
+	ctx.setMe(4)
+
+	go ctx.pacer.Run()
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer ctx.protocol.Stop()
+
+	proposal := <-ctx.proposalCHan
+
+	payload := &pb.ProposalPayload{}
+	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
+		log.Error(err)
+	}
+
+	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+}
+
+//Scenario 4:
+//Start new epoch
+//Next Proposer
+//Proposer equivocates, no proposal sent
+//Propose block with previous QC (2) after 2*Delta
+func TestScenario4(t *testing.T) {
+	ctx := initContext(t)
+	ctx.StartFirstEpoch()
+	ctx.setMe(4)
+
+	go ctx.pacer.Run()
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer ctx.protocol.Stop()
 
 	proposal := <-ctx.proposalCHan
 
