@@ -16,17 +16,6 @@ func CreateMessage(messageType pb.Message_MessageType, payload *any.Any) *Messag
 
 	m.Type = messageType
 	m.Payload = payload
-
-	//bytes := payload.Value
-	//hash := crypto.Keccak256(bytes)
-
-	//sig, err := crypto.Sign(hash, privateKey)
-
-	//if err != nil {
-	//	log.Error("Can't sign message", err)
-	//}
-	//m.Signature = sig
-
 	return m
 }
 

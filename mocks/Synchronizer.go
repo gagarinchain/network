@@ -16,9 +16,20 @@ func (_m *Synchronizer) Bootstrap() {
 	_m.Called()
 }
 
-// RequestBlock provides a mock function with given fields: hash, respChan
-func (_m *Synchronizer) RequestBlock(hash common.Hash, respChan chan<- *blockchain.Block) {
-	_m.Called(hash, respChan)
+// RequestBlock provides a mock function with given fields: hash
+func (_m *Synchronizer) RequestBlock(hash common.Hash) <-chan *blockchain.Block {
+	ret := _m.Called(hash)
+
+	var r0 <-chan *blockchain.Block
+	if rf, ok := ret.Get(0).(func(common.Hash) <-chan *blockchain.Block); ok {
+		r0 = rf(hash)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(<-chan *blockchain.Block)
+		}
+	}
+
+	return r0
 }
 
 // RequestBlockWithParent provides a mock function with given fields: header
@@ -31,7 +42,18 @@ func (_m *Synchronizer) RequestBlocks(low int32, high int32) {
 	_m.Called(low, high)
 }
 
-// RequestBlocksAtHeight provides a mock function with given fields: height, respChan
-func (_m *Synchronizer) RequestBlocksAtHeight(height int32, respChan chan<- *blockchain.Block) {
-	_m.Called(height, respChan)
+// RequestBlocksAtHeight provides a mock function with given fields: height
+func (_m *Synchronizer) RequestBlocksAtHeight(height int32) <-chan *blockchain.Block {
+	ret := _m.Called(height)
+
+	var r0 <-chan *blockchain.Block
+	if rf, ok := ret.Get(0).(func(int32) <-chan *blockchain.Block); ok {
+		r0 = rf(height)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(<-chan *blockchain.Block)
+		}
+	}
+
+	return r0
 }

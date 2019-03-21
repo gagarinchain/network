@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/emirpasic/gods/utils"
-	"github.com/gogo/protobuf/proto"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/eth/common"
 	"github.com/poslibp2p/eth/crypto"
-	"github.com/poslibp2p/message/protobuff"
 	"sync"
 	"time"
 )
@@ -78,8 +76,7 @@ func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) *Block {
 
 func (bc *Blockchain) LoadBlock(hash common.Hash) *Block {
 	log.Infof("Loading block with hash [%v]", hash.Hex())
-	ch := make(chan *Block)
-	go bc.synchronizer.RequestBlock(hash, ch)
+	ch := bc.synchronizer.RequestBlock(hash)
 	block := <-ch
 	if err := bc.AddBlock(block); err != nil {
 		log.Error("Can't add loaded block", err)
@@ -214,62 +211,48 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 	return bc.IsSibling(parent.Header(), ancestor)
 }
 
-func (bc *Blockchain) GetMessageForHeader(h *Header) (msg *pb.BlockHeader) {
-	parent := bc.GetBlockByHashOrLoad(h.Parent())
-	return &pb.BlockHeader{ParentHash: parent.Header().Hash().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().Unix()}
-}
+//func (bc *Blockchain) GetMessageForHeader(h *Header) (msg *pb.BlockHeader) {
+//	parent := bc.GetBlockByHashOrLoad(h.Parent())
+//	return &pb.BlockHeader{ParentHash: parent.Header().Hash().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().Unix()}
+//}
+//
+//func (bc *Blockchain) GetMessageForBlock(b *Block) (msg *pb.Block) {
+//	pdata := &pb.BlockData{Data: b.Data()}
+//	qc := b.QC()
+//	var pqrefHeader = bc.GetMessageForHeader(qc.QrefBlock())
+//	pcert := &pb.QuorumCertificate{Header: pqrefHeader, SignatureAggregate: qc.SignatureAggregate()}
+//
+//	return &pb.Block{Header: bc.GetMessageForHeader(b.Header()), Data: pdata, Cert: pcert}
+//}
+//
+//func (bc *Blockchain) SerializeHeader(h *Header) []byte {
+//	msg := bc.GetMessageForHeader(h)
+//
+//	bytes, e := proto.Marshal(msg)
+//	if e != nil {
+//		log.Error("Can't marshall message", e)
+//	}
+//
+//	return bytes
+//}
 
-func (bc *Blockchain) GetMessageForBlock(b *Block) (msg *pb.Block) {
-	pdata := &pb.BlockData{Data: b.Data()}
-	qc := b.QC()
-	var pqrefHeader = bc.GetMessageForHeader(qc.QrefBlock())
-	pcert := &pb.QuorumCertificate{Header: pqrefHeader, SignatureAggregate: qc.SignatureAggregate()}
-
-	return &pb.Block{Header: bc.GetMessageForHeader(b.Header()), Data: pdata, Cert: pcert}
-}
-
-func (bc *Blockchain) SerializeHeader(h *Header) []byte {
-	msg := bc.GetMessageForHeader(h)
-
-	bytes, e := proto.Marshal(msg)
-	if e != nil {
-		log.Error("Can't marshall message", e)
-	}
-
-	return bytes
-}
-
-func (bc *Blockchain) SerializeBlock(b *Block) []byte {
-	msg := bc.GetMessageForBlock(b)
-
-	bytes, e := proto.Marshal(msg)
-	if e != nil {
-		log.Error("Can't marshall message", e)
-	}
-
-	return bytes
-}
-
-func (bc *Blockchain) CreateBlockAndSetHash(header *Header, data []byte) *Block {
-	b := &Block{header: header, data: data}
-	bc.SetHash(b)
-	return b
-}
-
-func (bc *Blockchain) SetHash(b *Block) {
-	msg := bc.GetMessageForBlock(b)
-	bytes, e := proto.Marshal(msg)
-	if e == nil {
-		b.header.hash = crypto.Keccak256Hash(bytes)
-	}
-}
+//func (bc *Blockchain) SerializeBlock(b *Block) []byte {
+//	msg := bc.GetMessageForBlock(b)
+//
+//	bytes, e := proto.Marshal(msg)
+//	if e != nil {
+//		log.Error("Can't marshall message", e)
+//	}
+//
+//	return bytes
+//}
 
 func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
-	hash := common.BytesToHash([]byte(""))
-	header := &Header{height: parent.Header().Height() + 1, hash: hash, parent: parent.Header().Hash(), timestamp: time.Now().Round(time.Second)}
+	header := createHeader(parent.Header().Height()+1, common.Hash{}, qc.GetHash(), crypto.Keccak256Hash(data),
+		parent.Header().Hash(), time.Now().Round(time.Second))
+	header.SetHash()
 	block := &Block{header: header, data: data, qc: qc}
 
-	bc.SetHash(block)
 	return block
 }
 

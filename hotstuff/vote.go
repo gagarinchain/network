@@ -13,22 +13,22 @@ import (
 )
 
 type Vote struct {
-	Sender   *msg.Peer
-	NewBlock *bc.Block
+	Sender *msg.Peer
+	Header *bc.Header
 	//We should not allow to change header if we want signature to be consistent with block
 	Signature []byte
 	HQC       *bc.QuorumCertificate
 }
 
-func CreateVote(newBlock *bc.Block, hqc *bc.QuorumCertificate, sender *msg.Peer) *Vote {
-	return &Vote{Sender: sender, NewBlock: newBlock, HQC: hqc}
+func CreateVote(newBlock *bc.Header, hqc *bc.QuorumCertificate, sender *msg.Peer) *Vote {
+	return &Vote{Sender: sender, Header: newBlock, HQC: hqc}
 }
 
 func (v *Vote) Sign(key *ecdsa.PrivateKey) {
-	v.Signature = v.NewBlock.Header().Sign(key)
+	v.Signature = v.Header.Sign(key)
 }
 
-func CreateVoteFromMessage(msg *msg.Message, b *bc.Block, sender *msg.Peer) (*Vote, error) {
+func CreateVoteFromMessage(msg *msg.Message, sender *msg.Peer) (*Vote, error) {
 	if msg.Type != pb.Message_VOTE {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_VOTE.String(), msg.Type))
@@ -39,17 +39,18 @@ func CreateVoteFromMessage(msg *msg.Message, b *bc.Block, sender *msg.Peer) (*Vo
 		log.Error("Couldn't unmarshal response", err)
 	}
 	qc := bc.CreateQuorumCertificateFromMessage(vp.Cert)
+	header := bc.CreateBlockHeaderFromMessage(vp.Header)
 
-	pub, e := crypto.SigToPub(vp.BlockHash, vp.Signature)
+	pub, e := crypto.SigToPub(header.Hash().Bytes(), vp.Signature)
 	if e != nil {
 		return nil, errors.New("bad signature")
 	}
 	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
 	sender.SetAddress(a)
 
-	return CreateVote(b, qc, sender), nil
+	return CreateVote(header, qc, sender), nil
 }
 
 func (v *Vote) GetMessage() *pb.VotePayload {
-	return &pb.VotePayload{Cert: v.HQC.GetMessage(), BlockHash: v.NewBlock.Header().Hash().Bytes(), Signature: v.Signature}
+	return &pb.VotePayload{Cert: v.HQC.GetMessage(), Header: v.Header.GetMessage(), Signature: v.Signature}
 }

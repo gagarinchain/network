@@ -39,7 +39,7 @@ message ProposalPayload {
 message VotePayload {
     QuorumCertificate cert = 1;
     bytes signature = 2;
-    bytes blockHash = 3;
+    BlockHeader header = 3;
 }
 
 message BlockRequestPayload {
@@ -79,10 +79,12 @@ message Blocks {
 }
 
 message BlockHeader {
-    bytes parentHash = 1;
-    bytes dataHash = 2;
-    int32 height = 3;
-    int64 timestamp = 4;
+    bytes hash = 1;
+    bytes parentHash = 2;
+    bytes qcHash = 3;
+    bytes dataHash = 4;
+    int32 height = 5;
+    int64 timestamp = 6;
 }
 
 message BlockData {

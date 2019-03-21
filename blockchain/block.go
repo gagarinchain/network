@@ -15,9 +15,12 @@ type Block struct {
 	data   []byte
 }
 
+//TODO fix hash - datahash mess
 type Header struct {
 	height    int32
 	hash      common.Hash
+	dataHash  common.Hash
+	qcHash    common.Hash
 	parent    common.Hash
 	timestamp time.Time
 }
@@ -34,6 +37,12 @@ func (h *Header) Height() int32 {
 }
 func (h *Header) Hash() common.Hash {
 	return h.hash
+}
+func (h *Header) DataHash() common.Hash {
+	return h.dataHash
+}
+func (h *Header) QCHash() common.Hash {
+	return h.qcHash
 }
 func (h *Header) Parent() common.Hash {
 	return h.parent
@@ -52,27 +61,38 @@ func (b *Block) QRef() *Header {
 
 func CreateGenesisTriChain() (zero *Block, one *Block, two *Block, certToHead *QuorumCertificate) {
 	//TODO find out what to do with alfa cert
-	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)), time.Now().Round(time.Millisecond))
-	zeroHeader.hash = crypto.Keccak256Hash([]byte("Block zero"))
+	data := []byte("Zero")
+	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)),
+		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)), time.Now().Round(time.Millisecond))
+	zeroHeader.SetHash()
 	//We need block to calculate it's hash
-	z := &Block{header: zeroHeader, data: []byte("Zero")}
+	z := &Block{header: zeroHeader, data: data}
 	zeroCert := CreateQuorumCertificate([]byte("Valid"), z.header)
 
-	firstHeader := createHeader(1, common.BytesToHash(make([]byte, common.HashLength)), zeroHeader.Hash(), time.Now().Round(time.Millisecond))
-	firstHeader.hash = crypto.Keccak256Hash([]byte("Block one"))
+	firstHeader := createHeader(1, common.Hash{}, zeroCert.GetHash(),
+		crypto.Keccak256Hash([]byte("Block one")), zeroHeader.Hash(), time.Now().Round(time.Millisecond))
+	firstHeader.SetHash()
 	first := &Block{header: firstHeader, data: []byte("First"), qc: zeroCert}
 	firstCert := CreateQuorumCertificate([]byte("Valid"), firstHeader)
 
-	secondHeader := createHeader(2, common.BytesToHash(make([]byte, common.HashLength)), firstHeader.Hash(), time.Now().Round(time.Millisecond))
-	secondHeader.hash = crypto.Keccak256Hash([]byte("Block two"))
+	secondHeader := createHeader(2, common.Hash{}, firstCert.GetHash(),
+		crypto.Keccak256Hash([]byte("Block two")), firstHeader.Hash(), time.Now().Round(time.Millisecond))
+	secondHeader.SetHash()
 	second := &Block{header: secondHeader, data: []byte("Second"), qc: firstCert}
 	secondCert := CreateQuorumCertificate([]byte("Valid"), secondHeader)
 
 	return z, first, second, secondCert
 }
 
-func createHeader(height int32, hash common.Hash, parent common.Hash, timestamp time.Time) *Header {
-	return &Header{height: height, hash: hash, parent: parent, timestamp: timestamp}
+func createHeader(height int32, hash common.Hash, qcHash common.Hash, dataHash common.Hash, parent common.Hash, timestamp time.Time) *Header {
+	return &Header{
+		height:    height,
+		hash:      hash,
+		qcHash:    qcHash,
+		dataHash:  dataHash,
+		parent:    parent,
+		timestamp: timestamp,
+	}
 }
 
 func (h *Header) IsGenesisBlock() bool {
@@ -91,11 +111,18 @@ func (b *Block) GetMessage() *pb.Block {
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
-	return createHeader(header.Height, common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(0, header.Timestamp))
+	return createHeader(header.Height, common.BytesToHash(header.Hash), common.BytesToHash(header.QcHash), common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(0, header.Timestamp))
 }
 
 func (h *Header) GetMessage() *pb.BlockHeader {
-	return &pb.BlockHeader{ParentHash: h.Parent().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().UnixNano()}
+	return &pb.BlockHeader{
+		Hash:       h.Hash().Bytes(),
+		ParentHash: h.Parent().Bytes(),
+		DataHash:   h.DataHash().Bytes(),
+		QcHash:     h.QCHash().Bytes(),
+		Height:     h.Height(),
+		Timestamp:  h.Timestamp().UnixNano(),
+	}
 }
 
 func (h *Header) SetHash() {
@@ -111,7 +138,7 @@ func HashHeader(h Header) common.Hash {
 		log.Error("Can't marshal message")
 	}
 
-	return common.BytesToHash(crypto.Keccak256(bytes))
+	return crypto.Keccak256Hash(bytes)
 }
 
 //returns 65 byte of header signature in [R || S || V] format

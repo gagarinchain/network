@@ -20,23 +20,23 @@ func (_m *Service) SendMessage(peer *message.Peer, msg *message.Message) {
 	_m.Called(peer, msg)
 }
 
-// SendMessageToRandomPeer provides a mock function with given fields: req
-func (_m *Service) SendMessageToRandomPeer(req *message.Message) *message.Message {
+// SendMessageTriggered provides a mock function with given fields: peer, msg, trigger
+func (_m *Service) SendMessageTriggered(peer *message.Peer, msg *message.Message, trigger chan interface{}) {
+	_m.Called(peer, msg, trigger)
+}
+
+// SendRequestToRandomPeer provides a mock function with given fields: req
+func (_m *Service) SendRequestToRandomPeer(req *message.Message) chan *message.Message {
 	ret := _m.Called(req)
 
-	var r0 *message.Message
-	if rf, ok := ret.Get(0).(func(*message.Message) *message.Message); ok {
+	var r0 chan *message.Message
+	if rf, ok := ret.Get(0).(func(*message.Message) chan *message.Message); ok {
 		r0 = rf(req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*message.Message)
+			r0 = ret.Get(0).(chan *message.Message)
 		}
 	}
 
 	return r0
-}
-
-// SendMessageTriggered provides a mock function with given fields: peer, msg, trigger
-func (_m *Service) SendMessageTriggered(peer *message.Peer, msg *message.Message, trigger chan interface{}) {
-	_m.Called(peer, msg, trigger)
 }

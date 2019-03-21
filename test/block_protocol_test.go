@@ -25,12 +25,16 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 	if e != nil {
 		t.Error("Error constructing payload", e)
 	}
-	resp := &msg.Message{Message: &pb.Message{
-		Type:    pb.Message_HELLO_RESPONSE,
-		Payload: any,
-	}}
+	resp := make(chan *msg.Message)
+	go func() {
+		resp <- &msg.Message{Message: &pb.Message{
+			Type:    pb.Message_HELLO_RESPONSE,
+			Payload: any,
+		}}
+		close(resp)
+	}()
 
-	srv.On("SendMessageToRandomPeer", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+	srv.On("SendRequestToRandomPeer", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
 		m := (args[0]).(*msg.Message)
 		if m.Type != pb.Message_HELLO_REQUEST {
 			t.Error("Wrong message type")

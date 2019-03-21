@@ -39,11 +39,11 @@ func CreateProposalFromMessage(msg *msg.Message, sender *msg.Peer) (*Proposal, e
 			pb.Message_PROPOSAL.String(), msg.Type))
 	}
 	pp := &pb.ProposalPayload{}
-	block := bc.CreateBlockFromMessage(pp.Block)
-
 	if err := ptypes.UnmarshalAny(msg.Payload, pp); err != nil {
 		log.Error("Couldn't unmarshal response", err)
 	}
+
+	block := bc.CreateBlockFromMessage(pp.Block)
 	qc := bc.CreateQuorumCertificateFromMessage(pp.Cert)
 
 	pub, e := crypto.SigToPub(block.Header().Hash().Bytes(), pp.Signature)

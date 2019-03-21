@@ -17,6 +17,7 @@ type StaticPacer struct {
 	committee           []*msg.Peer
 	epochStartSubChan   []chan interface{}
 	roundEndChan        chan interface{}
+	stopChan            chan interface{}
 }
 
 func CreatePacer(config *ProtocolConfig) *StaticPacer {
@@ -28,12 +29,15 @@ func CreatePacer(config *ProtocolConfig) *StaticPacer {
 		storageGuard:        &sync.RWMutex{},
 		committee:           config.CommitteeLoader.LoadFromFile(),
 		roundEndChan:        config.RoundEndChan,
+		stopChan:            make(chan interface{}),
 	}
 }
 
 func (p *StaticPacer) Bootstrap() {
 	p.StartEpoch(1)
-
+}
+func (p *StaticPacer) Stop() {
+	p.stopChan <- struct{}{}
 }
 
 func (p *StaticPacer) Committee() []*msg.Peer {
@@ -51,6 +55,10 @@ func (p *StaticPacer) CurrentProposerOrStartEpoch() (*msg.Peer, bool) {
 
 func (p *StaticPacer) GetCurrent() *msg.Peer {
 	return p.committee[int(p.GetCurrentHeight())%len(p.committee)]
+}
+
+func (p *StaticPacer) GetNext() *msg.Peer {
+	return p.committee[int(p.GetCurrentHeight()+1)%len(p.committee)]
 }
 
 func (p *StaticPacer) StartEpoch(i int32) {
@@ -136,8 +144,14 @@ func (p *StaticPacer) SubscribeEpochChange(trigger chan interface{}) {
 
 func (p *StaticPacer) Run() {
 	ticker := time.NewTicker(2 * p.config.Delta)
+	timer := time.NewTimer(p.config.Delta)
 	for {
 		select {
+		case <-timer.C:
+			log.Info("Received no votes from peers in delta, proposing with last QC")
+
+			p.config.ControlChan <- Event(PROPOSE)
+
 		case <-ticker.C:
 			//TODO ignore when synchronizing
 			log.Info("Received no signal from underlying protocol about round ending, force proposer change")
@@ -152,7 +166,7 @@ func (p *StaticPacer) Run() {
 			p.config.Blockchain.PadEmptyBlock()
 			ticker = time.NewTicker(2 * p.config.Delta)
 		case <-p.roundEndChan:
-			log.Info("Protocol round ended gracefully, changing proposer")
+			log.Info("Protocol round ended gracefully")
 			ticker.Stop()
 
 			i := int(p.GetCurrentHeight()) % len(p.committee)
@@ -162,6 +176,9 @@ func (p *StaticPacer) Run() {
 			}
 			ticker.Stop()
 			ticker = time.NewTicker(2 * p.config.Delta)
+		case <-p.stopChan:
+			ticker.Stop()
+			return
 		}
 	}
 }

@@ -32,7 +32,7 @@ func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
 		assert.Equal(t, pb.Message_PROPOSAL, args[0].(*msg.Message).Type)
 	}).Once()
 
-	go p.OnPropose([]byte("proposing something"))
+	go p.OnPropose()
 
 	<-cfg.RoundEndChan
 	m := <-msgChan
@@ -83,8 +83,8 @@ func TestOnReceiveProposal(t *testing.T) {
 	//	t.Error("can't add block", e)
 	//}
 
-	for _, peer := range cfg.Pacer.Committee() {
-		log.Info(peer.GetAddress().Hex())
+	for _, p := range cfg.Pacer.Committee() {
+		log.Info(p.GetAddress().Hex())
 	}
 
 	currentProposer := cfg.Pacer.Committee()[3]
@@ -104,14 +104,14 @@ func TestOnReceiveProposal(t *testing.T) {
 	m := <-msgChan
 	<-cfg.RoundEndChan
 
-	vote, err := hotstuff.CreateVoteFromMessage(m, newBlock, cfg.Me)
+	vote, err := hotstuff.CreateVoteFromMessage(m, cfg.Me)
 	if err != nil {
 		t.Error("can't create vote", err)
 	}
 
 	srv.AssertCalled(t, "SendMessage", nextProposer, mock.AnythingOfType("*message.Message"))
-	assert.Equal(t, proposal.NewBlock.Header().Hash(), vote.NewBlock.Header().Hash())
-	assert.Equal(t, vote.NewBlock.Header().Height(), p.Vheight())
+	assert.Equal(t, proposal.NewBlock.Header().Hash(), vote.Header.Hash())
+	assert.Equal(t, vote.Header.Height(), p.Vheight())
 
 }
 
@@ -136,18 +136,17 @@ func TestOnReceiveVoteForNotProposer(t *testing.T) {
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	vote := createVote(bc, newBlock, t)
 
-	if err := p.OnReceiveVote(vote); err != nil {
-		t.Error("failed OnReceive", err)
-	}
+	assert.Error(t, p.OnReceiveVote(vote))
 }
 
 func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
-	bc, p, _ := initProtocol(t)
+	bc, p, cfg := initProtocol(t)
 	id := generateIdentity(t)
+	cfg.Pacer.Committee()[3] = cfg.Me
 	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	newBlock2 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
-	vote1 := hotstuff.CreateVote(newBlock1, bc.GetGenesisCert(), id)
-	vote2 := hotstuff.CreateVote(newBlock2, bc.GetGenesisCert(), id)
+	vote1 := hotstuff.CreateVote(newBlock1.Header(), bc.GetGenesisCert(), id)
+	vote2 := hotstuff.CreateVote(newBlock2.Header(), bc.GetGenesisCert(), id)
 
 	if err := p.OnReceiveVote(vote1); err != nil {
 		t.Error("failed OnReceive", err)
@@ -196,7 +195,7 @@ func TestOnReceiveVote(t *testing.T) {
 }
 
 func createVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) *hotstuff.Vote {
-	vote := hotstuff.CreateVote(newBlock, bc.GetGenesisCert(), generateIdentity(t))
+	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), generateIdentity(t))
 	return vote
 }
 
@@ -225,6 +224,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 		Srv:             srv,
 		CommitteeLoader: loader,
 		RoundEndChan:    make(chan interface{}),
+		ControlChan:     make(chan hotstuff.Event),
 	}
 
 	peers := make([]*msg.Peer, 10)

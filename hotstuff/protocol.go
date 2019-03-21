@@ -18,6 +18,12 @@ import (
 
 var log = logging.MustGetLogger("hotstuff")
 
+type Event int
+
+const (
+	PROPOSE Event = iota
+)
+
 type ProtocolConfig struct {
 	F               int
 	Delta           time.Duration
@@ -27,6 +33,7 @@ type ProtocolConfig struct {
 	Pacer           *StaticPacer
 	CommitteeLoader msg.CommitteeLoader
 	RoundEndChan    chan interface{}
+	ControlChan     chan Event
 }
 
 type Protocol struct {
@@ -41,9 +48,9 @@ type Protocol struct {
 	me                *msg.Peer
 	pacer             *StaticPacer
 	srv               network.Service
-
-	roundEndChan chan interface{}
-	stopChan     chan bool
+	controlChan       chan Event
+	roundEndChan      chan interface{}
+	stopChan          chan bool
 }
 
 func (p *Protocol) Vheight() int32 {
@@ -64,6 +71,7 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		srv:               cfg.Srv,
 		roundEndChan:      cfg.RoundEndChan,
 		stopChan:          make(chan bool),
+		controlChan:       cfg.ControlChan,
 	}
 }
 
@@ -136,7 +144,7 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 		p.vheight = proposal.NewBlock.Header().Height()
 
 		newBlock := p.blockchain.GetBlockByHash(proposal.NewBlock.Header().Hash())
-		vote := CreateVote(newBlock, p.hqc, p.me)
+		vote := CreateVote(newBlock.Header(), p.hqc, p.me)
 		vote.Sign(p.me.GetPrivateKey())
 
 		vMsg := vote.GetMessage()
@@ -163,24 +171,22 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 func (p *Protocol) OnReceiveVote(vote *Vote) error {
 	p.Update(vote.HQC)
 
-	// if we got vote we are not proposer is not a problem for us,
-	// we will store this vote, may be we will be current proposer
-	if p.me != p.pacer.GetCurrent() {
-		log.Infof("Got unexpected vote from [%v], i'm not proposer now", vote.Sender.GetAddress())
+	if p.me != p.pacer.GetCurrent() && p.me != p.pacer.GetNext() {
+		return errors.New(fmt.Sprintf("Got unexpected vote from [%v], i'm not proposer now", vote.Sender.GetAddress().Hex()))
 	}
 
 	addr := vote.Sender.GetAddress()
 
 	if stored, ok := p.votes[addr]; ok {
-		log.Infof("Already got vote for block [%v] from [%v]", stored.NewBlock.Header().Hash().Hex(), addr.Hex())
+		log.Infof("Already got vote for block [%v] from [%v]", stored.Header.Hash().Hex(), addr.Hex())
 
 		//check whether peer voted previously for block with higher number
-		if stored.NewBlock.Header().Height() > vote.NewBlock.Header().Height() {
+		if stored.Header.Height() > vote.Header.Height() {
 			p.equivocate(vote.Sender)
 			return errors.New("peer voted for block with lower number")
 		}
-		if stored.NewBlock.Header().Height() == vote.NewBlock.Header().Height() &&
-			stored.NewBlock.Header().Hash() != vote.NewBlock.Header().Hash() {
+		if stored.Header.Height() == vote.Header.Height() &&
+			stored.Header.Hash() != vote.Header.Hash() {
 			p.equivocate(vote.Sender)
 			return errors.New("peer voted for different blocks on the same number")
 		}
@@ -189,21 +195,22 @@ func (p *Protocol) OnReceiveVote(vote *Vote) error {
 	p.votes[addr] = vote
 
 	if p.CheckConsensus() {
-		p.FinishQC(vote.NewBlock)
-		p.OnPropose([]byte(strconv.Itoa(rand.Int()))) //propose random
+		p.FinishQC(vote.Header)
+		p.blockchain.GetBlockByHashOrLoad(vote.Header.Hash())
+		p.OnPropose() //propose random
 	}
 	return nil
 }
 
 func (p *Protocol) CheckConsensus() bool {
 	type stat struct {
-		score int
-		block *bc.Block
+		score  int
+		header *bc.Header
 	}
 	stats := make(map[common.Hash]*stat, len(p.votes))
 	for _, each := range p.votes {
-		if s, ok := stats[each.NewBlock.Header().Hash()]; !ok {
-			stats[each.NewBlock.Header().Hash()] = &stat{score: 1, block: each.NewBlock}
+		if s, ok := stats[each.Header.Hash()]; !ok {
+			stats[each.Header.Hash()] = &stat{score: 1, header: each.Header}
 		} else {
 			s.score += 1
 		}
@@ -223,7 +230,7 @@ func (p *Protocol) CheckConsensus() bool {
 
 	if secondBestStat.score >= (p.f/3)*2+1 {
 		panic(fmt.Sprintf("at list two blocks [%v], [%v]  got consensus score, reload chain than go on",
-			bestStat.block, secondBestStat.block))
+			bestStat.header, secondBestStat.header))
 	}
 
 	if bestStat.score >= (p.f/3)*2+1 {
@@ -235,9 +242,9 @@ func (p *Protocol) CheckConsensus() bool {
 
 //We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block
 //determined by it."
-func (p *Protocol) OnPropose(data []byte) {
+func (p *Protocol) OnPropose() {
 	//TODO    write test to fail on signature
-	block := p.blockchain.NewBlock(p.blockchain.GetHead(), p.hqc, data)
+	block := p.blockchain.NewBlock(p.blockchain.GetHead(), p.hqc, []byte(strconv.Itoa(rand.Int())))
 	proposal := CreateProposal(block, p.hqc, p.me)
 
 	proposal.Sign(p.me.GetPrivateKey())
@@ -256,13 +263,13 @@ func (*Protocol) equivocate(peer *msg.Peer) {
 	log.Warningf("Peer [%v] equivocated", peer.GetAddress().Hex())
 }
 
-func (p *Protocol) FinishQC(block *bc.Block) {
+func (p *Protocol) FinishQC(header *bc.Header) {
 	//Simply concatenate votes for now
 	var aggregate []byte
 	for _, v := range p.votes {
 		aggregate = append(aggregate, v.Signature...)
 	}
-	p.hqc = bc.CreateQuorumCertificate(aggregate, block.Header())
+	p.hqc = bc.CreateQuorumCertificate(aggregate, header)
 
 	//we get new QC, it means it is a good time to propose
 }
@@ -271,7 +278,7 @@ func (p *Protocol) HQC() *bc.QuorumCertificate {
 	return p.hqc
 }
 
-func (p *Protocol) Run(msgChan chan *msg.Message, nextProposerChan chan *msg.Peer) {
+func (p *Protocol) Run(msgChan chan *msg.Message) {
 	for {
 		select {
 		case m := <-msgChan:
@@ -282,15 +289,8 @@ func (p *Protocol) Run(msgChan chan *msg.Message, nextProposerChan chan *msg.Pee
 
 			switch m.Type {
 			case pb.Message_VOTE:
-				//tis is a little bit awkward to parse payload to get block, double parsing when creating vote
-				vp := &pb.VotePayload{}
-				if err := ptypes.UnmarshalAny(m.Payload, vp); err != nil {
-					log.Error("Couldn't unmarshal response", err)
-				}
-				block := p.blockchain.GetBlockByHash(common.BytesToHash(vp.BlockHash))
-
 				//put real sender here, we don't know ip, name
-				v, err := CreateVoteFromMessage(m, block, &msg.Peer{})
+				v, err := CreateVoteFromMessage(m, &msg.Peer{})
 				if err != nil {
 					log.Error(err)
 					break
@@ -309,6 +309,11 @@ func (p *Protocol) Run(msgChan chan *msg.Message, nextProposerChan chan *msg.Pee
 				}
 			case pb.Message_EPOCH_START:
 				p.pacer.OnEpochStart(m, &msg.Peer{})
+			}
+		case event := <-p.controlChan:
+			switch event {
+			case PROPOSE:
+				p.OnPropose()
 			}
 		case <-p.stopChan:
 			log.Info("Stopping pacer...")

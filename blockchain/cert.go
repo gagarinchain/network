@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"github.com/poslibp2p/eth/common"
+	"github.com/poslibp2p/eth/crypto"
 	"github.com/poslibp2p/message/protobuff"
 )
 
@@ -17,10 +18,6 @@ func CreateQuorumCertificateFromMessage(msg *pb.QuorumCertificate) *QuorumCertif
 	return CreateQuorumCertificate(msg.SignatureAggregate, CreateBlockHeaderFromMessage(msg.Header))
 }
 
-func (qc *QuorumCertificate) IsGenesisCert() bool {
-	return qc.qrefBlock == nil && common.Bytes2Hex(qc.signatureAggregate) == "FFFFFFFFFFFFFFFF"
-}
-
 func (qc *QuorumCertificate) SignatureAggregate() []byte {
 	return qc.signatureAggregate
 }
@@ -31,4 +28,9 @@ func (qc *QuorumCertificate) QrefBlock() *Header {
 
 func (qc *QuorumCertificate) GetMessage() *pb.QuorumCertificate {
 	return &pb.QuorumCertificate{Header: qc.QrefBlock().GetMessage(), SignatureAggregate: qc.SignatureAggregate()}
+}
+
+func (qc *QuorumCertificate) GetHash() common.Hash {
+	bytes := append(crypto.Keccak256(qc.signatureAggregate), qc.QrefBlock().Hash().Bytes()...)
+	return common.BytesToHash(crypto.Keccak256(bytes))
 }

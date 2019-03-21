@@ -12,7 +12,7 @@ type Service interface {
 	SendMessage(peer *msg.Peer, msg *msg.Message)
 
 	//Send message to a random peer
-	SendMessageToRandomPeer(req *msg.Message) (resp *msg.Message)
+	SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.Message)
 
 	//Broadcast message to all peers
 	Broadcast(msg *msg.Message)
@@ -24,7 +24,7 @@ type ServiceImpl struct {
 func (s *ServiceImpl) SendMessage(peer *msg.Peer, msg *msg.Message) {
 
 }
-func (s *ServiceImpl) SendMessageToRandomPeer(msg *msg.Message) (resp *msg.Message) {
+func (s *ServiceImpl) SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.Message) {
 	return nil
 }
 

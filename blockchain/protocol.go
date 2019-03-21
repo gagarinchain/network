@@ -23,7 +23,7 @@ func CreateBlockProtocol(srv network.Service, bc *Blockchain, sync Synchronizer,
 func (p *BlockProtocol) Bootstrap() {
 	rq := &pb.Message{Type: pb.Message_HELLO_REQUEST}
 	m := &msg.Message{Message: rq}
-	resp := p.srv.SendMessageToRandomPeer(m)
+	resp := <-p.srv.SendRequestToRandomPeer(m)
 
 	if resp.Type != pb.Message_HELLO_RESPONSE {
 		log.Error("Not expected msg type i response to Hello")
