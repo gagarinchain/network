@@ -21,7 +21,8 @@ var log = logging.MustGetLogger("hotstuff")
 type Event int
 
 const (
-	PROPOSE Event = iota
+	PROPOSE     Event = iota
+	EMPTY_BLOCK Event = iota
 )
 
 type ProtocolConfig struct {
@@ -314,6 +315,8 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 			switch event {
 			case PROPOSE:
 				p.OnPropose()
+			case EMPTY_BLOCK:
+				p.OnEmptyBlock()
 			}
 		case <-p.stopChan:
 			log.Info("Stopping pacer...")
@@ -330,4 +333,9 @@ func (p *Protocol) Delta() time.Duration {
 
 func (p *Protocol) Stop() {
 	p.stopChan <- true
+}
+
+func (p *Protocol) OnEmptyBlock() {
+	p.blockchain.PadEmptyBlock()
+	p.roundEndChan <- struct{}{}
 }

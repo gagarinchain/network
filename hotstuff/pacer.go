@@ -104,6 +104,7 @@ func (p *StaticPacer) OnEpochStart(m *msg.Message, s *msg.Peer) {
 	}
 
 	if max.n <= p.currentEpoch && int(max.c) == p.config.F/3+1 {
+		//really impossible, because one peer is fair, and is not synchronized
 		log.Fatal("Somehow we are ahead on epochs than f + 1 peers, it is impossible")
 	}
 
@@ -122,7 +123,7 @@ func (p *StaticPacer) newEpoch(i int32) {
 	if i > 1 {
 		delta := (i-1)*int32(p.config.F) - p.GetCurrentHeight()
 		for k := 0; k < int(delta); k++ {
-			p.config.Blockchain.PadEmptyBlock()
+			p.config.ControlChan <- Event(EMPTY_BLOCK)
 		}
 	}
 
@@ -134,6 +135,8 @@ func (p *StaticPacer) newEpoch(i int32) {
 		}(ch)
 	}
 	p.IsStarting = false
+	log.Infof("Started new epoch %v", i)
+	log.Infof("Current height %v, proposer %v", p.GetCurrentHeight(), p.GetCurrent().GetAddress().Hex())
 }
 
 func (p *StaticPacer) SubscribeEpochChange(trigger chan interface{}) {
@@ -143,44 +146,40 @@ func (p *StaticPacer) SubscribeEpochChange(trigger chan interface{}) {
 }
 
 func (p *StaticPacer) Run() {
-	ticker := time.NewTicker(2 * p.config.Delta)
-	timer := time.NewTimer(p.config.Delta)
+	roundTimer := time.NewTimer(2 * p.config.Delta)
+	proposeTimer := time.NewTimer(p.config.Delta)
 	for {
 		select {
-		case <-timer.C:
+		case <-proposeTimer.C:
 			if p.GetCurrent() == p.config.Me {
 				log.Info("Received no votes from peers in delta, proposing with last QC")
 
 				p.config.ControlChan <- Event(PROPOSE)
 			}
-		case <-ticker.C:
+		case <-roundTimer.C:
 			//TODO ignore when synchronizing
 			log.Info("Received no signal from underlying protocol about round ending, force proposer change")
-			ticker.Stop()
 
 			i := int(p.GetCurrentHeight()) % len(p.committee)
 			if i == 0 {
+				log.Info("New epoch starting")
 				p.StartEpoch(p.currentEpoch + 1)
-				ticker = time.NewTicker(4 * p.config.Delta)
+				roundTimer = time.NewTimer(4 * p.config.Delta)
 			}
 
-			p.config.Blockchain.PadEmptyBlock()
-			ticker = time.NewTicker(2 * p.config.Delta)
-			timer = time.NewTimer(p.config.Delta)
+			p.config.ControlChan <- Event(EMPTY_BLOCK)
 		case <-p.roundEndChan:
-			log.Info("Protocol round ended gracefully")
-			ticker.Stop()
-
+			log.Info("Round ended")
 			i := int(p.GetCurrentHeight()) % len(p.committee)
 			if i == 0 {
 				p.StartEpoch(p.currentEpoch + 1)
-				ticker = time.NewTicker(4 * p.config.Delta)
+				roundTimer = time.NewTimer(4 * p.config.Delta)
 			}
-			ticker.Stop()
-			ticker = time.NewTicker(2 * p.config.Delta)
-			timer = time.NewTimer(p.config.Delta)
+			roundTimer = time.NewTimer(2 * p.config.Delta)
+			proposeTimer = time.NewTimer(p.config.Delta)
 		case <-p.stopChan:
-			ticker.Stop()
+			proposeTimer.Stop()
+			roundTimer.Stop()
 			return
 		}
 	}

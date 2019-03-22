@@ -223,21 +223,28 @@ func TestScenario4(t *testing.T) {
 	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
-//Scenario 4:
+//Scenario 5a:
 //Start new epoch
-//Next Proposer
-//Proposer equivocates, no proposal sent
-//Propose block with previous QC (2) after 2*Delta
-func TestScenario4(t *testing.T) {
+//Receive no messages
+//Receive 2f + 1 start messages
+//Start new epoch
+//Propose
+func TestScenario5a(t *testing.T) {
 	ctx := initContext(t)
 	ctx.StartFirstEpoch()
-	ctx.setMe(4)
+	ctx.setMe(0)
+
+	log.Infof("me %v", ctx.pacer.Committee()[0].GetAddress().Hex())
 
 	go ctx.pacer.Run()
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
 	defer ctx.protocol.Stop()
+
+	time.Sleep(8 * ctx.cfg.Delta)
+	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1)
+	<-ctx.startChan //mine start message
 
 	proposal := <-ctx.proposalCHan
 
@@ -246,7 +253,39 @@ func TestScenario4(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+}
+
+//Scenario 5b:
+//Start new epoch
+//Receive no messages
+//Start new epoch after epoch end
+//Propose
+func TestScenario5b(t *testing.T) {
+	ctx := initContext(t)
+	ctx.StartFirstEpoch()
+	ctx.setMe(0)
+
+	log.Infof("me %v", ctx.pacer.Committee()[0].GetAddress().Hex())
+
+	go ctx.pacer.Run()
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer ctx.protocol.Stop()
+
+	<-ctx.startChan
+	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1)
+
+	proposal := <-ctx.proposalCHan
+
+	payload := &pb.ProposalPayload{}
+	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
+		log.Error(err)
+	}
+
+	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
 	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
@@ -287,13 +326,17 @@ func (ctx *TestContext) StartFirstEpoch() {
 	<-ctx.startChan
 	trigger := make(chan interface{})
 	ctx.pacer.SubscribeEpochChange(trigger)
-	for i := 0; i < 2*ctx.cfg.F/3+1; i++ {
-		epoch := hotstuff.CreateEpoch(ctx.pacer.Committee()[i], 1)
+	ctx.sendStartEpochMessages(1, 2*ctx.cfg.F/3+1)
+	<-trigger
+	<-ctx.startChan
+}
+
+func (ctx *TestContext) sendStartEpochMessages(index int32, amount int) {
+	for i := 0; i < amount; i++ {
+		epoch := hotstuff.CreateEpoch(ctx.pacer.Committee()[i], index)
 		message, _ := epoch.GetMessage()
 		ctx.pacer.OnEpochStart(message, ctx.pacer.Committee()[i])
 	}
-	<-trigger
-	<-ctx.startChan
 }
 
 func (ctx *TestContext) setMe(peerNumber int) {
@@ -316,7 +359,7 @@ func initContext(t *testing.T) *TestContext {
 	bc.SetSynchronizer(synchr)
 	config := &hotstuff.ProtocolConfig{
 		F:               10,
-		Delta:           5 * time.Second,
+		Delta:           2 * time.Second,
 		Blockchain:      bc,
 		Me:              identity,
 		Srv:             srv,
