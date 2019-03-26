@@ -66,12 +66,15 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) *Block {
 	return block
 }
 
-func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) *Block {
-	if block := bc.GetBlockByHash(hash); block != nil {
-		return block
+func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded bool) {
+	loaded = !bc.Contains(hash)
+	if loaded {
+		b = bc.LoadBlock(hash)
+	} else {
+		b = bc.GetBlockByHash(hash)
 	}
-	block := bc.LoadBlock(hash)
-	return block
+
+	return b, loaded
 }
 
 func (bc *Blockchain) LoadBlock(hash common.Hash) *Block {
@@ -159,7 +162,7 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	defer bc.indexGuard.Unlock()
 
 	if bc.blocksByHash[block.Header().Hash()] != nil {
-		return errors.New(fmt.Sprintf("block with hash [%v] already exist", block.Header().Hash()))
+		return errors.New(fmt.Sprintf("block with hash [%v] already exist", block.Header().Hash().Hex()))
 	}
 
 	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
@@ -198,7 +201,7 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 		return true
 	}
 
-	parent := bc.GetBlockByHashOrLoad(sibling.parent)
+	parent, _ := bc.GetBlockByHashOrLoad(sibling.parent)
 
 	if parent.Header().IsGenesisBlock() || parent.header.height < ancestor.height {
 		return false
@@ -256,10 +259,13 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 	return block
 }
 
-func (bc *Blockchain) PadEmptyBlock() {
-	block := bc.NewBlock(bc.GetHead(), bc.GetHead().QC(), []byte(""))
+func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
+	block := bc.NewBlock(head, head.QC(), []byte(""))
 
 	if e := bc.AddBlock(block); e != nil {
 		log.Error("Can't add empty block")
+		return nil
 	}
+
+	return block
 }

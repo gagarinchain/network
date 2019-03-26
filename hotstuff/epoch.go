@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
+	"github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/eth/common"
 	"github.com/poslibp2p/eth/crypto"
 	msg "github.com/poslibp2p/message"
@@ -11,12 +12,13 @@ import (
 )
 
 type Epoch struct {
+	qc     *blockchain.QuorumCertificate
 	sender *msg.Peer
 	number int32
 }
 
-func CreateEpoch(sender *msg.Peer, number int32) *Epoch {
-	return &Epoch{sender, number}
+func CreateEpoch(sender *msg.Peer, number int32, qc *blockchain.QuorumCertificate) *Epoch {
+	return &Epoch{qc, sender, number}
 }
 
 func CreateEpochFromMessage(msg *msg.Message, sender *msg.Peer) (*Epoch, error) {
@@ -39,7 +41,7 @@ func CreateEpochFromMessage(msg *msg.Message, sender *msg.Peer) (*Epoch, error) 
 	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
 	sender.SetAddress(a)
 
-	return CreateEpoch(sender, ep.EpochNumber), nil
+	return CreateEpoch(sender, ep.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(ep.Cert)), nil
 }
 
 func getHash(ep *pb.EpochStartPayload) ([]byte, error) {
@@ -53,7 +55,10 @@ func getHash(ep *pb.EpochStartPayload) ([]byte, error) {
 }
 
 func (ep *Epoch) GetMessage() (*msg.Message, error) {
-	payload := &pb.EpochStartPayload{EpochNumber: ep.number}
+	payload := &pb.EpochStartPayload{
+		Cert:        ep.qc.GetMessage(),
+		EpochNumber: ep.number,
+	}
 
 	hashbytes, err := getHash(payload)
 	if err != nil {

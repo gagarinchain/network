@@ -24,6 +24,7 @@ type ServiceImpl struct {
 func (s *ServiceImpl) SendMessage(peer *msg.Peer, msg *msg.Message) {
 
 }
+
 func (s *ServiceImpl) SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.Message) {
 	return nil
 }

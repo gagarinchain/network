@@ -25,6 +25,7 @@ message HelloPayload {
 }
 
 message EpochStartPayload {
+    QuorumCertificate cert = 1;
     bytes signature = 2;
     int32 epoch_number = 3;
 }

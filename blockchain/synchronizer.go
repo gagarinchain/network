@@ -29,7 +29,12 @@ type SynchronizerImpl struct {
 }
 
 func CreateSynchronizer(bchan <-chan *Block, me *message.Peer, srv network.Service, bc *Blockchain) Synchronizer {
-	return &SynchronizerImpl{bchan: bchan, me: me, srv: srv, bc: bc}
+	return &SynchronizerImpl{
+		bchan: bchan,
+		me:    me,
+		srv:   srv,
+		bc:    bc,
+	}
 }
 
 //IMPORTANT: think whether we MUST wait until we receive absent blocks to go on processing
