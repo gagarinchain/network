@@ -14,7 +14,7 @@ import (
 
 func TestSynchRequestBlock(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock()
+	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	me := generateIdentity(t)
 	toTest := blockchain.CreateSynchronizer(make(chan *blockchain.Block), me, srv, bc)
 
@@ -38,7 +38,7 @@ func TestSynchRequestBlock(t *testing.T) {
 
 func TestSynchRequestBlocksForHeight(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock()
+	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	me := generateIdentity(t)
 	blocks := make(chan *blockchain.Block)
 	toTest := blockchain.CreateSynchronizer(blocks, me, srv, bc)
@@ -67,7 +67,7 @@ func TestSynchRequestBlocksForHeight(t *testing.T) {
 
 func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock()
+	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	me := generateIdentity(t)
 	toTest := blockchain.CreateSynchronizer(make(chan *blockchain.Block), me, srv, bc)
 

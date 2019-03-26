@@ -13,6 +13,7 @@ import (
 	"github.com/poslibp2p/network"
 	"math/rand"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -52,6 +53,10 @@ type HQCHandler interface {
 	HQC() *bc.QuorumCertificate
 }
 
+type CurrentViewGetter interface {
+	GetCurrentView() int32
+}
+
 type ProtocolConfig struct {
 	F               int
 	Delta           time.Duration
@@ -69,6 +74,7 @@ type Protocol struct {
 	delta               time.Duration
 	blockchain          *bc.Blockchain
 	currentView         int32
+	currentViewGuard    *sync.RWMutex
 	vheight             int32
 	currentEpoch        int32
 	IsStartingEpoch     bool
@@ -106,12 +112,13 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		controlChan:         cfg.ControlChan,
 		currentEpoch:        0,
 		currentView:         3,
+		currentViewGuard:    &sync.RWMutex{},
 		IsStartingEpoch:     false,
 		epochMessageStorage: make(map[common.Address]int32),
 	}
 }
 
-//We return qref(qref(HQC_Block)) Pref block is the one that saw at least f+1 honest peers
+//We return qref(qref(HQC_Block))
 func (p *Protocol) GetPref() *bc.Block {
 	_, one, _ := p.blockchain.GetThreeChain(p.hqc.QrefBlock().Hash())
 	return one
@@ -156,16 +163,16 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 
 	p.Update(proposal.HQC)
 
-	log.Info(p.pacer.GetCurrent(p.currentView).GetAddress().Hex())
+	log.Info(p.pacer.GetCurrent(p.GetCurrentView()).GetAddress().Hex())
 	//TODO move this two validations
-	if !proposal.Sender.Equals(p.pacer.GetCurrent(p.currentView)) {
+	if !proposal.Sender.Equals(p.pacer.GetCurrent(p.GetCurrentView())) {
 		log.Warningf("This proposer [%v] is not expected", proposal.Sender.GetAddress().Hex())
 		p.equivocate(proposal.Sender)
 		return errors.New("peer equivocated")
 	}
-	if proposal.NewBlock.Header().Height() != p.currentView {
+	if proposal.NewBlock.Header().Height() != p.GetCurrentView() {
 		log.Warningf("This proposer [%v] is expected to propose at height [%v], not on [%v]",
-			proposal.Sender.GetAddress().Hex(), p.currentView, proposal.NewBlock.Header().Height())
+			proposal.Sender.GetAddress().Hex(), p.GetCurrentView(), proposal.NewBlock.Header().Height())
 		p.equivocate(proposal.Sender)
 		return errors.New("peer equivocated")
 	}
@@ -190,13 +197,13 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 		}
 		m := msg.CreateMessage(pb.Message_VOTE, any)
 
-		willTrigger := p.pacer.WillNextViewForceEpochStart(p.currentView)
+		willTrigger := p.pacer.WillNextViewForceEpochStart(p.GetCurrentView())
 		if willTrigger {
 			trigger := make(chan interface{})
 			p.SubscribeEpochChange(trigger)
-			go p.srv.SendMessageTriggered(p.pacer.GetNext(p.currentView), m, trigger)
+			go p.srv.SendMessageTriggered(p.pacer.GetNext(p.GetCurrentView()), m, trigger)
 		} else {
-			go p.srv.SendMessage(p.pacer.GetNext(p.currentView), m)
+			go p.srv.SendMessage(p.pacer.GetNext(p.GetCurrentView()), m)
 		}
 	}
 
@@ -207,7 +214,7 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 func (p *Protocol) OnReceiveVote(vote *Vote) error {
 	p.Update(vote.HQC)
 
-	if p.me != p.pacer.GetCurrent(p.currentView) && p.me != p.pacer.GetNext(p.currentView) {
+	if p.me != p.pacer.GetCurrent(p.GetCurrentView()) && p.me != p.pacer.GetNext(p.GetCurrentView()) {
 		return errors.New(fmt.Sprintf("Got unexpected vote from [%v], i'm not proposer now", vote.Sender.GetAddress().Hex()))
 	}
 
@@ -236,7 +243,7 @@ func (p *Protocol) OnReceiveVote(vote *Vote) error {
 		//rare case when we missed proposal, but we are next proposer and received all votes, in this case we go to next view and propose
 		//this situation is the same as when we received proposal
 		//TODO think about it again, mb it is safer to ignore votes and simply push next view after 2 deltas
-		if loaded && p.me == p.pacer.GetNext(p.currentView) {
+		if loaded && p.me == p.pacer.GetNext(p.GetCurrentView()) {
 			p.OnNextView()
 		}
 		p.OnPropose() //propose random
@@ -285,7 +292,7 @@ func (p *Protocol) CheckConsensus() bool {
 //We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block
 //determined by it."
 func (p *Protocol) OnPropose() {
-	if p.pacer.GetCurrent(p.currentView) != p.me {
+	if p.pacer.GetCurrent(p.GetCurrentView()) != p.me {
 		log.Info("Can't propose when we are not proposers")
 		return
 	}
@@ -333,9 +340,13 @@ func (p *Protocol) HQC() *bc.QuorumCertificate {
 }
 
 func (p *Protocol) OnNextView() {
-	p.changeView(p.currentView + 1)
+	p.changeView(p.GetCurrentView() + 1)
 }
+
 func (p *Protocol) changeView(view int32) {
+	p.currentViewGuard.Lock()
+	defer p.currentViewGuard.Unlock()
+
 	p.currentView = view
 	go func() {
 		p.roundEndChan <- p.currentView
@@ -449,7 +460,6 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 			case pb.Message_EPOCH_START:
 				p.OnEpochStart(m, &msg.Peer{})
 			}
-			//TODO fix race condition when timer triggers at the moment we changed view but not informed pacer yet
 		case event := <-p.controlChan:
 			switch event.etype {
 			case SUGGEST_PROPOSE:
@@ -473,5 +483,7 @@ func (p *Protocol) Stop() {
 }
 
 func (p *Protocol) GetCurrentView() int32 {
+	p.currentViewGuard.RLock()
+	defer p.currentViewGuard.RUnlock()
 	return p.currentView
 }

@@ -11,6 +11,7 @@ type StaticPacer struct {
 	committee    []*msg.Peer
 	roundEndChan chan int32
 	stopChan     chan interface{}
+	viewGetter   CurrentViewGetter
 }
 
 func CreatePacer(config *ProtocolConfig) *StaticPacer {
@@ -22,6 +23,9 @@ func CreatePacer(config *ProtocolConfig) *StaticPacer {
 	}
 }
 
+func (p *StaticPacer) SetViewGetter(getter CurrentViewGetter) {
+	p.viewGetter = getter
+}
 func (p *StaticPacer) Bootstrap() {
 	go p.Run()
 }
@@ -50,26 +54,25 @@ func (p *StaticPacer) Run() {
 	roundTimer := time.NewTimer(2 * p.config.Delta)
 	proposeTimer := time.NewTimer(p.config.Delta)
 
-	viewNumber := int32(0)
 	for {
 		select {
 		case <-proposeTimer.C:
 			log.Info("Received no votes from peers in delta, proposing with last QC")
-			p.config.ControlChan <- Event{viewNumber: viewNumber, etype: EventType(SUGGEST_PROPOSE)}
+			p.config.ControlChan <- Event{viewNumber: p.viewGetter.GetCurrentView(), etype: EventType(SUGGEST_PROPOSE)}
 		case <-roundTimer.C:
 			//TODO ignore when synchronizing
 			log.Info("Received no signal from underlying protocol about round ending, force proposer change")
 
-			p.config.ControlChan <- Event{viewNumber: viewNumber, etype: EventType(NEXT_VIEW)}
-		case viewNumber = <-p.roundEndChan:
-			log.Infof("Round %v ended", viewNumber)
+			p.config.ControlChan <- Event{viewNumber: p.viewGetter.GetCurrentView(), etype: EventType(NEXT_VIEW)}
+		case <-p.roundEndChan:
+			log.Infof("Round %v ended", p.viewGetter.GetCurrentView())
 
 			proposeTimer.Stop()
 			roundTimer.Stop()
 
-			i := int(viewNumber) % len(p.committee)
+			i := int(p.viewGetter.GetCurrentView()) % len(p.committee)
 			if i == 0 {
-				p.config.ControlChan <- Event{viewNumber: viewNumber, etype: EventType(START_EPOCH)}
+				p.config.ControlChan <- Event{viewNumber: p.viewGetter.GetCurrentView(), etype: EventType(START_EPOCH)}
 				roundTimer = time.NewTimer(4 * p.config.Delta)
 			}
 			roundTimer = time.NewTimer(2 * p.config.Delta)

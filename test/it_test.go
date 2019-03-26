@@ -352,12 +352,17 @@ func initContext(t *testing.T) *TestContext {
 	identity := generateIdentity(t)
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
+	storage := &mocks.Storage{}
+	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
+	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
+	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
+
 	loader := &mocks.CommitteeLoader{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock()
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, synchr)
 	bc.SetSynchronizer(synchr)
 	config := &hotstuff.ProtocolConfig{
 		F:               10,
-		Delta:           5 * time.Second,
+		Delta:           1 * time.Second,
 		Blockchain:      bc,
 		Me:              identity,
 		Srv:             srv,
@@ -396,13 +401,12 @@ func initContext(t *testing.T) *TestContext {
 		return c
 	}(blockChan)
 	synchr.On("RequestBlock", mock.AnythingOfType("common.Hash")).Return(blockChanRead)
-
 	loader.On("LoadFromFile").Return(peers)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
-
 	p := hotstuff.CreateProtocol(config)
+	pacer.SetViewGetter(p)
 	protocolChan := make(chan *msg.Message)
 	return &TestContext{
 		voteChan:     voteChan,

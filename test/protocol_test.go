@@ -321,7 +321,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
 	loader := &mocks.CommitteeLoader{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock()
+	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), synchr)
 	bc.SetSynchronizer(synchr)
 	config := &hotstuff.ProtocolConfig{
 		F:               10,

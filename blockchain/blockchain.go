@@ -3,7 +3,6 @@ package blockchain
 import (
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/emirpasic/gods/utils"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/eth/common"
@@ -25,6 +24,7 @@ type Blockchain struct {
 	//<int32, []*Block>
 	uncommittedHeadByHeight *treemap.Map
 
+	storage      Storage
 	synchronizer Synchronizer
 
 	genesisCert *QuorumCertificate
@@ -33,16 +33,22 @@ type Blockchain struct {
 func (bc *Blockchain) SetSynchronizer(synchronizer Synchronizer) {
 	bc.synchronizer = synchronizer
 }
+func (bc *Blockchain) SetStorage(storage Storage) {
+	bc.storage = storage
+}
 
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock() *Blockchain {
+func CreateBlockchainFromGenesisBlock(storage Storage, synchronizer Synchronizer) *Blockchain {
 	zero, one, two, certToHead := CreateGenesisTriChain()
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedTailByHeight:   treemap.NewWith(utils.Int32Comparator),
 		uncommittedHeadByHeight: treemap.NewWith(utils.Int32Comparator),
-		indexGuard:              &sync.RWMutex{}}
+		indexGuard:              &sync.RWMutex{},
+		storage:                 storage,
+		synchronizer:            synchronizer,
+	}
 
 	blockchain.AddBlock(zero)
 	blockchain.AddBlock(one)
@@ -53,16 +59,23 @@ func CreateBlockchainFromGenesisBlock() *Blockchain {
 	return blockchain
 }
 
-func (bc *Blockchain) GetBlockByHash(hash common.Hash) *Block {
+func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
-	block := bc.blocksByHash[hash]
+	block = bc.blocksByHash[hash]
 
-	//if block == nil {
-	//	panic(fmt.Sprintf("Can't find expected block for [%hash]", hash))
-	//}
-	//
+	if block == nil {
+		block, er := bc.storage.GetBlock(hash)
+		if er != nil {
+			log.Error(er)
+		}
+		if block == nil {
+
+		}
+		return block
+	}
+
 	return block
 }
 
@@ -94,8 +107,6 @@ func (bc *Blockchain) Contains(hash common.Hash) bool {
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
 func (bc *Blockchain) GetThreeChain(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
-	spew.Dump(bc.blocksByHash)
-
 	two = bc.GetBlockByHash(twoHash)
 	if two == nil {
 		return nil, nil, nil
@@ -161,7 +172,7 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	bc.indexGuard.Lock()
 	defer bc.indexGuard.Unlock()
 
-	if bc.blocksByHash[block.Header().Hash()] != nil {
+	if bc.blocksByHash[block.Header().Hash()] != nil || bc.storage.Contains(block.Header().Hash()) {
 		return errors.New(fmt.Sprintf("block with hash [%v] already exist", block.Header().Hash().Hex()))
 	}
 
@@ -172,7 +183,11 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 	value = append(value.([]*Block), block)
 	bc.blocksByHash[block.Header().Hash()] = block
+
 	bc.uncommittedHeadByHeight.Put(block.Header().Height(), value)
+	if err := bc.storage.PutBlock(block); err != nil {
+		log.Error("Can't add block to storage")
+	}
 
 	return nil
 }
