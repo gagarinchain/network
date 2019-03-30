@@ -17,10 +17,11 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
 	storage := &mocks.Storage{}
+	bsrv := &mocks.BlockService{}
 	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, synchr)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr, 2)
 
 	payload := &pb.HelloPayload{Version: 1, Time: time.Now().Unix(), TopBlockHeight: 4}

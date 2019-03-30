@@ -1,0 +1,44 @@
+{
+	"peers": [
+		{
+			"addr": "0x505b394c902285833e65B9E7B07c72Fa144a0E85",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9080/p2p/Qmbn2FNLMT5CADgKFmd9QL1M42v2v7MiwdF6xc2xpvRKUA"
+		},
+		{
+			"addr": "0x0c3Ff8Be262dd58BF26c0eBcd7C624390d7D5Fff",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9081/p2p/QmTSvP1vpxBnvBvrGhteQHps3RPB3zAtXEyW2vwYMN88iU"
+		},
+		{
+			"addr": "0x2104f252Ced02bd4c93edEd75954C69e9287fef5",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9082/p2p/QmXzjUoDbM8xqu8pPFp23Q57uWXY6SF1o9gYFzUhbGgk9i"
+		},
+		{
+			"addr": "0x3A4E8AE5BdcAcA5852121530Cbb2D048971A41e4",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9083/p2p/QmSFC8KdAo1p5e22prTDi8KPSMYdh3MGe7VGnhNykyAiUu"
+		},
+		{
+			"addr": "0x211a6c8aAA7fb5277953A2FA1AD098Ee07C1E01D",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9084/p2p/QmTY2WCWm58x21YMTVrtNavzqZDsUFG7ZvDN4MNq3Xk4Df"
+		},
+		{
+			"addr": "0xFE09c22ef5A253A78035d7AAF22E241abBe3AF9f",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9085/p2p/QmajbspgsMC4iuDm2z6fuGgfdnpyntJp9LyJtBnmgicQhP"
+		},
+		{
+			"addr": "0x39571527be7F80AE4890865268DFcF5125C12966",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9086/p2p/QmZfJaisW93bWDDGWTmpAfxhWKgJ4duM5vHW5VSr6bg7J1"
+		},
+		{
+			"addr": "0x247F785d1aF8D66c3d46223b03e650826a61BEbB",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9087/p2p/QmP4VShtTKCD52HrcAeYQdR4EzQH5NiY3XjEw3V5pYmd99"
+		},
+		{
+			"addr": "0xEcd66fE93Aa7aB1eBc5436b9A050103883c49C4e",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9088/p2p/QmUhdncwn9x5QrRDn7hoyrD9jpTB1CSyKWivrhHhXsXTVN"
+		},
+		{
+			"addr": "0x618760b41e8ec45867D625BA8cfC894a6Db9B5fb",
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9089/p2p/Qmdm8nRh3cbZa4hZ3MhcUP9JSdVkwYPEZX5xfFq2PkLfKc"
+		}
+	]
+}

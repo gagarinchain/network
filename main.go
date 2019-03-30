@@ -1,19 +1,20 @@
 package main
 
 import (
-	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	golog "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p-crypto"
+	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
 	"github.com/libp2p/go-libp2p-peer"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
 	gologging "github.com/whyrusleeping/go-logging"
+	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -29,90 +30,52 @@ func main() {
 	// LibP2P code uses golog to log messages. They log with different
 	// string IDs (i.e. "swarm"). We can control the verbosity level for
 	// all loggers with:
-	golog.SetAllLoggers(gologging.INFO) // Change to DEBUG for extra info
+	golog.SetAllLoggers(gologging.INFO)
 
 	// Parse options from the command line
-	listenF := flag.Int("l", 0, "wait for incoming connections")
-	target := flag.String("d", "", "target peer to dial")
+	ind := flag.Int("l", 0, "peer index")
 	flag.Parse()
 
-	if *listenF == 0 {
-		log.Fatal("Please provide a port to bind on with -l")
+	if *ind == 0 {
+		log.Fatal("Please provide peer index with -l")
+	}
+
+	var v map[string]interface{}
+	index := strconv.Itoa(*ind)
+	bytes, e := ioutil.ReadFile("static/peer" + index + ".json")
+	if e != nil {
+		log.Fatal(e)
+	}
+	e = json.Unmarshal(bytes, &v)
+	if e != nil {
+		log.Fatal(e)
 	}
 
 	// First let's create a new identity key pair for our node. If this was your
 	// application you would likely save this private key to a database and load
 	// it from the db on subsequent start ups.
-	privKey, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	pk := v["pkpeer"].(string)
+	decodeString, e := hex.DecodeString(pk)
+	privKey, err := p2pcrypto.UnmarshalPrivateKey(decodeString)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	var loader message.CommitteeLoader = &message.CommitteeLoaderImpl{}
+	committee := loader.LoadFromFile("static/peers.json")
 	// Next we'll create the node config
-	cfg := network.NodeConfig{
+	cfg := &network.NodeConfig{
 		PrivateKey: privKey,
-
-		Port: uint16(*listenF),
-
-		// For this we will just use a temp directory.
-		DataDir: path.Join(os.TempDir(), strconv.Itoa(*listenF)),
+		Port:       uint16(*ind),
+		DataDir:    path.Join(os.TempDir(), strconv.Itoa(*ind)),
+		Committee:  committee,
 	}
 
-	// If the target address is provided let's add it as a bootstrap peer in the config
-	if *target != "" {
-		// Parse the target address
-		peerInfo, err := ParseBootstrapPeer(*target)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Debugf("Got addresses [%v] for addr[%s]", peerInfo.Addrs, *target)
-		cfg.BootstrapPeers = []peerstore.PeerInfo{peerInfo}
-	}
+	ctx := CreateContext(cfg)
 
-	// Now create our node object
-	node, err := network.CreateNode(&cfg)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	node.Dispatcher.Handlers = map[pb.Message_MessageType]message.Handler{}
-
-	//log.Infof("This is my addrs %v", node.Host.Addrs())
-	//// If this is the listening dht node then just hang here.
-	//if *target == "" {
-	//	log.Info("listening for connections")
-	//	fullAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", *listenF, node.Host.ID().Pretty())
-	//	log.Infof("Now run \"go run main.go -l %d -d %s\" on a different terminal\n", *listenF+1, fullAddr)
-	//
-	//	// Subscribe to the topic
-	//	sub, err := node.PubSub.SubscribeAndProvide(context.Background(),"shard")
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//	for {
-	//		msg, err := sub.Next(context.Background())
-	//		if err == io.EOF || err == context.Canceled {
-	//			break
-	//		} else if err != nil {
-	//			break
-	//		}
-	//		pid, err := peer.IDFromBytes(msg.From)
-	//		if err != nil {
-	//			log.Fatal(err)
-	//		}
-	//		log.Infof("Received Pubsub message: %s from %s\n", string(msg.Data), pid.Pretty())
-	//	}
-	//}
-
-	log.Infof("This is my addrs %v", node.Host.Addrs())
-	fullAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", *listenF, node.Host.ID().Pretty())
-	log.Infof("Now run \"./poslibp2p -l %d -d %s\" on a different terminal\n", *listenF+1, fullAddr)
-
-	go node.SubscribeAndListen("shard")
-
-	// Ok now we can bootstrap the node. This could take a little bit if we we're
+	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.
-	err = node.Bootstrap()
+	err = ctx.node.Bootstrap()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -151,7 +114,6 @@ func main() {
 	//}()
 	//tick()
 
-	// hang
 	select {}
 
 }

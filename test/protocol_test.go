@@ -319,22 +319,23 @@ func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Bloc
 func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig) {
 	identity := generateIdentity(t)
 	srv := &mocks.Service{}
-	synchr := &mocks.Synchronizer{}
+	//synchr := &mocks.Synchronizer{}
 	loader := &mocks.CommitteeLoader{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), synchr)
-	bc.SetSynchronizer(synchr)
+	bsrv := &mocks.BlockService{}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), bsrv)
+	peers := make([]*msg.Peer, 10)
+
 	config := &hotstuff.ProtocolConfig{
-		F:               10,
-		Delta:           5 * time.Second,
-		Blockchain:      bc,
-		Me:              identity,
-		Srv:             srv,
-		CommitteeLoader: loader,
-		RoundEndChan:    make(chan int32),
-		ControlChan:     make(chan hotstuff.Event),
+		F:            10,
+		Delta:        5 * time.Second,
+		Blockchain:   bc,
+		Me:           identity,
+		Srv:          srv,
+		Committee:    peers,
+		RoundEndChan: make(chan int32),
+		ControlChan:  make(chan hotstuff.Event),
 	}
 
-	peers := make([]*msg.Peer, 10)
 	for i := 0; i < 10; i++ {
 		peers[i] = generateIdentity(t)
 	}

@@ -66,8 +66,9 @@ func CreateGenesisTriChain() (zero *Block, one *Block, two *Block, certToHead *Q
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)), time.Now().Round(time.Millisecond))
 	zeroHeader.SetHash()
 	//We need block to calculate it's hash
-	z := &Block{header: zeroHeader, data: data}
-	zeroCert := CreateQuorumCertificate([]byte("Valid"), z.header)
+	zero = &Block{header: zeroHeader, data: data}
+	zeroCert := CreateQuorumCertificate([]byte("Valid"), zero.header)
+	zero.qc = zeroCert
 
 	firstHeader := createHeader(1, common.Hash{}, zeroCert.GetHash(),
 		crypto.Keccak256Hash([]byte("Block one")), zeroHeader.Hash(), time.Now().Round(time.Millisecond))
@@ -81,7 +82,7 @@ func CreateGenesisTriChain() (zero *Block, one *Block, two *Block, certToHead *Q
 	second := &Block{header: secondHeader, data: []byte("Second"), qc: firstCert}
 	secondCert := CreateQuorumCertificate([]byte("Valid"), secondHeader)
 
-	return z, first, second, secondCert
+	return zero, first, second, secondCert
 }
 
 func createHeader(height int32, hash common.Hash, qcHash common.Hash, dataHash common.Hash, parent common.Hash, timestamp time.Time) *Header {

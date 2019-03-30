@@ -351,27 +351,28 @@ func (ctx *TestContext) createProposal(newBlock *blockchain.Block, peerNumber in
 func initContext(t *testing.T) *TestContext {
 	identity := generateIdentity(t)
 	srv := &mocks.Service{}
-	synchr := &mocks.Synchronizer{}
+	//synchr := &mocks.Synchronizer{}
+	bsrv := &mocks.BlockService{}
 	storage := &mocks.Storage{}
 	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 
+	peers := make([]*msg.Peer, 10)
+
 	loader := &mocks.CommitteeLoader{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, synchr)
-	bc.SetSynchronizer(synchr)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	config := &hotstuff.ProtocolConfig{
-		F:               10,
-		Delta:           1 * time.Second,
-		Blockchain:      bc,
-		Me:              identity,
-		Srv:             srv,
-		CommitteeLoader: loader,
-		RoundEndChan:    make(chan int32),
-		ControlChan:     make(chan hotstuff.Event),
+		F:            10,
+		Delta:        1 * time.Second,
+		Blockchain:   bc,
+		Me:           identity,
+		Srv:          srv,
+		Committee:    peers,
+		RoundEndChan: make(chan int32),
+		ControlChan:  make(chan hotstuff.Event),
 	}
 
-	peers := make([]*msg.Peer, 10)
 	for i := 0; i < 10; i++ {
 		peers[i] = generateIdentity(t)
 	}
@@ -400,7 +401,7 @@ func initContext(t *testing.T) *TestContext {
 	blockChanRead := func(c chan *blockchain.Block) <-chan *blockchain.Block {
 		return c
 	}(blockChan)
-	synchr.On("RequestBlock", mock.AnythingOfType("common.Hash")).Return(blockChanRead)
+	bsrv.On("RequestBlock", mock.AnythingOfType("common.Hash")).Return(blockChanRead)
 	loader.On("LoadFromFile").Return(peers)
 
 	pacer := hotstuff.CreatePacer(config)

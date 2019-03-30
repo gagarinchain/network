@@ -15,8 +15,8 @@ import (
 	"github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-record"
 	"github.com/libp2p/go-libp2p-routing"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"io"
 	"path"
 )
@@ -48,9 +48,7 @@ type Node struct {
 	// handlers
 	Dispatcher *message.Dispatcher
 
-	Identity *message.Peer
-
-	bootstrapPeers []peerstore.PeerInfo
+	bootstrapPeers []*message.Peer
 }
 
 func CreateNode(config *NodeConfig) (*Node, error) {
@@ -91,10 +89,6 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 		return nil, err
 	}
 
-	handlers := make(map[pb.Message_MessageType]message.Handler)
-	dispatcher := &message.Dispatcher{Handlers: handlers, MsgChan: make(chan *message.Message, 1024)}
-
-	info := peerHost.Peerstore().PeerInfo(peerHost.ID())
 	//TODO get PubKey from message
 	node := &Node{
 		Host:           peerHost,
@@ -102,11 +96,20 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 		PubSub:         &GossipDhtPubSub{Pubsub: ps, Host: peerHost, Routing: rt},
 		PrivateKey:     config.PrivateKey,
 		Datastore:      dstore,
-		bootstrapPeers: config.BootstrapPeers,
-		Dispatcher:     dispatcher,
-		Identity:       message.CreatePeer(nil, nil, &info),
+		bootstrapPeers: config.Committee,
 	}
 	return node, nil
+}
+
+func (n *Node) GetPeerInfo() *peerstore.PeerInfo {
+	join := multiaddr.Join(n.Host.Addrs()...)
+	s := join.String() + fmt.Sprintf("/p2p/%v", n.Host.ID().Pretty())
+	a, e := multiaddr.NewMultiaddr(s)
+	info, e := peerstore.InfoFromP2pAddr(a)
+	if e != nil {
+		log.Error("Can't get peerInfo", e)
+	}
+	return info
 }
 
 // StartOnlineServices will bootstrap the peer host using the provided bootstrap peers. Once the host

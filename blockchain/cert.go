@@ -27,7 +27,11 @@ func (qc *QuorumCertificate) QrefBlock() *Header {
 }
 
 func (qc *QuorumCertificate) GetMessage() *pb.QuorumCertificate {
-	return &pb.QuorumCertificate{Header: qc.QrefBlock().GetMessage(), SignatureAggregate: qc.SignatureAggregate()}
+	var m *pb.BlockHeader
+	if qc.QrefBlock() != nil {
+		m = qc.QrefBlock().GetMessage()
+	}
+	return &pb.QuorumCertificate{Header: m, SignatureAggregate: qc.SignatureAggregate()}
 }
 
 func (qc *QuorumCertificate) GetHash() common.Hash {

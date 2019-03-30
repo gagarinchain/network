@@ -9,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p-net"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/op/go-logging"
+	"github.com/poslibp2p/message"
 	"math/rand"
 	"sync"
 	"time"
@@ -39,7 +40,12 @@ var DefaultBootstrapConfig = BootstrapConfig{
 	ConnectionTimeout: (30 * time.Second) / 3,
 }
 
-func bootstrapWithPeers(peers []peerstore.PeerInfo) BootstrapConfig {
+func bootstrapWithPeers(committee []*message.Peer) BootstrapConfig {
+	peers := make([]peerstore.PeerInfo, len(committee))
+	for i, c := range committee {
+		peers[i] = *c.GetPeerInfo()
+	}
+
 	cfg := DefaultBootstrapConfig
 	cfg.InitialPeers = peers
 	return cfg

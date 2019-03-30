@@ -17,7 +17,7 @@ type StaticPacer struct {
 func CreatePacer(config *ProtocolConfig) *StaticPacer {
 	return &StaticPacer{
 		config:       config,
-		committee:    config.CommitteeLoader.LoadFromFile(),
+		committee:    config.Committee,
 		roundEndChan: config.RoundEndChan,
 		stopChan:     make(chan interface{}),
 	}

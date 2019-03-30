@@ -40,3 +40,7 @@ func CreatePeer(publicKey *ecdsa.PublicKey, privateKey *ecdsa.PrivateKey, peerIn
 func (p *Peer) Equals(toCompare *Peer) bool {
 	return p.address == toCompare.address
 }
+
+func (p *Peer) GetPeerInfo() *peerstore.PeerInfo {
+	return p.peerInfo
+}

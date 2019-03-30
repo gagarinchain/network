@@ -58,15 +58,15 @@ type CurrentViewGetter interface {
 }
 
 type ProtocolConfig struct {
-	F               int
-	Delta           time.Duration
-	Blockchain      *bc.Blockchain
-	Me              *msg.Peer
-	Srv             network.Service
-	Pacer           *StaticPacer
-	CommitteeLoader msg.CommitteeLoader
-	RoundEndChan    chan int32
-	ControlChan     chan Event
+	F            int
+	Delta        time.Duration
+	Blockchain   *bc.Blockchain
+	Me           *msg.Peer
+	Srv          network.Service
+	Pacer        *StaticPacer
+	Committee    []*msg.Peer
+	RoundEndChan chan int32
+	ControlChan  chan Event
 }
 
 type Protocol struct {

@@ -23,23 +23,23 @@ type Blockchain struct {
 	//indexes for storing block arrays according to their height, while not committed head may contain forks,
 	//<int32, []*Block>
 	uncommittedHeadByHeight *treemap.Map
-
-	storage      Storage
-	synchronizer Synchronizer
+	storage                 Storage
+	blockService            BlockService
 
 	genesisCert *QuorumCertificate
 }
 
-func (bc *Blockchain) SetSynchronizer(synchronizer Synchronizer) {
-	bc.synchronizer = synchronizer
+func (bc *Blockchain) BlockService(blockService BlockService) {
+	bc.blockService = blockService
 }
+
 func (bc *Blockchain) SetStorage(storage Storage) {
 	bc.storage = storage
 }
 
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock(storage Storage, synchronizer Synchronizer) *Blockchain {
+func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService) *Blockchain {
 	zero, one, two, certToHead := CreateGenesisTriChain()
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
@@ -47,7 +47,7 @@ func CreateBlockchainFromGenesisBlock(storage Storage, synchronizer Synchronizer
 		uncommittedHeadByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
 		storage:                 storage,
-		synchronizer:            synchronizer,
+		blockService:            blockService,
 	}
 
 	blockchain.AddBlock(zero)
@@ -92,7 +92,7 @@ func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded b
 
 func (bc *Blockchain) LoadBlock(hash common.Hash) *Block {
 	log.Infof("Loading block with hash [%v]", hash.Hex())
-	ch := bc.synchronizer.RequestBlock(hash)
+	ch := bc.blockService.RequestBlock(hash)
 	block := <-ch
 	if err := bc.AddBlock(block); err != nil {
 		log.Error("Can't add loaded block", err)
