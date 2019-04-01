@@ -16,8 +16,19 @@ func (_m *Service) Broadcast(msg *message.Message) {
 }
 
 // SendMessage provides a mock function with given fields: peer, msg
-func (_m *Service) SendMessage(peer *message.Peer, msg *message.Message) {
-	_m.Called(peer, msg)
+func (_m *Service) SendMessage(peer *message.Peer, msg *message.Message) chan *message.Message {
+	ret := _m.Called(peer, msg)
+
+	var r0 chan *message.Message
+	if rf, ok := ret.Get(0).(func(*message.Peer, *message.Message) chan *message.Message); ok {
+		r0 = rf(peer, msg)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(chan *message.Message)
+		}
+	}
+
+	return r0
 }
 
 // SendMessageTriggered provides a mock function with given fields: peer, msg, trigger

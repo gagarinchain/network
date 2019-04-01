@@ -45,7 +45,7 @@ func (s *BlockServiceImpl) requestBlockUgly(hash common.Hash, height int32) <-ch
 		log.Error("Can't assemble message", e)
 	}
 
-	msg := message.CreateMessage(pb.Message_BLOCK_REQUEST, any)
+	msg := message.CreateMessage(pb.Message_BLOCK_REQUEST, any, nil)
 
 	resultChan := make(chan *Block)
 	go func() {

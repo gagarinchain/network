@@ -7,19 +7,30 @@ import (
 )
 
 type Message struct {
-	sm []byte
+	source *Peer
+	sm     []byte
 	*pb.Message
 }
 
-func CreateMessage(messageType pb.Message_MessageType, payload *any.Any) *Message {
+func (m *Message) Source() *Peer {
+	return m.source
+}
+
+func CreateMessage(messageType pb.Message_MessageType, payload *any.Any, source *Peer) *Message {
 	m := &Message{Message: &pb.Message{}}
 
 	m.Type = messageType
 	m.Payload = payload
+	m.source = source
 	return m
 }
 
-func CreateFromSerialized(serializedMessage []byte) *Message {
+func CreateMessageFromProto(message *pb.Message, source *Peer) *Message {
+	m := &Message{Message: message, source: source}
+	return m
+}
+
+func CreateFromSerialized(serializedMessage []byte, source *Peer) *Message {
 	var m = &Message{sm: serializedMessage}
 
 	e := proto.Unmarshal(serializedMessage, m)
@@ -27,5 +38,6 @@ func CreateFromSerialized(serializedMessage []byte) *Message {
 		log.Warning("Can't deserialize message", e)
 	}
 
+	m.source = source
 	return m
 }

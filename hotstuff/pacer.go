@@ -51,6 +51,7 @@ func (p *StaticPacer) GetNext(currentView int32) *msg.Peer {
 }
 
 func (p *StaticPacer) Run() {
+	log.Info("Starting pacer...")
 	roundTimer := time.NewTimer(2 * p.config.Delta)
 	proposeTimer := time.NewTimer(p.config.Delta)
 

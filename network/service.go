@@ -2,7 +2,7 @@ package network
 
 import (
 	"context"
-	"github.com/gogo/protobuf/io"
+	protoio "github.com/gogo/protobuf/io"
 	"github.com/gogo/protobuf/proto"
 	"github.com/jbenet/go-context/io"
 	"github.com/libp2p/go-libp2p-net"
@@ -10,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-protocol"
 	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
+	"io"
 	"math/rand"
 )
 
@@ -18,7 +19,7 @@ type Service interface {
 
 	SendMessageTriggered(peer *msg.Peer, msg *msg.Message, trigger chan interface{})
 
-	SendMessage(peer *msg.Peer, msg *msg.Message)
+	SendMessage(peer *msg.Peer, msg *msg.Message) (resp chan *msg.Message)
 
 	//Send message to a random peer
 	SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.Message)
@@ -28,10 +29,13 @@ type Service interface {
 }
 
 const Libp2pProtocol protocol.ID = "/Libp2pProtocol/1.0.0"
+const Topic string = "/hotstuff"
 
+//TODO find out whether we have to cache streams and synchronize access to them
 type ServiceImpl struct {
 	node       *Node
 	dispatcher *msg.Dispatcher
+	//streams map[peer.ID]net.Stream
 }
 
 func CreateService(node *Node, dispatcher *msg.Dispatcher) Service {
@@ -44,20 +48,24 @@ func CreateService(node *Node, dispatcher *msg.Dispatcher) Service {
 	return impl
 }
 
-func (s *ServiceImpl) SendMessage(peer *msg.Peer, msg *msg.Message) {
+func (s *ServiceImpl) SendMessage(peer *msg.Peer, m *msg.Message) (resp chan *msg.Message) {
+	resp = make(chan *msg.Message)
+
 	go func() {
 		stream, e := s.node.Host.NewStream(context.Background(), peer.GetPeerInfo().ID, Libp2pProtocol)
 		if e != nil {
 			log.Error("Can't open stream to peer", e)
 			return
 		}
-		writer := io.NewDelimitedWriter(stream)
-		if err := writer.WriteMsg(msg); err != nil {
+		writer := protoio.NewDelimitedWriter(stream)
+		if err := writer.WriteMsg(m); err != nil {
 			log.Error("Can't write message to stream", e)
 			return
 		}
+		close(resp)
 	}()
 
+	return resp
 }
 
 func (s *ServiceImpl) SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.Message) {
@@ -73,14 +81,14 @@ func (s *ServiceImpl) SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.
 			close(resp)
 		}
 
-		writer := io.NewDelimitedWriter(stream)
+		writer := protoio.NewDelimitedWriter(stream)
 		if err := writer.WriteMsg(req); err != nil {
 			log.Error("Can't write message to stream", e)
 			close(resp)
 		}
 
 		cr := ctxio.NewReader(context.Background(), stream)
-		r := io.NewDelimitedReader(cr, net.MessageSizeMax) //TODO decide on msg size
+		r := protoio.NewDelimitedReader(cr, net.MessageSizeMax) //TODO decide on msg size
 
 		respMsg := &pb.Message{}
 		if err := r.ReadMsg(respMsg); err != nil {
@@ -106,7 +114,7 @@ func (s *ServiceImpl) Broadcast(msg *msg.Message) {
 			log.Error("Can't marshall message", e)
 		}
 
-		e = s.node.PubSub.Publish(context.Background(), "shard", bytes)
+		e = s.node.PubSub.Publish(context.Background(), Topic, bytes)
 		if e != nil {
 			log.Error("Can't broadcast message", e)
 		}
@@ -120,7 +128,7 @@ func (s *ServiceImpl) handleNewStream(stream net.Stream) {
 func (s *ServiceImpl) handleNewMessage(stream net.Stream) {
 	defer stream.Close() //TODO not sure we must close it here, find out
 	cr := ctxio.NewReader(context.Background(), stream)
-	r := io.NewDelimitedReader(cr, net.MessageSizeMax)
+	r := protoio.NewDelimitedReader(cr, net.MessageSizeMax)
 
 	m := &pb.Message{}
 	if err := r.ReadMsg(m); err != nil {
@@ -130,6 +138,36 @@ func (s *ServiceImpl) handleNewMessage(stream net.Stream) {
 	s.dispatcher.Dispatch(&msg.Message{
 		Message: m,
 	})
+}
+
+func (n *Node) SubscribeAndListen(msgChan chan *msg.Message) {
+	// Subscribe to the topic
+	sub, err := n.PubSub.SubscribeAndProvide(context.Background(), Topic)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Info("Listening topic...")
+	for {
+		m, err := sub.Next(context.Background())
+		if err == io.EOF || err == context.Canceled {
+			break
+		} else if err != nil {
+			log.Error(err)
+			break
+		}
+		pid, err := peer.IDFromBytes(m.From)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Infof("Received Pubsub message: %s from %s\n", string(m.Data), pid.Pretty())
+
+		//We do several very easy checks here and give control to dispatcher
+		info := n.Host.Peerstore().PeerInfo(pid)
+		message := msg.CreateFromSerialized(m.Data, msg.CreatePeer(nil, nil, &info))
+		msgChan <- message
+	}
+
 }
 
 func randomSubsetOfIds(ids []peer.ID, max int) (out []peer.ID) {

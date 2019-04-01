@@ -68,6 +68,17 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 	}
 }
 
+func (c *Context) Bootstrap() {
+	if err := c.node.Bootstrap(); err != nil {
+		log.Fatal("Can't start network services")
+	}
+
+	msgChan := make(chan *message.Message)
+	go c.node.SubscribeAndListen(msgChan)
+	go c.hotStuff.Run(msgChan)
+	go c.pacer.Run()
+}
+
 func generateIdentity(pi *peerstore.PeerInfo) *message.Peer {
 	privateKey, e := crypto.GenerateKey() //Load keys here
 	if e != nil {

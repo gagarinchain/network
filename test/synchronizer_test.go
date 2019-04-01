@@ -26,7 +26,7 @@ func TestSynchRequestBlock(t *testing.T) {
 	any, _ := ptypes.MarshalAny(pbBlock)
 	msgChan := make(chan *message.Message)
 	go func() {
-		msgChan <- message.CreateMessage(pb.Message_BLOCK_REQUEST, any)
+		msgChan <- message.CreateMessage(pb.Message_BLOCK_REQUEST, any, nil)
 		close(msgChan)
 	}()
 	srv.On("SendRequestToRandomPeer", mock.AnythingOfType("*message.Message")).Return(msgChan)
@@ -112,7 +112,7 @@ func getMessage(msgs ...*pb.Block) chan *message.Message {
 		if e != nil {
 			panic("can't make payload")
 		}
-		resChan <- message.CreateMessage(pb.Message_BLOCK_RESPONSE, any)
+		resChan <- message.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil)
 		close(resChan)
 	}()
 

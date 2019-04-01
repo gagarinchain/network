@@ -4,12 +4,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"flag"
-	"fmt"
 	golog "github.com/ipfs/go-log"
 	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
-	"github.com/libp2p/go-libp2p-peer"
-	"github.com/libp2p/go-libp2p-peerstore"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/message"
 	"github.com/poslibp2p/network"
@@ -66,7 +62,7 @@ func main() {
 	// Next we'll create the node config
 	cfg := &network.NodeConfig{
 		PrivateKey: privKey,
-		Port:       uint16(*ind),
+		Port:       8000 + uint16(*ind),
 		DataDir:    path.Join(os.TempDir(), strconv.Itoa(*ind)),
 		Committee:  committee,
 	}
@@ -75,10 +71,7 @@ func main() {
 
 	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.
-	err = ctx.node.Bootstrap()
-	if err != nil {
-		log.Fatal(err)
-	}
+	ctx.Bootstrap()
 
 	// Publish to the topic
 	//var text = "Hello"
@@ -116,32 +109,4 @@ func main() {
 
 	select {}
 
-}
-
-func ParseBootstrapPeer(addr string) (peerstore.PeerInfo, error) {
-	p2pAddr, err := multiaddr.NewMultiaddr(addr)
-	if err != nil {
-		return peerstore.PeerInfo{}, err
-	}
-
-	pid, err := p2pAddr.ValueForProtocol(multiaddr.P_P2P)
-	if err != nil {
-		return peerstore.PeerInfo{}, err
-	}
-
-	peerid, err := peer.IDB58Decode(pid)
-	if err != nil {
-		return peerstore.PeerInfo{}, err
-	}
-
-	targetPeerAddr, _ := multiaddr.NewMultiaddr(
-		fmt.Sprintf("/p2p/%s", peer.IDB58Encode(peerid)))
-	targetAddr := p2pAddr.Decapsulate(targetPeerAddr)
-
-	return peerstore.PeerInfo{
-		Addrs: []multiaddr.Multiaddr{
-			targetAddr,
-		},
-		ID: peerid,
-	}, nil
 }

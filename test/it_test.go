@@ -310,7 +310,7 @@ func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.
 	for i := 0; i < count; i++ {
 		vote := makeVote(ctx.bc, newBlock, ctx.peers[i])
 		any, _ := ptypes.MarshalAny(vote.GetMessage())
-		votes[i] = msg.CreateMessage(pb.Message_VOTE, any)
+		votes[i] = msg.CreateMessage(pb.Message_VOTE, any, ctx.peers[i])
 	}
 
 	return votes
@@ -345,7 +345,7 @@ func (ctx *TestContext) createProposal(newBlock *blockchain.Block, peerNumber in
 	proposal := hotstuff.CreateProposal(newBlock, newBlock.QC(), ctx.peers[peerNumber])
 	proposal.Sign(ctx.peers[peerNumber].GetPrivateKey())
 	any, _ := ptypes.MarshalAny(proposal.GetMessage())
-	return msg.CreateMessage(pb.Message_PROPOSAL, any)
+	return msg.CreateMessage(pb.Message_PROPOSAL, any, ctx.peers[peerNumber])
 }
 
 func initContext(t *testing.T) *TestContext {
@@ -393,7 +393,8 @@ func initContext(t *testing.T) *TestContext {
 	})
 
 	voteChan := make(chan *msg.Message)
-	srv.On("SendMessage", mock.AnythingOfType("*message.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).Run(func(args mock.Arguments) {
+	srv.On("SendMessage", mock.AnythingOfType("*message.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
+		Return(make(chan *msg.Message)).Run(func(args mock.Arguments) {
 		voteChan <- (args[1]).(*msg.Message)
 	})
 

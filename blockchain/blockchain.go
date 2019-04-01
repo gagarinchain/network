@@ -160,9 +160,14 @@ func (bc *Blockchain) GetHead() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
+	//TODO probably it is not correct^ have to return head of PREF block branch here
 	_, blocks := bc.uncommittedHeadByHeight.Max()
 	var b = blocks.([]*Block)
 	return b[0]
+}
+
+func (bc *Blockchain) GetTopHeight() int32 {
+	return bc.GetHead().Header().Height()
 }
 
 func (bc *Blockchain) AddBlock(block *Block) error {
@@ -283,4 +288,17 @@ func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
 	}
 
 	return block
+}
+
+func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
+	block, ok := bc.committedTailByHeight.Get(height)
+	if !ok {
+		blocks, ok := bc.uncommittedHeadByHeight.Get(height)
+		if ok {
+			res = append(res, blocks.([]*Block)...)
+		}
+	} else {
+		res = append(res, block.(*Block))
+	}
+	return res
 }

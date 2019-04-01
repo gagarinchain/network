@@ -195,7 +195,7 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 		if e != nil {
 			log.Error(e)
 		}
-		m := msg.CreateMessage(pb.Message_VOTE, any)
+		m := msg.CreateMessage(pb.Message_VOTE, any, nil)
 
 		willTrigger := p.pacer.WillNextViewForceEpochStart(p.GetCurrentView())
 		if willTrigger {
@@ -317,7 +317,7 @@ func (p *Protocol) OnPropose() {
 	if e != nil {
 		log.Error(e)
 	}
-	m := msg.CreateMessage(pb.Message_PROPOSAL, any)
+	m := msg.CreateMessage(pb.Message_PROPOSAL, any, nil)
 	go p.srv.Broadcast(m)
 	p.OnNextView()
 }
@@ -429,6 +429,7 @@ func (p *Protocol) SubscribeEpochChange(trigger chan interface{}) {
 }
 
 func (p *Protocol) Run(msgChan chan *msg.Message) {
+	log.Info("Starting hotstuff protocol...")
 	for {
 		select {
 		case m := <-msgChan:

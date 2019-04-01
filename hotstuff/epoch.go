@@ -76,5 +76,5 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 		return nil, errors.Errorf("error while marshalling payload", e)
 	}
 
-	return msg.CreateMessage(pb.Message_EPOCH_START, any2), nil
+	return msg.CreateMessage(pb.Message_EPOCH_START, any2, nil), nil
 }
