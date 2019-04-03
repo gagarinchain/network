@@ -319,6 +319,8 @@ func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Bloc
 func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig) {
 	identity := generateIdentity(t)
 	srv := &mocks.Service{}
+	storage := &mocks.Storage{}
+	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
 	//synchr := &mocks.Synchronizer{}
 	loader := &mocks.CommitteeLoader{}
 	bsrv := &mocks.BlockService{}
@@ -331,6 +333,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 		Blockchain:   bc,
 		Me:           identity,
 		Srv:          srv,
+		Storage:      storage,
 		Committee:    peers,
 		RoundEndChan: make(chan int32),
 		ControlChan:  make(chan hotstuff.Event),

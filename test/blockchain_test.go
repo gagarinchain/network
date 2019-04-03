@@ -108,6 +108,7 @@ func mockStorage() bch.Storage {
 	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
+	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 
 	return storage
 }

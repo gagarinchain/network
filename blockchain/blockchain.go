@@ -70,9 +70,6 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
 		if er != nil {
 			log.Error(er)
 		}
-		if block == nil {
-
-		}
 		return block
 	}
 
@@ -184,6 +181,9 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
 	if value == nil {
 		value = make([]*Block, 0)
+		if err := bc.storage.PutCurrentTopHeight(block.Header().Height()); err != nil {
+			return err
+		}
 	}
 
 	value = append(value.([]*Block), block)
@@ -191,7 +191,7 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 	bc.uncommittedHeadByHeight.Put(block.Header().Height(), value)
 	if err := bc.storage.PutBlock(block); err != nil {
-		log.Error("Can't add block to storage")
+		return err
 	}
 
 	return nil

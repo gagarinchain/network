@@ -357,6 +357,8 @@ func initContext(t *testing.T) *TestContext {
 	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
+	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
+	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
 
 	peers := make([]*msg.Peer, 10)
 
@@ -368,6 +370,7 @@ func initContext(t *testing.T) *TestContext {
 		Blockchain:   bc,
 		Me:           identity,
 		Srv:          srv,
+		Storage:      storage,
 		Committee:    peers,
 		RoundEndChan: make(chan int32),
 		ControlChan:  make(chan hotstuff.Event),

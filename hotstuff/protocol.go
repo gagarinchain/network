@@ -64,6 +64,7 @@ type ProtocolConfig struct {
 	Me           *msg.Peer
 	Srv          network.Service
 	Pacer        *StaticPacer
+	Storage      bc.Storage
 	Committee    []*msg.Peer
 	RoundEndChan chan int32
 	ControlChan  chan Event
@@ -85,6 +86,7 @@ type Protocol struct {
 	hqc                 *bc.QuorumCertificate
 	me                  *msg.Peer
 	pacer               *StaticPacer
+	storage             bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	srv                 network.Service
 	controlChan         chan Event
 	roundEndChan        chan int32
@@ -96,6 +98,10 @@ func (p *Protocol) Vheight() int32 {
 }
 
 func CreateProtocol(cfg *ProtocolConfig) *Protocol {
+	val, err := cfg.Storage.GetCurrentEpoch()
+	if err != nil {
+		log.Warning("Can't load current epoch from storage")
+	}
 	return &Protocol{
 		f:                   cfg.F,
 		delta:               cfg.Delta,
@@ -106,11 +112,12 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		hqc:                 cfg.Blockchain.GetGenesisCert(),
 		me:                  cfg.Me,
 		pacer:               cfg.Pacer,
+		storage:             cfg.Storage,
 		srv:                 cfg.Srv,
 		roundEndChan:        cfg.RoundEndChan,
 		stopChan:            make(chan bool),
 		controlChan:         cfg.ControlChan,
-		currentEpoch:        0,
+		currentEpoch:        val,
 		currentView:         3,
 		currentViewGuard:    &sync.RWMutex{},
 		IsStartingEpoch:     false,
@@ -410,6 +417,10 @@ func (p *Protocol) OnEpochStart(m *msg.Message, s *msg.Peer) {
 func (p *Protocol) newEpoch(i int32) {
 	if i > 1 {
 		p.changeView((i - 1) * int32(p.f))
+	}
+	e := p.storage.PutCurrentEpoch(i)
+	if e != nil {
+		log.Error(e)
 	}
 
 	p.currentEpoch = i

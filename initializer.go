@@ -42,7 +42,7 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	inBlocks := make(chan *blockchain.Block)
 	synchr := blockchain.CreateSynchronizer(inBlocks, me, bsrv, bc)
-	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr, 3)
+	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
 	config := &hotstuff.ProtocolConfig{
 		F:            10,
@@ -50,6 +50,7 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 		Blockchain:   bc,
 		Me:           me,
 		Srv:          srv,
+		Storage:      storage,
 		Committee:    cfg.Committee,
 		RoundEndChan: make(chan int32),
 		ControlChan:  make(chan hotstuff.Event),

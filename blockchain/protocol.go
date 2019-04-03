@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+//TODO Consider adding stream-peer cache, so we can reuse opened streams, don't forget that this scheme can produce bottlenecks
+//Now we don't use same stream to send response, it means that we pass peer id to open new stream to this peer when sending response, this scheme is redundant too
 type BlockProtocol struct {
 	srv  network.Service
 	bc   *Blockchain
