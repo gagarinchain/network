@@ -19,17 +19,14 @@ import (
 
 var log = logging.MustGetLogger("hotstuff")
 
-type Event struct {
-	viewNumber int32
-	etype      EventType
-}
-
-type EventType int
+type Event int
 
 const (
-	SUGGEST_PROPOSE EventType = iota
-	NEXT_VIEW       EventType = iota
-	START_EPOCH     EventType = iota
+	SUGGEST_PROPOSE Event = iota
+	NEXT_VIEW       Event = iota
+	START_EPOCH     Event = iota
+	STARTED_EPOCH   Event = iota
+	CHANGED_VIEW    Event = iota
 )
 
 type Proposer interface {
@@ -66,7 +63,7 @@ type ProtocolConfig struct {
 	Pacer        *StaticPacer
 	Storage      bc.Storage
 	Committee    []*msg.Peer
-	RoundEndChan chan int32
+	RoundEndChan chan Event
 	ControlChan  chan Event
 }
 
@@ -89,7 +86,7 @@ type Protocol struct {
 	storage             bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	srv                 network.Service
 	controlChan         chan Event
-	roundEndChan        chan int32
+	roundEndChan        chan Event
 	stopChan            chan bool
 }
 
@@ -202,7 +199,7 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 		if e != nil {
 			log.Error(e)
 		}
-		m := msg.CreateMessage(pb.Message_VOTE, any, nil)
+		m := msg.CreateMessage(pb.Message_VOTE, any, p.me)
 
 		willTrigger := p.pacer.WillNextViewForceEpochStart(p.GetCurrentView())
 		if willTrigger {
@@ -348,6 +345,9 @@ func (p *Protocol) HQC() *bc.QuorumCertificate {
 
 func (p *Protocol) OnNextView() {
 	p.changeView(p.GetCurrentView() + 1)
+	go func() {
+		p.roundEndChan <- CHANGED_VIEW
+	}()
 }
 
 func (p *Protocol) changeView(view int32) {
@@ -355,9 +355,6 @@ func (p *Protocol) changeView(view int32) {
 	defer p.currentViewGuard.Unlock()
 
 	p.currentView = view
-	go func() {
-		p.roundEndChan <- p.currentView
-	}()
 }
 func (p *Protocol) StartEpoch(i int32) {
 	p.IsStartingEpoch = true
@@ -369,8 +366,8 @@ func (p *Protocol) StartEpoch(i int32) {
 	go p.srv.Broadcast(m)
 }
 
-func (p *Protocol) OnEpochStart(m *msg.Message, s *msg.Peer) {
-	epoch, e := CreateEpochFromMessage(m, s)
+func (p *Protocol) OnEpochStart(m *msg.Message) {
+	epoch, e := CreateEpochFromMessage(m)
 	if e != nil {
 		log.Error(e)
 		return
@@ -433,6 +430,9 @@ func (p *Protocol) newEpoch(i int32) {
 	p.IsStartingEpoch = false
 	log.Infof("Started new epoch %v", i)
 	log.Infof("Current view number %v, proposer %v", p.currentView, p.pacer.GetCurrent(p.currentView).GetAddress().Hex())
+	go func() {
+		p.roundEndChan <- STARTED_EPOCH
+	}()
 }
 
 func (p *Protocol) SubscribeEpochChange(trigger chan interface{}) {
@@ -441,6 +441,10 @@ func (p *Protocol) SubscribeEpochChange(trigger chan interface{}) {
 
 func (p *Protocol) Run(msgChan chan *msg.Message) {
 	log.Info("Starting hotstuff protocol...")
+
+	//bootstrap command
+	p.handleControlEvent(<-p.controlChan)
+
 	for {
 		select {
 		case m := <-msgChan:
@@ -451,8 +455,7 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 
 			switch m.Type {
 			case pb.Message_VOTE:
-				//put real sender here, we don't know ip, name
-				v, err := CreateVoteFromMessage(m, &msg.Peer{})
+				v, err := CreateVoteFromMessage(m)
 				if err != nil {
 					log.Error(err)
 					break
@@ -461,7 +464,7 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 					log.Error("Error while handling vote, ", err)
 				}
 			case pb.Message_PROPOSAL:
-				pr, err := CreateProposalFromMessage(m, &msg.Peer{})
+				pr, err := CreateProposalFromMessage(m)
 				if err != nil {
 					log.Error(err)
 					break
@@ -470,17 +473,10 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 					log.Error("Error while handling proposal, ", err)
 				}
 			case pb.Message_EPOCH_START:
-				p.OnEpochStart(m, &msg.Peer{})
+				p.OnEpochStart(m)
 			}
 		case event := <-p.controlChan:
-			switch event.etype {
-			case SUGGEST_PROPOSE:
-				p.OnPropose()
-			case NEXT_VIEW:
-				p.OnNextView()
-			case START_EPOCH:
-				p.StartEpoch(p.currentEpoch + 1)
-			}
+			p.handleControlEvent(event)
 		case <-p.stopChan:
 			log.Info("Stopping hotstuff...")
 			return
@@ -488,6 +484,18 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 
 	}
 
+}
+
+func (p *Protocol) handleControlEvent(event Event) {
+	log.Debugf("received %d event", event)
+	switch event {
+	case SUGGEST_PROPOSE:
+		p.OnPropose()
+	case NEXT_VIEW:
+		p.OnNextView()
+	case START_EPOCH:
+		p.StartEpoch(p.currentEpoch + 1)
+	}
 }
 
 func (p *Protocol) Stop() {

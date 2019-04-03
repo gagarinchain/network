@@ -28,7 +28,7 @@ func (v *Vote) Sign(key *ecdsa.PrivateKey) {
 	v.Signature = v.Header.Sign(key)
 }
 
-func CreateVoteFromMessage(msg *msg.Message, sender *msg.Peer) (*Vote, error) {
+func CreateVoteFromMessage(msg *msg.Message) (*Vote, error) {
 	if msg.Type != pb.Message_VOTE {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_VOTE.String(), msg.Type))
@@ -46,9 +46,9 @@ func CreateVoteFromMessage(msg *msg.Message, sender *msg.Peer) (*Vote, error) {
 		return nil, errors.New("bad signature")
 	}
 	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
-	sender.SetAddress(a)
+	msg.Source().SetAddress(a)
 
-	return CreateVote(header, qc, sender), nil
+	return CreateVote(header, qc, msg.Source()), nil
 }
 
 func (v *Vote) GetMessage() *pb.VotePayload {

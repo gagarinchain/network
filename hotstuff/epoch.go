@@ -21,7 +21,7 @@ func CreateEpoch(sender *msg.Peer, number int32, qc *blockchain.QuorumCertificat
 	return &Epoch{qc, sender, number}
 }
 
-func CreateEpochFromMessage(msg *msg.Message, sender *msg.Peer) (*Epoch, error) {
+func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
 	if msg.Type != pb.Message_EPOCH_START {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_EPOCH_START.String(), msg.Type))
@@ -39,9 +39,9 @@ func CreateEpochFromMessage(msg *msg.Message, sender *msg.Peer) (*Epoch, error) 
 		return nil, errors.New("bad signature")
 	}
 	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
-	sender.SetAddress(a)
+	msg.Source().SetAddress(a)
 
-	return CreateEpoch(sender, ep.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(ep.Cert)), nil
+	return CreateEpoch(msg.Source(), ep.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(ep.Cert)), nil
 }
 
 func getHash(ep *pb.EpochStartPayload) ([]byte, error) {
@@ -76,5 +76,5 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 		return nil, errors.Errorf("error while marshalling payload", e)
 	}
 
-	return msg.CreateMessage(pb.Message_EPOCH_START, any2, nil), nil
+	return msg.CreateMessage(pb.Message_EPOCH_START, any2, ep.sender), nil
 }

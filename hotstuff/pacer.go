@@ -9,7 +9,7 @@ import (
 type StaticPacer struct {
 	config       *ProtocolConfig
 	committee    []*msg.Peer
-	roundEndChan chan int32
+	roundEndChan chan Event
 	stopChan     chan interface{}
 	viewGetter   CurrentViewGetter
 }
@@ -54,30 +54,47 @@ func (p *StaticPacer) Run() {
 	log.Info("Starting pacer...")
 	roundTimer := time.NewTimer(2 * p.config.Delta)
 	proposeTimer := time.NewTimer(p.config.Delta)
+	epochTimer := time.NewTimer(4 * p.config.Delta)
+
+	p.config.ControlChan <- Event(START_EPOCH)
 
 	for {
 		select {
 		case <-proposeTimer.C:
 			log.Info("Received no votes from peers in delta, proposing with last QC")
-			p.config.ControlChan <- Event{viewNumber: p.viewGetter.GetCurrentView(), etype: EventType(SUGGEST_PROPOSE)}
+			p.config.ControlChan <- Event(SUGGEST_PROPOSE)
 		case <-roundTimer.C:
 			//TODO ignore when synchronizing
 			log.Info("Received no signal from underlying protocol about round ending, force proposer change")
 
-			p.config.ControlChan <- Event{viewNumber: p.viewGetter.GetCurrentView(), etype: EventType(NEXT_VIEW)}
-		case <-p.roundEndChan:
-			log.Infof("Round %v ended", p.viewGetter.GetCurrentView())
+			p.config.ControlChan <- Event(NEXT_VIEW)
+		case event := <-p.roundEndChan:
+			switch event {
+			case STARTED_EPOCH:
+				epochTimer.Stop()
+				roundTimer = time.NewTimer(2 * p.config.Delta)
+				proposeTimer = time.NewTimer(p.config.Delta)
+			case CHANGED_VIEW:
+				log.Infof("Round %v ended", p.viewGetter.GetCurrentView())
 
-			proposeTimer.Stop()
-			roundTimer.Stop()
+				proposeTimer.Stop()
+				roundTimer.Stop()
 
-			i := int(p.viewGetter.GetCurrentView()) % len(p.committee)
-			if i == 0 {
-				p.config.ControlChan <- Event{viewNumber: p.viewGetter.GetCurrentView(), etype: EventType(START_EPOCH)}
-				roundTimer = time.NewTimer(4 * p.config.Delta)
+				i := int(p.viewGetter.GetCurrentView()) % len(p.committee)
+				if i == 0 {
+					p.config.ControlChan <- Event(START_EPOCH)
+
+					epochTimer = time.NewTimer(4 * p.config.Delta)
+				} else {
+					roundTimer = time.NewTimer(2 * p.config.Delta)
+					proposeTimer = time.NewTimer(p.config.Delta)
+				}
 			}
-			roundTimer = time.NewTimer(2 * p.config.Delta)
-			proposeTimer = time.NewTimer(p.config.Delta)
+
+		case <-epochTimer.C:
+			log.Info("Can't start epoch in 4*delta, retry...")
+			p.config.ControlChan <- Event(START_EPOCH)
+			epochTimer = time.NewTimer(4 * p.config.Delta)
 		case <-p.stopChan:
 			proposeTimer.Stop()
 			roundTimer.Stop()

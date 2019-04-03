@@ -24,6 +24,7 @@ var log = logging.MustGetLogger("hotstuff")
 
 func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
 	_, p, cfg := initProtocol(t)
+
 	mocksrv := (cfg.Srv).(*mocks.Service)
 
 	cfg.Pacer.Committee()[3] = cfg.Me
@@ -80,9 +81,6 @@ func TestOnReceiveProposal(t *testing.T) {
 	bc, p, cfg := initProtocol(t)
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
-	//if e := bc.AddBlock(newBlock); e != nil {
-	//	t.Error("can't add block", e)
-	//}
 
 	for _, p := range cfg.Pacer.Committee() {
 		log.Info(p.GetAddress().Hex())
@@ -105,7 +103,7 @@ func TestOnReceiveProposal(t *testing.T) {
 	m := <-msgChan
 	<-cfg.RoundEndChan
 
-	vote, err := hotstuff.CreateVoteFromMessage(m, cfg.Me)
+	vote, err := hotstuff.CreateVoteFromMessage(m)
 	if err != nil {
 		t.Error("can't create vote", err)
 	}
@@ -321,6 +319,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	srv := &mocks.Service{}
 	storage := &mocks.Storage{}
 	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
+	storage.On("GetCurrentEpoch").Return(int32(0), nil)
 	//synchr := &mocks.Synchronizer{}
 	loader := &mocks.CommitteeLoader{}
 	bsrv := &mocks.BlockService{}
@@ -335,7 +334,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 		Srv:          srv,
 		Storage:      storage,
 		Committee:    peers,
-		RoundEndChan: make(chan int32),
+		RoundEndChan: make(chan hotstuff.Event),
 		ControlChan:  make(chan hotstuff.Event),
 	}
 

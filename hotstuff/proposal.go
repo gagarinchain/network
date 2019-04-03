@@ -33,7 +33,7 @@ func (p *Proposal) Sign(key *ecdsa.PrivateKey) {
 	p.Signature = p.NewBlock.Header().Sign(key)
 }
 
-func CreateProposalFromMessage(msg *msg.Message, sender *msg.Peer) (*Proposal, error) {
+func CreateProposalFromMessage(msg *msg.Message) (*Proposal, error) {
 	if msg.Type != pb.Message_PROPOSAL {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_PROPOSAL.String(), msg.Type))
@@ -52,7 +52,7 @@ func CreateProposalFromMessage(msg *msg.Message, sender *msg.Peer) (*Proposal, e
 	}
 	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
 
-	sender.SetAddress(a)
+	msg.Source().SetAddress(a)
 
-	return CreateProposal(block, qc, sender), nil
+	return CreateProposal(block, qc, msg.Source()), nil
 }

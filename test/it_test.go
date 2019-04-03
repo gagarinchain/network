@@ -290,6 +290,41 @@ func TestScenario5b(t *testing.T) {
 	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
+//Scenario 5c:
+//Start new epoch
+//Receive no messages
+//Receive no messages on epoch start twice
+//Receive 2f + 1 start messages
+//Start new epoch
+//Propose
+func TestScenario5c(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run()
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer ctx.protocol.Stop()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(0)
+
+	log.Infof("me %v", ctx.pacer.Committee()[0].GetAddress().Hex())
+
+	time.Sleep(26 * ctx.cfg.Delta)
+	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
+	<-ctx.startChan //mine start message
+
+	proposal := <-ctx.proposalCHan
+
+	payload := &pb.ProposalPayload{}
+	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
+		log.Error(err)
+	}
+
+	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+}
+
 type TestContext struct {
 	peers        []*msg.Peer
 	pacer        *hotstuff.StaticPacer
@@ -359,6 +394,7 @@ func initContext(t *testing.T) *TestContext {
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
+	storage.On("GetCurrentEpoch").Return(int32(0), nil)
 
 	peers := make([]*msg.Peer, 10)
 
@@ -372,7 +408,7 @@ func initContext(t *testing.T) *TestContext {
 		Srv:          srv,
 		Storage:      storage,
 		Committee:    peers,
-		RoundEndChan: make(chan int32),
+		RoundEndChan: make(chan hotstuff.Event),
 		ControlChan:  make(chan hotstuff.Event),
 	}
 
