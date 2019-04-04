@@ -12,13 +12,14 @@ import (
 )
 
 type Epoch struct {
-	qc     *blockchain.QuorumCertificate
-	sender *msg.Peer
-	number int32
+	qc               *blockchain.QuorumCertificate
+	genesisSignature []byte
+	sender           *msg.Peer
+	number           int32
 }
 
-func CreateEpoch(sender *msg.Peer, number int32, qc *blockchain.QuorumCertificate) *Epoch {
-	return &Epoch{qc, sender, number}
+func CreateEpoch(sender *msg.Peer, number int32, qc *blockchain.QuorumCertificate, genesisSignature []byte) *Epoch {
+	return &Epoch{qc, genesisSignature, sender, number}
 }
 
 func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
@@ -27,25 +28,32 @@ func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
 			pb.Message_EPOCH_START.String(), msg.Type))
 	}
 
-	ep := &pb.EpochStartPayload{}
-	if err := ptypes.UnmarshalAny(msg.Payload, ep); err != nil {
-		log.Error("Couldn't unmarshal response", err)
+	p := &pb.EpochStartPayload{}
+	if err := ptypes.UnmarshalAny(msg.Payload, p); err != nil {
+		return nil, err
 	}
 
-	hashbytes, e := getHash(ep)
+	var ep *Epoch
+	if cert := p.GetCert(); cert != nil {
+		ep = CreateEpoch(msg.Source(), p.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(cert), p.GetGenesisSignature())
+	} else {
+		ep = CreateEpoch(msg.Source(), p.EpochNumber, nil, p.GetGenesisSignature())
+	}
 
-	pub, e := crypto.SigToPub(hashbytes, ep.Signature)
+	hashbytes, e := getHash(ep.createPayload())
+
+	pub, e := crypto.SigToPub(hashbytes, p.Signature)
 	if e != nil {
 		return nil, errors.New("bad signature")
 	}
 	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
 	msg.Source().SetAddress(a)
 
-	return CreateEpoch(msg.Source(), ep.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(ep.Cert)), nil
+	return ep, nil
 }
 
 func getHash(ep *pb.EpochStartPayload) ([]byte, error) {
-	payload := &pb.EpochStartPayload{EpochNumber: ep.EpochNumber}
+	payload := &pb.EpochStartPayload{EpochNumber: ep.EpochNumber, Body: &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.Signature}}
 	any, e := ptypes.MarshalAny(payload)
 	if e != nil {
 		return nil, errors.Errorf("error while marshalling payload", e)
@@ -55,11 +63,7 @@ func getHash(ep *pb.EpochStartPayload) ([]byte, error) {
 }
 
 func (ep *Epoch) GetMessage() (*msg.Message, error) {
-	payload := &pb.EpochStartPayload{
-		Cert:        ep.qc.GetMessage(),
-		EpochNumber: ep.number,
-	}
-
+	payload := ep.createPayload()
 	hashbytes, err := getHash(payload)
 	if err != nil {
 		return nil, err
@@ -77,4 +81,20 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 	}
 
 	return msg.CreateMessage(pb.Message_EPOCH_START, any2, ep.sender), nil
+}
+
+func (ep *Epoch) createPayload() *pb.EpochStartPayload {
+	var payload *pb.EpochStartPayload
+	if ep.genesisSignature != nil {
+		payload = &pb.EpochStartPayload{
+			Body:        &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.genesisSignature},
+			EpochNumber: ep.number,
+		}
+	} else {
+		payload = &pb.EpochStartPayload{
+			Body:        &pb.EpochStartPayload_Cert{Cert: ep.qc.GetMessage()},
+			EpochNumber: ep.number,
+		}
+	}
+	return payload
 }

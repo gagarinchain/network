@@ -77,6 +77,7 @@ type Protocol struct {
 	currentEpoch        int32
 	IsStartingEpoch     bool
 	epochMessageStorage map[common.Address]int32
+	epochVoteStorage    map[common.Address][]byte
 	epochStartSubChan   []chan interface{}
 	votes               map[common.Address]*Vote
 	lastExecutedBlock   *bc.Header
@@ -115,10 +116,11 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		stopChan:            make(chan bool),
 		controlChan:         cfg.ControlChan,
 		currentEpoch:        val,
-		currentView:         3,
+		currentView:         1,
 		currentViewGuard:    &sync.RWMutex{},
 		IsStartingEpoch:     false,
 		epochMessageStorage: make(map[common.Address]int32),
+		epochVoteStorage:    make(map[common.Address][]byte),
 	}
 }
 
@@ -339,6 +341,16 @@ func (p *Protocol) FinishQC(header *bc.Header) {
 	p.hqc = bc.CreateQuorumCertificate(aggregate, header)
 }
 
+func (p *Protocol) FinishGenesisQC(header *bc.Header) {
+	//Simply concatenate votes for now
+	var aggregate []byte
+	for _, v := range p.epochVoteStorage {
+		aggregate = append(aggregate, v...)
+	}
+	p.blockchain.GetGenesisBlock().SetQC(bc.CreateQuorumCertificate(aggregate, header))
+	p.hqc = p.blockchain.GetGenesisCert()
+}
+
 func (p *Protocol) HQC() *bc.QuorumCertificate {
 	return p.hqc
 }
@@ -358,7 +370,14 @@ func (p *Protocol) changeView(view int32) {
 }
 func (p *Protocol) StartEpoch(i int32) {
 	p.IsStartingEpoch = true
-	epoch := CreateEpoch(p.me, i, p.HQC())
+	var epoch *Epoch
+	//todo think about moving it to epoch
+	if p.currentEpoch == 0 {
+		epoch = CreateEpoch(p.me, i, nil, p.blockchain.GetGenesisBlockSignedHash(p.me.GetPrivateKey()))
+	} else {
+		epoch = CreateEpoch(p.me, i, p.HQC(), nil)
+	}
+
 	m, e := epoch.GetMessage()
 	if e != nil {
 		log.Error("Can't create Epoch message", e)
@@ -378,6 +397,15 @@ func (p *Protocol) OnEpochStart(m *msg.Message) {
 		return
 	}
 
+	if epoch.genesisSignature != nil {
+		res := p.blockchain.ValidateGenesisBlockSignature(epoch.genesisSignature, epoch.sender.GetAddress())
+		if !res {
+			log.Errorf("Peer %v sent wrong genesis block signature", epoch.sender.GetAddress().Hex())
+			p.equivocate(epoch.sender)
+			return
+		}
+		p.epochVoteStorage[epoch.sender.GetAddress()] = epoch.genesisSignature
+	}
 	p.epochMessageStorage[epoch.sender.GetAddress()] = epoch.number
 
 	stats := make(map[int32]int32)
@@ -407,6 +435,9 @@ func (p *Protocol) OnEpochStart(m *msg.Message) {
 
 	//We got quorum, lets start new epoch
 	if int(max.c) == p.f/3*2+1 {
+		if max.n == 1 {
+			p.FinishGenesisQC(p.blockchain.GetGenesisBlock().Header())
+		}
 		p.newEpoch(max.n)
 	}
 }

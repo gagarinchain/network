@@ -15,6 +15,7 @@ import (
 func TestSynchRequestBlock(t *testing.T) {
 	srv := &mocks.Service{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	toTest := blockchain.NewBlockService(srv)
 	head := bc.GetHead()
@@ -38,6 +39,8 @@ func TestSynchRequestBlock(t *testing.T) {
 func TestSynchRequestBlocksForHeight(t *testing.T) {
 	srv := &mocks.Service{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	bsrv := blockchain.NewBlockService(srv)
 	me := generateIdentity(t)
 	blocks := make(chan *blockchain.Block)
@@ -68,6 +71,8 @@ func TestSynchRequestBlocksForHeight(t *testing.T) {
 func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 	srv := &mocks.Service{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	me := generateIdentity(t)
 	bsrv := blockchain.NewBlockService(srv)
 	toTest := blockchain.CreateSynchronizer(make(chan *blockchain.Block), me, bsrv, bc)

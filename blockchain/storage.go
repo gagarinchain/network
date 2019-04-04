@@ -26,6 +26,8 @@ const BlockPrefix = byte(0x0)
 const CurrentEpochPrefix = byte(0x1)
 const CurrentTopHeightPrefix = byte(0x2)
 
+const DefaultIntValue = 0
+
 type StorageImpl struct {
 	db   *leveldb.DB
 	path string
@@ -89,7 +91,7 @@ func (s *StorageImpl) getInt32(key []byte) (val int32, err error) {
 	value, err := s.db.Get(key, &opt.ReadOptions{})
 	int64Val, n := binary.Varint(value)
 	if n > binary.MaxVarintLen32 {
-		return 0, errors.New("wrong int32 length")
+		return DefaultIntValue, errors.New("wrong int32 length")
 	}
 	return int32(int64Val), nil
 }

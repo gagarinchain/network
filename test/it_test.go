@@ -3,6 +3,7 @@ package test
 import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/blockchain"
+	"github.com/poslibp2p/eth/crypto"
 	"github.com/poslibp2p/hotstuff"
 	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/message/protobuff"
@@ -28,11 +29,11 @@ func TestScenario1a(t *testing.T) {
 	defer ctx.protocol.Stop()
 
 	ctx.StartFirstEpoch()
-	ctx.setMe(4)
+	ctx.setMe(2)
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
-	p := ctx.createProposal(newBlock, 3)
+	p := ctx.createProposal(newBlock, 1)
 	ctx.protocolChan <- p
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
@@ -47,8 +48,8 @@ func TestScenario1a(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(3), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(1), payload.Block.GetCert().GetHeader().GetHeight())
 
 }
 
@@ -69,7 +70,7 @@ func TestScenario1b(t *testing.T) {
 	defer ctx.protocol.Stop()
 
 	ctx.StartFirstEpoch()
-	ctx.setMe(4)
+	ctx.setMe(2)
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
@@ -78,7 +79,7 @@ func TestScenario1b(t *testing.T) {
 		ctx.protocolChan <- v
 	}
 
-	p := ctx.createProposal(newBlock, 3)
+	p := ctx.createProposal(newBlock, 1)
 	ctx.protocolChan <- p
 
 	for _, v := range votes[2*ctx.cfg.F/3-2:] {
@@ -92,8 +93,8 @@ func TestScenario1b(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(3), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(1), payload.Block.GetCert().GetHeader().GetHeight())
 
 }
 
@@ -114,7 +115,7 @@ func TestScenario1c(t *testing.T) {
 	defer ctx.protocol.Stop()
 
 	ctx.StartFirstEpoch()
-	ctx.setMe(4)
+	ctx.setMe(2)
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
@@ -127,7 +128,7 @@ func TestScenario1c(t *testing.T) {
 		ctx.blockChan <- newBlock
 	}()
 
-	p := ctx.createProposal(newBlock, 3)
+	p := ctx.createProposal(newBlock, 1)
 	ctx.protocolChan <- p
 
 	proposal := <-ctx.proposalCHan
@@ -137,8 +138,8 @@ func TestScenario1c(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(3), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(1), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
 //Scenario 2:
@@ -158,7 +159,7 @@ func TestScenario2(t *testing.T) {
 	ctx.setMe(0)
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
-	p := ctx.createProposal(newBlock, 3)
+	p := ctx.createProposal(newBlock, 1)
 	ctx.protocolChan <- p
 
 	vote := <-ctx.voteChan
@@ -181,10 +182,10 @@ func TestScenario3(t *testing.T) {
 	defer ctx.protocol.Stop()
 
 	ctx.StartFirstEpoch()
-	ctx.setMe(4)
+	ctx.setMe(2)
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
-	p := ctx.createProposal(newBlock, 3)
+	p := ctx.createProposal(newBlock, 1)
 	ctx.protocolChan <- p
 	<-ctx.voteChan
 
@@ -195,8 +196,8 @@ func TestScenario3(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
 //Scenario 4:
@@ -212,7 +213,7 @@ func TestScenario4(t *testing.T) {
 	defer ctx.pacer.Stop()
 	defer ctx.protocol.Stop()
 	ctx.StartFirstEpoch()
-	ctx.setMe(4)
+	ctx.setMe(2)
 
 	proposal := <-ctx.proposalCHan
 
@@ -221,8 +222,8 @@ func TestScenario4(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(4), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(2), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
 //Scenario 5a:
@@ -256,7 +257,7 @@ func TestScenario5a(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
 //Scenario 5b:
@@ -287,7 +288,7 @@ func TestScenario5b(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
 //Scenario 5c:
@@ -322,7 +323,7 @@ func TestScenario5c(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
-	assert.Equal(t, int32(2), payload.Block.GetCert().GetHeader().GetHeight())
+	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
 type TestContext struct {
@@ -360,13 +361,19 @@ func makeVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, peer *msg.P
 func (ctx *TestContext) StartFirstEpoch() {
 	trigger := make(chan interface{})
 	ctx.protocol.SubscribeEpochChange(trigger)
-	ctx.sendStartEpochMessages(1, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
+	ctx.sendStartEpochMessages(1, 2*ctx.cfg.F/3+1, nil)
 	<-trigger
 }
 
 func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blockchain.QuorumCertificate) {
 	for i := 0; i < amount; i++ {
-		epoch := hotstuff.CreateEpoch(ctx.pacer.Committee()[i], index, hqc)
+		var epoch *hotstuff.Epoch
+		if hqc == nil {
+			sig, _ := crypto.Sign(ctx.bc.GetGenesisBlock().Header().Hash().Bytes(), ctx.pacer.Committee()[i].GetPrivateKey())
+			epoch = hotstuff.CreateEpoch(ctx.pacer.Committee()[i], index, nil, sig)
+		} else {
+			epoch = hotstuff.CreateEpoch(ctx.pacer.Committee()[i], index, hqc, nil)
+		}
 		message, _ := epoch.GetMessage()
 		ctx.protocolChan <- message
 	}

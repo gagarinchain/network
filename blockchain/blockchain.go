@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/emirpasic/gods/utils"
@@ -25,8 +26,6 @@ type Blockchain struct {
 	uncommittedHeadByHeight *treemap.Map
 	storage                 Storage
 	blockService            BlockService
-
-	genesisCert *QuorumCertificate
 }
 
 func (bc *Blockchain) BlockService(blockService BlockService) {
@@ -40,7 +39,7 @@ func (bc *Blockchain) SetStorage(storage Storage) {
 var log = logging.MustGetLogger("blockchain")
 
 func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService) *Blockchain {
-	zero, one, two, certToHead := CreateGenesisTriChain()
+	zero := CreateGenesisBlock()
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedTailByHeight:   treemap.NewWith(utils.Int32Comparator),
@@ -50,11 +49,9 @@ func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService
 		blockService:            blockService,
 	}
 
-	blockchain.AddBlock(zero)
-	blockchain.AddBlock(one)
-	blockchain.AddBlock(two)
-
-	blockchain.genesisCert = certToHead
+	if err := blockchain.AddBlock(zero); err != nil {
+		panic("can't add genesis block")
+	}
 
 	return blockchain
 }
@@ -212,7 +209,7 @@ func (bc *Blockchain) GetGenesisBlock() *Block {
 }
 
 func (bc *Blockchain) GetGenesisCert() *QuorumCertificate {
-	return bc.genesisCert
+	return bc.GetGenesisBlock().QC()
 }
 
 func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
@@ -301,4 +298,27 @@ func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
 		res = append(res, block.(*Block))
 	}
 	return res
+}
+
+func (bc *Blockchain) GetGenesisBlockSignedHash(key *ecdsa.PrivateKey) []byte {
+	sig, e := crypto.Sign(bc.GetGenesisBlock().Header().Hash().Bytes(), key)
+	if e != nil {
+		log.Fatal("Can't sign genesis block")
+	}
+	return sig
+
+}
+func (bc *Blockchain) ValidateGenesisBlockSignature(signature []byte, address common.Address) bool {
+	pub, e := crypto.SigToPub(bc.GetGenesisBlock().Header().Hash().Bytes(), signature)
+	if e != nil {
+		log.Error("bad epoch signature")
+		return false
+	}
+	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
+
+	return a == address
+}
+
+func (bc *Blockchain) SetGenesisCertificate(signature []byte) {
+	bc.GetGenesisBlock().qc = CreateQuorumCertificate(signature, bc.GetGenesisBlock().Header())
 }

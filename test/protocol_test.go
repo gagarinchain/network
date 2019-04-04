@@ -27,7 +27,7 @@ func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
 
 	mocksrv := (cfg.Srv).(*mocks.Service)
 
-	cfg.Pacer.Committee()[3] = cfg.Me
+	cfg.Pacer.Committee()[1] = cfg.Me
 	msgChan := make(chan *msg.Message)
 	mocksrv.On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
 		msgChan <- (args[0]).(*msg.Message)
@@ -86,8 +86,8 @@ func TestOnReceiveProposal(t *testing.T) {
 		log.Info(p.GetAddress().Hex())
 	}
 
-	currentProposer := cfg.Pacer.Committee()[3]
-	nextProposer := cfg.Pacer.Committee()[4]
+	currentProposer := cfg.Pacer.Committee()[1]
+	nextProposer := cfg.Pacer.Committee()[2]
 	proposal := hotstuff.CreateProposal(newBlock, head.QC(), currentProposer)
 	srv := (cfg.Srv).(*mocks.Service)
 	msgChan := make(chan *msg.Message)
@@ -126,7 +126,7 @@ func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 	proposal := &hotstuff.Proposal{Sender: nextProposer, NewBlock: newBlock, HQC: head.QC()}
 
 	assert.Error(t, p.OnReceiveProposal(proposal), "peer equivocated")
-	assert.Equal(t, int32(2), p.Vheight())
+	assert.Equal(t, int32(0), p.Vheight())
 }
 
 func TestOnReceiveVoteForNotProposer(t *testing.T) {
@@ -141,7 +141,7 @@ func TestOnReceiveVoteForNotProposer(t *testing.T) {
 func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 	bc, p, cfg := initProtocol(t)
 	id := generateIdentity(t)
-	cfg.Pacer.Committee()[3] = cfg.Me
+	cfg.Pacer.Committee()[1] = cfg.Me
 	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	newBlock2 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
 	vote1 := hotstuff.CreateVote(newBlock1.Header(), bc.GetGenesisCert(), id)
@@ -160,7 +160,7 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 
 func TestOnReceiveVote(t *testing.T) {
 	bc, p, cfg := initProtocol(t)
-	cfg.Pacer.Committee()[3] = cfg.Me
+	cfg.Pacer.Committee()[1] = cfg.Me
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
 	if e := bc.AddBlock(newBlock); e != nil {
@@ -324,6 +324,8 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	loader := &mocks.CommitteeLoader{}
 	bsrv := &mocks.BlockService{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), bsrv)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	peers := make([]*msg.Peer, 10)
 
 	config := &hotstuff.ProtocolConfig{

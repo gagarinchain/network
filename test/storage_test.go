@@ -28,6 +28,7 @@ func TestStorageBlockAddition(t *testing.T) {
 
 	service := &mocks.BlockService{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, service)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	b := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("random data"))
 	e = bc.AddBlock(b)

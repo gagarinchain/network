@@ -25,9 +25,13 @@ message HelloPayload {
 }
 
 message EpochStartPayload {
-    QuorumCertificate cert = 1;
-    bytes signature = 2;
-    int32 epoch_number = 3;
+    oneof body {
+        QuorumCertificate cert = 1;
+        bytes genesisSignature = 2;
+
+    }
+    bytes signature = 3;
+    int32 epoch_number = 4;
 }
 
 message ProposalPayload {

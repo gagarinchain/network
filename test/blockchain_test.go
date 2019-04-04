@@ -10,6 +10,7 @@ import (
 
 func TestIsSiblingParent(t *testing.T) {
 	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if err := bc.AddBlock(newBlock); err != nil {
@@ -21,6 +22,8 @@ func TestIsSiblingParent(t *testing.T) {
 
 func TestIsSiblingAncestor(t *testing.T) {
 	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if err := bc.AddBlock(newBlock); err != nil {
@@ -40,18 +43,26 @@ func TestIsSiblingAncestor(t *testing.T) {
 
 func TestIsSiblingReverseParentSibling(t *testing.T) {
 	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
+	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("first block"))
 	if err := bc.AddBlock(newBlock); err != nil {
 		t.Error("can't add block", err)
 	}
+	newBlock2 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("second block"))
+	if err := bc.AddBlock(newBlock2); err != nil {
+		t.Error("can't add block", err)
+	}
 
-	assert.False(t, bc.IsSibling(head.Header(), newBlock.Header()))
+	assert.False(t, bc.IsSibling(newBlock.Header(), newBlock2.Header()))
 
 }
 
 func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if err := bc.AddBlock(newBlock); err != nil {
@@ -67,6 +78,8 @@ func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 
 func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if err := bc.AddBlock(newBlock); err != nil {
@@ -86,6 +99,8 @@ func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 
 func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
 	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if err := bc.AddBlock(newBlock); err != nil {

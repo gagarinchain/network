@@ -23,6 +23,7 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
 	payload := &pb.HelloPayload{Version: 1, Time: time.Now().Unix(), TopBlockHeight: 4}
@@ -50,7 +51,7 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 		low := (args[0]).(int32)
 		high := (args[1]).(int32)
 
-		assert.True(t, low == 2 && high == 4)
+		assert.True(t, low == 0 && high == 4)
 	})
 
 	p.Bootstrap()
@@ -66,8 +67,13 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
+	block12 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 1<-2"))
+	_ = bc.AddBlock(block12)
+	block23 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 2<-3"))
+	_ = bc.AddBlock(block23)
 	block34 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 3<-4"))
 	_ = bc.AddBlock(block34)
 	block45 := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-5"))
@@ -76,7 +82,6 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 	_ = bc.AddBlock(block56)
 	block47 := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-7"))
 	_ = bc.AddBlock(block47)
-	bc.OnCommit(block34)
 
 	peer := generateIdentity(t)
 	msgChan := make(chan *blockchain.Block)
@@ -135,8 +140,13 @@ func TestBlockProtocolOnHello(t *testing.T) {
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
+	block12 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 1<-2"))
+	_ = bc.AddBlock(block12)
+	block23 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 2<-3"))
+	_ = bc.AddBlock(block23)
 	block34 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 3<-4"))
 	_ = bc.AddBlock(block34)
 	block45 := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-5"))

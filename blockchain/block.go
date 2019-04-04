@@ -54,12 +54,14 @@ func (h *Header) Timestamp() time.Time {
 func (b *Block) QC() *QuorumCertificate {
 	return b.qc
 }
-
+func (b *Block) SetQC(qc *QuorumCertificate) {
+	b.qc = qc
+}
 func (b *Block) QRef() *Header {
 	return b.QC().QrefBlock()
 }
 
-func CreateGenesisTriChain() (zero *Block, one *Block, two *Block, certToHead *QuorumCertificate) {
+func CreateGenesisBlock() (zero *Block) {
 	//TODO find out what to do with alfa cert
 	data := []byte("Zero")
 	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)),
@@ -67,22 +69,8 @@ func CreateGenesisTriChain() (zero *Block, one *Block, two *Block, certToHead *Q
 	zeroHeader.SetHash()
 	//We need block to calculate it's hash
 	zero = &Block{header: zeroHeader, data: data}
-	zeroCert := CreateQuorumCertificate([]byte("Valid"), zero.header)
-	zero.qc = zeroCert
 
-	firstHeader := createHeader(1, common.Hash{}, zeroCert.GetHash(),
-		crypto.Keccak256Hash([]byte("Block one")), zeroHeader.Hash(), time.Now().Round(time.Millisecond))
-	firstHeader.SetHash()
-	first := &Block{header: firstHeader, data: []byte("First"), qc: zeroCert}
-	firstCert := CreateQuorumCertificate([]byte("Valid"), firstHeader)
-
-	secondHeader := createHeader(2, common.Hash{}, firstCert.GetHash(),
-		crypto.Keccak256Hash([]byte("Block two")), firstHeader.Hash(), time.Now().Round(time.Millisecond))
-	secondHeader.SetHash()
-	second := &Block{header: secondHeader, data: []byte("Second"), qc: firstCert}
-	secondCert := CreateQuorumCertificate([]byte("Valid"), secondHeader)
-
-	return zero, first, second, secondCert
+	return zero
 }
 
 func createHeader(height int32, hash common.Hash, qcHash common.Hash, dataHash common.Hash, parent common.Hash, timestamp time.Time) *Header {
@@ -108,7 +96,11 @@ func CreateBlockFromMessage(block *pb.Block) *Block {
 }
 
 func (b *Block) GetMessage() *pb.Block {
-	return &pb.Block{Header: b.Header().GetMessage(), Cert: b.QC().GetMessage(), Data: &pb.BlockData{Data: b.Data()}}
+	var qc *pb.QuorumCertificate
+	if b.qc != nil {
+		qc = b.QC().GetMessage()
+	}
+	return &pb.Block{Header: b.Header().GetMessage(), Cert: qc, Data: &pb.BlockData{Data: b.Data()}}
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
