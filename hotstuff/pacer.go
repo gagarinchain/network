@@ -64,9 +64,7 @@ func (p *StaticPacer) Run() {
 			log.Info("Received no votes from peers in delta, proposing with last QC")
 			p.config.ControlChan <- Event(SUGGEST_PROPOSE)
 		case <-roundTimer.C:
-			//TODO ignore when synchronizing
 			log.Info("Received no signal from underlying protocol about round ending, force proposer change")
-
 			p.config.ControlChan <- Event(NEXT_VIEW)
 		case event := <-p.roundEndChan:
 			switch event {

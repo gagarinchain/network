@@ -103,7 +103,7 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		f:                   cfg.F,
 		delta:               cfg.Delta,
 		blockchain:          cfg.Blockchain,
-		vheight:             2,
+		vheight:             0,
 		votes:               make(map[common.Address]*Vote),
 		lastExecutedBlock:   cfg.Blockchain.GetGenesisBlock().Header(),
 		hqc:                 cfg.Blockchain.GetGenesisCert(),
