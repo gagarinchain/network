@@ -17,42 +17,43 @@ import (
 type Service interface {
 	//Send message to particular peer
 
-	SendMessageTriggered(peer *msg.Peer, msg *msg.Message, trigger chan interface{})
+	SendMessageTriggered(ctx context.Context, peer *msg.Peer, msg *msg.Message, trigger chan interface{})
 
-	SendMessage(peer *msg.Peer, msg *msg.Message) (resp chan *msg.Message)
+	SendMessage(ctx context.Context, peer *msg.Peer, msg *msg.Message) (resp chan *msg.Message)
 
 	//Send message to a random peer
-	SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.Message)
+	SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message)
 
 	//Broadcast message to all peers
-	Broadcast(msg *msg.Message)
+	Broadcast(ctx context.Context, msg *msg.Message)
 }
 
 const Libp2pProtocol protocol.ID = "/Libp2pProtocol/1.0.0"
 const Topic string = "/hotstuff"
 
 //TODO find out whether we have to cache streams and synchronize access to them
+//TODO handle contexts correctly
 type ServiceImpl struct {
 	node       *Node
 	dispatcher *msg.Dispatcher
 	//streams map[peer.ID]net.Stream
 }
 
-func CreateService(node *Node, dispatcher *msg.Dispatcher) Service {
+func CreateService(ctx context.Context, node *Node, dispatcher *msg.Dispatcher) Service {
 	impl := &ServiceImpl{
 		node:       node,
 		dispatcher: dispatcher,
 	}
 
-	impl.node.Host.SetStreamHandler(Libp2pProtocol, impl.handleNewStream)
+	impl.node.Host.SetStreamHandler(Libp2pProtocol, impl.handleNewStreamWithContext(ctx))
 	return impl
 }
 
-func (s *ServiceImpl) SendMessage(peer *msg.Peer, m *msg.Message) (resp chan *msg.Message) {
+func (s *ServiceImpl) SendMessage(ctx context.Context, peer *msg.Peer, m *msg.Message) (resp chan *msg.Message) {
 	resp = make(chan *msg.Message)
 
 	go func() {
-		stream, e := s.node.Host.NewStream(context.Background(), peer.GetPeerInfo().ID, Libp2pProtocol)
+		stream, e := s.node.Host.NewStream(ctx, peer.GetPeerInfo().ID, Libp2pProtocol)
 		if e != nil {
 			log.Error("Can't open stream to peer", e)
 			return
@@ -68,14 +69,14 @@ func (s *ServiceImpl) SendMessage(peer *msg.Peer, m *msg.Message) (resp chan *ms
 	return resp
 }
 
-func (s *ServiceImpl) SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.Message) {
+func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message) {
 	resp = make(chan *msg.Message)
 
 	go func() {
 		connected := s.node.Host.Network().Peers()
 		pid := randomSubsetOfIds(connected, 1)[0]
 
-		stream, e := s.node.Host.NewStream(context.Background(), pid, Libp2pProtocol)
+		stream, e := s.node.Host.NewStream(ctx, pid, Libp2pProtocol)
 		if e != nil {
 			log.Error("Can't open stream to peer", e)
 			close(resp)
@@ -87,7 +88,7 @@ func (s *ServiceImpl) SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.
 			close(resp)
 		}
 
-		cr := ctxio.NewReader(context.Background(), stream)
+		cr := ctxio.NewReader(ctx, stream)
 		r := protoio.NewDelimitedReader(cr, net.MessageSizeMax) //TODO decide on msg size
 
 		respMsg := &pb.Message{}
@@ -102,32 +103,28 @@ func (s *ServiceImpl) SendRequestToRandomPeer(req *msg.Message) (resp chan *msg.
 	return resp
 }
 
-func (s *ServiceImpl) SendMessageTriggered(peer *msg.Peer, msg *msg.Message, trigger chan interface{}) {
+func (s *ServiceImpl) SendMessageTriggered(ctx context.Context, peer *msg.Peer, msg *msg.Message, trigger chan interface{}) {
 	<-trigger
-	s.SendMessage(peer, msg)
+	s.SendMessage(ctx, peer, msg)
 }
 
-func (s *ServiceImpl) Broadcast(msg *msg.Message) {
+func (s *ServiceImpl) Broadcast(ctx context.Context, msg *msg.Message) {
 	go func() {
 		bytes, e := proto.Marshal(msg.Message)
 		if e != nil {
 			log.Error("Can't marshall message", e)
 		}
 
-		e = s.node.PubSub.Publish(context.Background(), Topic, bytes)
+		e = s.node.PubSub.Publish(ctx, Topic, bytes)
 		if e != nil {
 			log.Error("Can't broadcast message", e)
 		}
 	}()
 }
 
-func (s *ServiceImpl) handleNewStream(stream net.Stream) {
-	go s.handleNewMessage(stream)
-}
-
-func (s *ServiceImpl) handleNewMessage(stream net.Stream) {
+func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream net.Stream) {
 	defer stream.Close() //TODO not sure we must close it here, find out
-	cr := ctxio.NewReader(context.Background(), stream)
+	cr := ctxio.NewReader(ctx, stream)
 	r := protoio.NewDelimitedReader(cr, net.MessageSizeMax)
 
 	m := &pb.Message{}
@@ -140,15 +137,21 @@ func (s *ServiceImpl) handleNewMessage(stream net.Stream) {
 	})
 }
 
-func (n *Node) SubscribeAndListen(msgChan chan *msg.Message) {
+func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context) net.StreamHandler {
+	return func(stream net.Stream) {
+		go s.handleNewMessage(ctx, stream)
+	}
+}
+
+func (n *Node) SubscribeAndListen(ctx context.Context, msgChan chan *msg.Message) {
 	// Subscribe to the topic
-	sub, err := n.PubSub.SubscribeAndProvide(context.Background(), Topic)
+	sub, err := n.PubSub.SubscribeAndProvide(ctx, Topic)
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Info("Listening topic...")
 	for {
-		m, err := sub.Next(context.Background())
+		m, err := sub.Next(ctx)
 		if err == io.EOF || err == context.Canceled {
 			break
 		} else if err != nil {

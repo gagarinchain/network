@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/eth/common"
@@ -20,7 +21,6 @@ func TestSynchRequestBlock(t *testing.T) {
 	toTest := blockchain.NewBlockService(srv)
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
-	//newQC := blockchain.CreateQuorumCertificate([]byte("New QC"), newBlock.Header())
 	log.Info("Head ", common.Bytes2Hex(newBlock.Header().Hash().Bytes()))
 
 	pbBlock := newBlock.GetMessage()
@@ -30,9 +30,10 @@ func TestSynchRequestBlock(t *testing.T) {
 		msgChan <- message.CreateMessage(pb.Message_BLOCK_REQUEST, any, nil)
 		close(msgChan)
 	}()
-	srv.On("SendRequestToRandomPeer", mock.AnythingOfType("*message.Message")).Return(msgChan)
+	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.AnythingOfType("*message.Message")).Return(msgChan)
 
-	toTest.RequestBlock(newBlock.Header().Hash())
+	toTest.RequestBlock(context.Background(), newBlock.Header().Hash())
 
 }
 
@@ -43,15 +44,14 @@ func TestSynchRequestBlocksForHeight(t *testing.T) {
 
 	bsrv := blockchain.NewBlockService(srv)
 	me := generateIdentity(t)
-	blocks := make(chan *blockchain.Block)
-	toTest := blockchain.CreateSynchronizer(blocks, me, bsrv, bc)
+	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	head := bc.GetHead()
 	block31 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock31"))
 	block32 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock32"))
 	block33 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock33"))
 
-	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(msg *message.Message) bool {
+	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.MatchedBy(func(msg *message.Message) bool {
 		br := &pb.BlockRequestPayload{}
 		if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
 			t.Error("Can't unmarshal request payload")
@@ -60,7 +60,7 @@ func TestSynchRequestBlocksForHeight(t *testing.T) {
 		return br.Height == 3
 	})).Return(getMessage(block31.GetMessage(), block32.GetMessage(), block33.GetMessage())).Once()
 
-	toTest.RequestBlocks(2, 3)
+	toTest.RequestBlocks(context.Background(), 2, 3)
 
 	assert.Equal(t, block31, bc.GetBlockByHash(block31.Header().Hash()))
 	assert.Equal(t, block32, bc.GetBlockByHash(block32.Header().Hash()))
@@ -75,7 +75,7 @@ func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 
 	me := generateIdentity(t)
 	bsrv := blockchain.NewBlockService(srv)
-	toTest := blockchain.CreateSynchronizer(make(chan *blockchain.Block), me, bsrv, bc)
+	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	head := bc.GetHead()
 	block31 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock31"))
@@ -90,22 +90,24 @@ func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 	block42 := bc.NewBlock(block32, bc.GetGenesisCert(), []byte("newBlock42"))
 	_ = bc.AddBlock(block42)
 
-	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(msg *message.Message) bool {
-		br := &pb.BlockRequestPayload{}
-		if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
-			t.Error("Can't unmarshal request payload")
-		}
-		return br.Height == 3
-	})).Return(getMessage(block31.GetMessage(), block32.GetMessage(), block33.GetMessage())).Once()
-	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(msg *message.Message) bool {
-		br := &pb.BlockRequestPayload{}
-		if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
-			t.Error("Can't unmarshal request payload")
-		}
-		return br.Height == 4
-	})).Return(getMessage(block41.GetMessage(), block42.GetMessage())).Once()
+	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.MatchedBy(func(msg *message.Message) bool {
+			br := &pb.BlockRequestPayload{}
+			if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
+				t.Error("Can't unmarshal request payload")
+			}
+			return br.Height == 3
+		})).Return(getMessage(block31.GetMessage(), block32.GetMessage(), block33.GetMessage())).Once()
+	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.MatchedBy(func(msg *message.Message) bool {
+			br := &pb.BlockRequestPayload{}
+			if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
+				t.Error("Can't unmarshal request payload")
+			}
+			return br.Height == 4
+		})).Return(getMessage(block41.GetMessage(), block42.GetMessage())).Once()
 
-	toTest.RequestBlocks(2, 4)
+	toTest.RequestBlocks(context.Background(), 2, 4)
 }
 
 func getMessage(msgs ...*pb.Block) chan *message.Message {

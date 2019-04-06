@@ -1,33 +1,38 @@
 package hotstuff
 
 import (
+	"context"
 	msg "github.com/poslibp2p/message"
-	"time"
 )
 
 //Static pacer that store validator set in file and round-robin elect proposer each 2 Delta-periods
 type StaticPacer struct {
-	config       *ProtocolConfig
-	committee    []*msg.Peer
-	roundEndChan chan Event
-	stopChan     chan interface{}
-	viewGetter   CurrentViewGetter
+	config        *ProtocolConfig
+	committee     []*msg.Peer
+	stopChan      chan interface{}
+	viewGetter    CurrentViewGetter
+	eventNotifier EventNotifier
+	eventChan     chan Event
 }
 
 func CreatePacer(config *ProtocolConfig) *StaticPacer {
-	return &StaticPacer{
-		config:       config,
-		committee:    config.Committee,
-		roundEndChan: config.RoundEndChan,
-		stopChan:     make(chan interface{}),
+	pacer := &StaticPacer{
+		config:    config,
+		committee: config.Committee,
+		stopChan:  make(chan interface{}),
+		eventChan: make(chan Event),
 	}
+	return pacer
 }
 
 func (p *StaticPacer) SetViewGetter(getter CurrentViewGetter) {
 	p.viewGetter = getter
 }
-func (p *StaticPacer) Bootstrap() {
-	go p.Run()
+func (p *StaticPacer) SetEventNotifier(notifier EventNotifier) {
+	p.eventNotifier = notifier
+}
+func (p *StaticPacer) Bootstrap(ctx context.Context) {
+	go p.Run(ctx)
 }
 
 func (p *StaticPacer) Stop() {
@@ -50,53 +55,64 @@ func (p *StaticPacer) GetNext(currentView int32) *msg.Peer {
 	return p.committee[int(currentView+1)%len(p.committee)]
 }
 
-func (p *StaticPacer) Run() {
+func (p *StaticPacer) Run(ctx context.Context) error {
 	log.Info("Starting pacer...")
-	roundTimer := time.NewTimer(2 * p.config.Delta)
-	proposeTimer := time.NewTimer(p.config.Delta)
-	epochTimer := time.NewTimer(4 * p.config.Delta)
+	p.eventNotifier.SubscribeProtocolEvents(p.eventChan)
 
-	p.config.ControlChan <- Event(START_EPOCH)
-
+	timeout, f := context.WithTimeout(ctx, 4*p.config.Delta)
+	p.config.ControlChan <- Command{eventType: StartEpoch, ctx: timeout}
+	currentState := StartEpoch
 	for {
 		select {
-		case <-proposeTimer.C:
-			log.Info("Received no votes from peers in delta, proposing with last QC")
-			p.config.ControlChan <- Event(SUGGEST_PROPOSE)
-		case <-roundTimer.C:
-			log.Info("Received no signal from underlying protocol about round ending, force proposer change")
-			p.config.ControlChan <- Event(NEXT_VIEW)
-		case event := <-p.roundEndChan:
+		case <-timeout.Done(): //case when we timed out
+			switch currentState {
+			case StartEpoch: //we failed to start epoch, should retry
+				log.Info("Can't start epoch in 4*delta, retry...")
+				timeout, f = context.WithTimeout(ctx, 4*p.config.Delta)
+				p.config.ControlChan <- Command{eventType: StartEpoch, ctx: timeout}
+				currentState = StartEpoch
+			case SuggestVote: //we timed out interval after new round start, failed to collect qc, should propose without new qc
+				log.Info("Received no votes from peers in delta, proposing with last QC")
+				timeout, f = context.WithTimeout(ctx, p.config.Delta)
+				p.config.ControlChan <- Command{eventType: SuggestPropose, ctx: timeout}
+				currentState = SuggestPropose
+			case SuggestPropose: //we failed to propose in time, change view and go on progress
+				log.Info("Couldn't propose in time, force view change")
+				timeout, f = context.WithTimeout(ctx, p.config.Delta)
+				p.config.ControlChan <- Command{eventType: NextView, ctx: timeout}
+				currentState = NextView
+			case NextView:
+				panic("Don't know what to do when we timed out view increment")
+			}
+		case event := <-p.eventChan:
 			switch event {
-			case STARTED_EPOCH:
-				epochTimer.Stop()
-				roundTimer = time.NewTimer(2 * p.config.Delta)
-				proposeTimer = time.NewTimer(p.config.Delta)
-			case CHANGED_VIEW:
+			case StartedEpoch:
+				log.Info("Started new epoch, collect votes")
+				timeout, f = context.WithTimeout(ctx, p.config.Delta)
+				p.config.ControlChan <- Command{eventType: SuggestVote, ctx: timeout}
+				currentState = SuggestVote
+			case ChangedView:
 				log.Infof("Round %v ended", p.viewGetter.GetCurrentView())
-
-				proposeTimer.Stop()
-				roundTimer.Stop()
 
 				i := int(p.viewGetter.GetCurrentView()) % len(p.committee)
 				if i == 0 {
-					p.config.ControlChan <- Event(START_EPOCH)
-
-					epochTimer = time.NewTimer(4 * p.config.Delta)
+					log.Info("Starting new epoch")
+					timeout, f = context.WithTimeout(ctx, 4*p.config.Delta)
+					p.config.ControlChan <- Command{eventType: StartEpoch, ctx: timeout}
+					currentState = StartEpoch
 				} else {
-					roundTimer = time.NewTimer(2 * p.config.Delta)
-					proposeTimer = time.NewTimer(p.config.Delta)
+					log.Info("Start new round, collect votes")
+					timeout, f = context.WithTimeout(ctx, p.config.Delta)
+					p.config.ControlChan <- Command{eventType: SuggestVote, ctx: timeout}
+					currentState = SuggestVote
 				}
 			}
-
-		case <-epochTimer.C:
-			log.Info("Can't start epoch in 4*delta, retry...")
-			p.config.ControlChan <- Event(START_EPOCH)
-			epochTimer = time.NewTimer(4 * p.config.Delta)
 		case <-p.stopChan:
-			proposeTimer.Stop()
-			roundTimer.Stop()
-			return
+			f()
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
 		}
+
 	}
 }

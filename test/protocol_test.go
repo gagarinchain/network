@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"github.com/libp2p/go-libp2p-peer"
 	"github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
@@ -23,28 +24,28 @@ import (
 var log = logging.MustGetLogger("hotstuff")
 
 func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
-	_, p, cfg := initProtocol(t)
+	_, p, cfg, eventChan := initProtocol(t)
 
 	mocksrv := (cfg.Srv).(*mocks.Service)
 
 	cfg.Pacer.Committee()[1] = cfg.Me
 	msgChan := make(chan *msg.Message)
-	mocksrv.On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		msgChan <- (args[0]).(*msg.Message)
-		assert.Equal(t, pb.Message_PROPOSAL, args[0].(*msg.Message).Type)
+	mocksrv.On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[1]).(*msg.Message)
+		assert.Equal(t, pb.Message_PROPOSAL, args[1].(*msg.Message).Type)
 	}).Once()
 
-	go p.OnPropose()
+	go p.OnPropose(context.Background())
 
-	<-cfg.RoundEndChan
+	<-eventChan
 	m := <-msgChan
 	assert.Equal(t, pb.Message_PROPOSAL, m.Type)
 
-	mocksrv.AssertCalled(t, "Broadcast", mock.AnythingOfType("*message.Message"))
+	mocksrv.AssertCalled(t, "Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*message.Message"))
 }
 
 func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
-	bc, p, _ := initProtocol(t)
+	bc, p, _, _ := initProtocol(t)
 
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
@@ -60,7 +61,7 @@ func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
 }
 
 func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
-	bc, p, _ := initProtocol(t)
+	bc, p, _, _ := initProtocol(t)
 
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
@@ -78,7 +79,7 @@ func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
 }
 
 func TestOnReceiveProposal(t *testing.T) {
-	bc, p, cfg := initProtocol(t)
+	bc, p, cfg, eventChan := initProtocol(t)
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
@@ -91,31 +92,33 @@ func TestOnReceiveProposal(t *testing.T) {
 	proposal := hotstuff.CreateProposal(newBlock, head.QC(), currentProposer)
 	srv := (cfg.Srv).(*mocks.Service)
 	msgChan := make(chan *msg.Message)
-	srv.On("SendMessage", nextProposer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		msgChan <- (args[1]).(*msg.Message)
+	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		nextProposer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[2]).(*msg.Message)
 	}).Return(make(chan *msg.Message)).Once()
 
 	go func() {
-		if err := p.OnReceiveProposal(proposal); err != nil {
+		if err := p.OnReceiveProposal(context.Background(), proposal); err != nil {
 			t.Error("Error while receiving proposal", err)
 		}
 	}()
 	m := <-msgChan
-	<-cfg.RoundEndChan
+	<-eventChan
 
 	vote, err := hotstuff.CreateVoteFromMessage(m)
 	if err != nil {
 		t.Error("can't create vote", err)
 	}
 
-	srv.AssertCalled(t, "SendMessage", nextProposer, mock.AnythingOfType("*message.Message"))
+	srv.AssertCalled(t, "SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		nextProposer, mock.AnythingOfType("*message.Message"))
 	assert.Equal(t, proposal.NewBlock.Header().Hash(), vote.Header.Hash())
 	assert.Equal(t, vote.Header.Height(), p.Vheight())
 
 }
 
 func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
-	bc, p, cfg := initProtocol(t)
+	bc, p, cfg, _ := initProtocol(t)
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	if e := bc.AddBlock(newBlock); e != nil {
@@ -125,21 +128,21 @@ func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 	nextProposer := cfg.Pacer.GetNext(p.GetCurrentView())
 	proposal := &hotstuff.Proposal{Sender: nextProposer, NewBlock: newBlock, HQC: head.QC()}
 
-	assert.Error(t, p.OnReceiveProposal(proposal), "peer equivocated")
+	assert.Error(t, p.OnReceiveProposal(context.Background(), proposal), "peer equivocated")
 	assert.Equal(t, int32(0), p.Vheight())
 }
 
 func TestOnReceiveVoteForNotProposer(t *testing.T) {
-	bc, p, _ := initProtocol(t)
+	bc, p, _, _ := initProtocol(t)
 
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	vote := createVote(bc, newBlock, t)
 
-	assert.Error(t, p.OnReceiveVote(vote))
+	assert.Error(t, p.OnReceiveVote(context.Background(), vote))
 }
 
 func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
-	bc, p, cfg := initProtocol(t)
+	bc, p, cfg, _ := initProtocol(t)
 	id := generateIdentity(t)
 	cfg.Pacer.Committee()[1] = cfg.Me
 	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
@@ -147,10 +150,10 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 	vote1 := hotstuff.CreateVote(newBlock1.Header(), bc.GetGenesisCert(), id)
 	vote2 := hotstuff.CreateVote(newBlock2.Header(), bc.GetGenesisCert(), id)
 
-	if err := p.OnReceiveVote(vote1); err != nil {
+	if err := p.OnReceiveVote(context.Background(), vote1); err != nil {
 		t.Error("failed OnReceive", err)
 	}
-	err := p.OnReceiveVote(vote2)
+	err := p.OnReceiveVote(context.Background(), vote2)
 	if err == nil {
 		t.Fail()
 	}
@@ -159,7 +162,7 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 }
 
 func TestOnReceiveVote(t *testing.T) {
-	bc, p, cfg := initProtocol(t)
+	bc, p, cfg, eventChan := initProtocol(t)
 	cfg.Pacer.Committee()[1] = cfg.Me
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
@@ -170,27 +173,70 @@ func TestOnReceiveVote(t *testing.T) {
 	votes := createVotes((cfg.F/3)*2+1, bc, newBlock, t)
 
 	msgChan := make(chan *msg.Message)
-	(cfg.Srv).(*mocks.Service).On("Broadcast", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		msgChan <- (args[0]).(*msg.Message)
+	(cfg.Srv).(*mocks.Service).On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[1]).(*msg.Message)
 	})
 
 	for _, vote := range votes[:(cfg.F/3)*2] {
-		if err := p.OnReceiveVote(vote); err != nil {
+		if err := p.OnReceiveVote(context.Background(), vote); err != nil {
 			t.Error("failed OnReceive", err)
 		}
 	}
 
 	go func() {
-		if e := p.OnReceiveVote(votes[(cfg.F/3)*2]); e != nil {
+		if e := p.OnReceiveVote(context.Background(), votes[(cfg.F/3)*2]); e != nil {
 			t.Error("failed OnReceive", e)
 		}
 	}()
 
-	<-cfg.RoundEndChan
+	<-eventChan
 	m := <-msgChan
 
 	assert.Equal(t, newBlock.Header().Hash(), p.HQC().QrefBlock().Hash())
 	assert.Equal(t, m.Type, pb.Message_PROPOSAL)
+
+}
+
+func TestOnStartEpochWithBrokenSignature(t *testing.T) {
+	bc, p, cfg, _ := initProtocol(t)
+	cfg.Pacer.Committee()[1] = cfg.Me
+	go func() {
+		p.Run(make(chan *msg.Message))
+	}()
+	go func() {
+		cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.StartEpoch)
+	}()
+
+	msgChan := make(chan *msg.Message)
+	(cfg.Srv).(*mocks.Service).On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[1]).(*msg.Message)
+	})
+
+	<-msgChan
+
+	for i := 0; i < 2*cfg.F/3; i++ {
+		epoch := hotstuff.CreateEpoch(cfg.Pacer.Committee()[i], 1, nil, bc.GetGenesisBlockSignedHash(cfg.Pacer.Committee()[i].GetPrivateKey()))
+		message, _ := epoch.GetMessage()
+		p.OnEpochStart(context.Background(), message)
+	}
+
+	assert.True(t, p.IsStartingEpoch)
+
+	sign := bc.GetGenesisBlockSignedHash(generateIdentity(t).GetPrivateKey()) // generate random signature
+	epoch := hotstuff.CreateEpoch(cfg.Pacer.Committee()[2*cfg.F/3], 1, nil, sign)
+	message, _ := epoch.GetMessage()
+	p.OnEpochStart(context.Background(), message)
+
+	assert.True(t, p.IsStartingEpoch)
+
+	sign1 := bc.GetGenesisBlockSignedHash(cfg.Pacer.Committee()[2*cfg.F/3].GetPrivateKey()) // generate random signature
+	epoch1 := hotstuff.CreateEpoch(cfg.Pacer.Committee()[2*cfg.F/3], 1, nil, sign1)
+	message1, _ := epoch1.GetMessage()
+	p.OnEpochStart(context.Background(), message1)
+
+	assert.False(t, p.IsStartingEpoch)
 
 }
 
@@ -314,7 +360,7 @@ func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Bloc
 	return votes
 }
 
-func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig) {
+func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig, chan hotstuff.Event) {
 	identity := generateIdentity(t)
 	srv := &mocks.Service{}
 	storage := &mocks.Storage{}
@@ -329,15 +375,14 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	peers := make([]*msg.Peer, 10)
 
 	config := &hotstuff.ProtocolConfig{
-		F:            10,
-		Delta:        5 * time.Second,
-		Blockchain:   bc,
-		Me:           identity,
-		Srv:          srv,
-		Storage:      storage,
-		Committee:    peers,
-		RoundEndChan: make(chan hotstuff.Event),
-		ControlChan:  make(chan hotstuff.Event),
+		F:           10,
+		Delta:       5 * time.Second,
+		Blockchain:  bc,
+		Me:          identity,
+		Srv:         srv,
+		Storage:     storage,
+		Committee:   peers,
+		ControlChan: make(chan hotstuff.Command),
 	}
 
 	for i := 0; i < 10; i++ {
@@ -349,8 +394,10 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
 	p := hotstuff.CreateProtocol(config)
+	eventChan := make(chan hotstuff.Event)
+	p.SubscribeProtocolEvents(eventChan)
 
-	return bc, p, config
+	return bc, p, config, eventChan
 }
 
 func generateIdentity(t *testing.T) *msg.Peer {

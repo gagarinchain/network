@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/eth/crypto"
@@ -23,7 +24,7 @@ import (
 // Propose block with new QC
 func TestScenario1a(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 	defer ctx.pacer.Stop()
 	defer ctx.protocol.Stop()
@@ -63,7 +64,7 @@ func TestScenario1a(t *testing.T) {
 // Propose block with new QC
 func TestScenario1b(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -98,7 +99,7 @@ func TestScenario1b(t *testing.T) {
 
 }
 
-// Scenario 1c:
+// Scenario 1c: Here we receive proposal after we collected votes
 // Start new epoch,
 // Replica, Next proposer
 // Collect 2*f + 1 votes,
@@ -108,7 +109,7 @@ func TestScenario1b(t *testing.T) {
 func TestScenario1c(t *testing.T) {
 	ctx := initContext(t)
 
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -138,6 +139,8 @@ func TestScenario1c(t *testing.T) {
 		log.Error(err)
 	}
 
+	ctx.waitRounds(3)
+
 	assert.Equal(t, int32(2), payload.Block.GetHeader().GetHeight())
 	assert.Equal(t, int32(1), payload.Block.GetCert().GetHeader().GetHeight())
 }
@@ -149,7 +152,7 @@ func TestScenario1c(t *testing.T) {
 //Vote
 func TestScenario2(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -175,7 +178,7 @@ func TestScenario2(t *testing.T) {
 func TestScenario3(t *testing.T) {
 	ctx := initContext(t)
 
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -207,7 +210,7 @@ func TestScenario3(t *testing.T) {
 //Propose block with previous QC (2) after 2*Delta
 func TestScenario4(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -234,7 +237,7 @@ func TestScenario4(t *testing.T) {
 //Propose
 func TestScenario5a(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -267,7 +270,7 @@ func TestScenario5a(t *testing.T) {
 //Propose
 func TestScenario5b(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -300,7 +303,7 @@ func TestScenario5b(t *testing.T) {
 //Propose
 func TestScenario5c(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run()
+	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
@@ -326,12 +329,57 @@ func TestScenario5c(t *testing.T) {
 	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
+//Scenario 6:
+//Start new epoch
+//Replica
+//Receive proposal fork
+//Get no block on arbitrary height
+//Reject proposal and all fork
+func Scenario6(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run(context.Background())
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer func() {
+		go ctx.protocol.Stop()
+	}()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(8)
+
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	proposal1 := ctx.createProposal(block1, 1)
+	ctx.protocolChan <- proposal1
+	block2 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
+	proposal2 := ctx.createProposal(block2, 2)
+	ctx.protocolChan <- proposal2
+	block3 := ctx.bc.NewBlock(block2, ctx.bc.GetGenesisCert(), []byte("block 3"))
+	proposal3 := ctx.createProposal(block3, 3)
+	ctx.protocolChan <- proposal3
+
+	block21 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 21"))
+	block31 := ctx.bc.NewBlock(block21, ctx.bc.GetGenesisCert(), []byte("block 31"))
+	block4 := ctx.bc.NewBlock(block31, ctx.bc.GetGenesisCert(), []byte("block 41"))
+	proposal := ctx.createProposal(block4, 4)
+	ctx.protocolChan <- proposal
+
+	//ctx.blockChan <- block4
+	//ctx.blockChan <- block31
+	//ctx.blockChan <- block2
+
+	ctx.waitRounds(5)
+
+	assert.Equal(t, ctx.bc.GetHead().Header().Height(), int32(3))
+}
+
 type TestContext struct {
 	peers        []*msg.Peer
 	pacer        *hotstuff.StaticPacer
 	protocol     *hotstuff.Protocol
 	cfg          *hotstuff.ProtocolConfig
 	bc           *blockchain.Blockchain
+	eventChan    chan hotstuff.Event
 	voteChan     chan *msg.Message
 	startChan    chan *msg.Message
 	proposalCHan chan *msg.Message
@@ -383,6 +431,12 @@ func (ctx *TestContext) setMe(peerNumber int) {
 	ctx.pacer.Committee()[peerNumber] = ctx.me
 }
 
+func (ctx *TestContext) waitRounds(count int) {
+	for i := 0; i < count; i++ {
+		<-ctx.eventChan
+	}
+}
+
 func (ctx *TestContext) createProposal(newBlock *blockchain.Block, peerNumber int) *msg.Message {
 	proposal := hotstuff.CreateProposal(newBlock, newBlock.QC(), ctx.peers[peerNumber])
 	proposal.Sign(ctx.peers[peerNumber].GetPrivateKey())
@@ -408,15 +462,14 @@ func initContext(t *testing.T) *TestContext {
 	loader := &mocks.CommitteeLoader{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	config := &hotstuff.ProtocolConfig{
-		F:            10,
-		Delta:        1 * time.Second,
-		Blockchain:   bc,
-		Me:           identity,
-		Srv:          srv,
-		Storage:      storage,
-		Committee:    peers,
-		RoundEndChan: make(chan hotstuff.Event),
-		ControlChan:  make(chan hotstuff.Event),
+		F:           10,
+		Delta:       1 * time.Second,
+		Blockchain:  bc,
+		Me:          identity,
+		Srv:         srv,
+		Storage:     storage,
+		Committee:   peers,
+		ControlChan: make(chan hotstuff.Command),
 	}
 
 	for i := 0; i < 10; i++ {
@@ -430,31 +483,36 @@ func initContext(t *testing.T) *TestContext {
 	}
 
 	startChan := make(chan *msg.Message)
-	srv.On("Broadcast", mock.MatchedBy(matcher(pb.Message_EPOCH_START))).Run(func(args mock.Arguments) {
-		startChan <- (args[0]).(*msg.Message)
+	srv.On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.MatchedBy(matcher(pb.Message_EPOCH_START))).Run(func(args mock.Arguments) {
+		startChan <- (args[1]).(*msg.Message)
 	})
 	proposalChan := make(chan *msg.Message)
-	srv.On("Broadcast", mock.MatchedBy(matcher(pb.Message_PROPOSAL))).Run(func(args mock.Arguments) {
-		proposalChan <- (args[0]).(*msg.Message)
+	srv.On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.MatchedBy(matcher(pb.Message_PROPOSAL))).Run(func(args mock.Arguments) {
+		proposalChan <- (args[1]).(*msg.Message)
 	})
 
 	voteChan := make(chan *msg.Message)
-	srv.On("SendMessage", mock.AnythingOfType("*message.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
+	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*message.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
 		Return(make(chan *msg.Message)).Run(func(args mock.Arguments) {
-		voteChan <- (args[1]).(*msg.Message)
+		voteChan <- (args[2]).(*msg.Message)
 	})
 
 	blockChan := make(chan *blockchain.Block)
 	blockChanRead := func(c chan *blockchain.Block) <-chan *blockchain.Block {
 		return c
 	}(blockChan)
-	bsrv.On("RequestBlock", mock.AnythingOfType("common.Hash")).Return(blockChanRead)
+	bsrv.On("RequestBlock", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("common.Hash")).Return(blockChanRead)
 	loader.On("LoadFromFile").Return(peers)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
 	p := hotstuff.CreateProtocol(config)
 	pacer.SetViewGetter(p)
+	pacer.SetEventNotifier(p)
+
+	eventChan := make(chan hotstuff.Event)
+	p.SubscribeProtocolEvents(eventChan)
+
 	protocolChan := make(chan *msg.Message)
 	return &TestContext{
 		voteChan:     voteChan,
@@ -466,6 +524,7 @@ func initContext(t *testing.T) *TestContext {
 		proposalCHan: proposalChan,
 		blockChan:    blockChan,
 		startChan:    startChan,
+		eventChan:    eventChan,
 		me:           identity,
 		protocolChan: protocolChan,
 	}

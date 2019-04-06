@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
@@ -86,7 +87,7 @@ func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded b
 
 func (bc *Blockchain) LoadBlock(hash common.Hash) *Block {
 	log.Infof("Loading block with hash [%v]", hash.Hex())
-	ch := bc.blockService.RequestBlock(hash)
+	ch := bc.blockService.RequestBlock(context.Background(), hash)
 	block := <-ch
 	if err := bc.AddBlock(block); err != nil {
 		log.Error("Can't add loaded block", err)

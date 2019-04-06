@@ -13,10 +13,9 @@ import (
 )
 
 type Vote struct {
-	Sender *msg.Peer
-	Header *bc.Header
-	//We should not allow to change header if we want signature to be consistent with block
-	Signature []byte
+	Sender    *msg.Peer
+	Header    *bc.Header
+	Signature []byte //We should not allow to change header if we want signature to be consistent with block
 	HQC       *bc.QuorumCertificate
 }
 

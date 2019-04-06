@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/eth/common"
 	msg "github.com/poslibp2p/message"
@@ -23,10 +24,10 @@ func CreateBlockProtocol(srv network.Service, bc *Blockchain, sync Synchronizer)
 	return &BlockProtocol{srv: srv, bc: bc, sync: sync}
 }
 
-func (p *BlockProtocol) Bootstrap() {
+func (p *BlockProtocol) Bootstrap(ctx context.Context) {
 	rq := &pb.Message{Type: pb.Message_HELLO_REQUEST}
 	m := &msg.Message{Message: rq}
-	resp := <-p.srv.SendRequestToRandomPeer(m)
+	resp := <-p.srv.SendRequestToRandomPeer(ctx, m)
 
 	if resp.Type != pb.Message_HELLO_RESPONSE {
 		log.Errorf("Not expected msg type %v response to Hello", resp.Type)
@@ -44,11 +45,11 @@ func (p *BlockProtocol) Bootstrap() {
 	}
 
 	if h.GetTopBlockHeight() > p.bc.GetTopHeight() {
-		p.sync.RequestBlocks(p.bc.GetTopHeight(), h.GetTopBlockHeight())
+		p.sync.RequestBlocks(ctx, p.bc.GetTopHeight(), h.GetTopBlockHeight())
 	}
 }
 
-func (p *BlockProtocol) OnBlockRequest(req *msg.Message) {
+func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) {
 	payload := req.GetPayload()
 	br := &pb.BlockRequestPayload{}
 	if err := ptypes.UnmarshalAny(payload, br); err != nil {
@@ -76,7 +77,7 @@ func (p *BlockProtocol) OnBlockRequest(req *msg.Message) {
 		log.Error("Can't create response", e)
 		return
 	}
-	p.srv.SendMessage(req.Source(), msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil))
+	p.srv.SendMessage(ctx, req.Source(), msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil))
 
 }
 
@@ -95,7 +96,7 @@ func createBlockResponse(blocks []*Block) (*pb.BlockResponsePayload, error) {
 	return &pb.BlockResponsePayload{Response: p}, nil
 }
 
-func (p *BlockProtocol) OnHello(m *msg.Message) {
+func (p *BlockProtocol) OnHello(ctx context.Context, m *msg.Message) {
 	if m.GetType() != pb.Message_HELLO_REQUEST {
 		log.Error("wrong message type, expected ", pb.Message_HELLO_REQUEST.String())
 		return
@@ -112,5 +113,5 @@ func (p *BlockProtocol) OnHello(m *msg.Message) {
 		return
 	}
 	resp := msg.CreateMessage(pb.Message_HELLO_RESPONSE, any, nil)
-	p.srv.SendMessage(m.Source(), resp)
+	p.srv.SendMessage(ctx, m.Source(), resp)
 }

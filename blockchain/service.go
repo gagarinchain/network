@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"context"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/eth/common"
@@ -10,8 +11,8 @@ import (
 )
 
 type BlockService interface {
-	RequestBlock(hash common.Hash) <-chan *Block
-	RequestBlocksAtHeight(height int32) <-chan *Block
+	RequestBlock(ctx context.Context, hash common.Hash) <-chan *Block
+	RequestBlocksAtHeight(ctx context.Context, height int32) <-chan *Block
 }
 
 type BlockServiceImpl struct {
@@ -22,16 +23,16 @@ func NewBlockService(srv network.Service) *BlockServiceImpl {
 	return &BlockServiceImpl{srv: srv}
 }
 
-func (s *BlockServiceImpl) RequestBlock(hash common.Hash) <-chan *Block {
-	return s.requestBlockUgly(hash, -1)
+func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash) <-chan *Block {
+	return s.requestBlockUgly(ctx, hash, -1)
 }
 
-func (s *BlockServiceImpl) RequestBlocksAtHeight(height int32) <-chan *Block {
-	return s.requestBlockUgly(common.Hash{}, height)
+func (s *BlockServiceImpl) RequestBlocksAtHeight(ctx context.Context, height int32) <-chan *Block {
+	return s.requestBlockUgly(ctx, common.Hash{}, height)
 }
 
 //we can pass rather hash or block level here. if we want to omit height parameter must pass -1
-func (s *BlockServiceImpl) requestBlockUgly(hash common.Hash, height int32) <-chan *Block {
+func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Hash, height int32) <-chan *Block {
 	var payload *pb.BlockRequestPayload
 
 	if height < 0 {
@@ -49,7 +50,7 @@ func (s *BlockServiceImpl) requestBlockUgly(hash common.Hash, height int32) <-ch
 
 	resultChan := make(chan *Block)
 	go func() {
-		resp := <-s.srv.SendRequestToRandomPeer(msg)
+		resp := <-s.srv.SendRequestToRandomPeer(ctx, msg)
 		if resp.Type != pb.Message_BLOCK_RESPONSE {
 			log.Errorf("Received message of type %v, but expected %v", resp.Type.String(), pb.Message_BLOCK_RESPONSE.String())
 			close(resultChan)

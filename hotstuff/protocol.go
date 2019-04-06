@@ -1,9 +1,9 @@
 package hotstuff
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
 	bc "github.com/poslibp2p/blockchain"
@@ -19,14 +19,29 @@ import (
 
 var log = logging.MustGetLogger("hotstuff")
 
+type Command struct {
+	ctx       context.Context
+	eventType CommandType
+}
+
+func NewCommand(ctx context.Context, eventType CommandType) *Command {
+	return &Command{ctx: ctx, eventType: eventType}
+}
+
+type CommandType int
+
+const (
+	SuggestPropose CommandType = iota
+	SuggestVote    CommandType = iota
+	NextView       CommandType = iota
+	StartEpoch     CommandType = iota
+)
+
 type Event int
 
 const (
-	SUGGEST_PROPOSE Event = iota
-	NEXT_VIEW       Event = iota
-	START_EPOCH     Event = iota
-	STARTED_EPOCH   Event = iota
-	CHANGED_VIEW    Event = iota
+	StartedEpoch Event = iota
+	ChangedView  Event = iota
 )
 
 type Proposer interface {
@@ -54,41 +69,44 @@ type CurrentViewGetter interface {
 	GetCurrentView() int32
 }
 
+type EventNotifier interface {
+	SubscribeProtocolEvents(chan Event)
+}
+
 type ProtocolConfig struct {
-	F            int
-	Delta        time.Duration
-	Blockchain   *bc.Blockchain
-	Me           *msg.Peer
-	Srv          network.Service
-	Pacer        *StaticPacer
-	Storage      bc.Storage
-	Committee    []*msg.Peer
-	RoundEndChan chan Event
-	ControlChan  chan Event
+	F           int
+	Delta       time.Duration
+	Blockchain  *bc.Blockchain
+	Me          *msg.Peer
+	Srv         network.Service
+	Pacer       *StaticPacer
+	Storage     bc.Storage
+	Committee   []*msg.Peer
+	ControlChan chan Command
 }
 
 type Protocol struct {
-	f                   int
-	delta               time.Duration
-	blockchain          *bc.Blockchain
-	currentView         int32
-	currentViewGuard    *sync.RWMutex
-	vheight             int32
-	currentEpoch        int32
-	IsStartingEpoch     bool
-	epochMessageStorage map[common.Address]int32
-	epochVoteStorage    map[common.Address][]byte
-	epochStartSubChan   []chan interface{}
-	votes               map[common.Address]*Vote
-	lastExecutedBlock   *bc.Header
-	hqc                 *bc.QuorumCertificate
-	me                  *msg.Peer
-	pacer               *StaticPacer
-	storage             bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
-	srv                 network.Service
-	controlChan         chan Event
-	roundEndChan        chan Event
-	stopChan            chan bool
+	f                     int
+	delta                 time.Duration
+	blockchain            *bc.Blockchain
+	currentView           int32
+	currentViewGuard      *sync.RWMutex
+	vheight               int32
+	currentEpoch          int32
+	IsStartingEpoch       bool
+	epochMessageStorage   map[common.Address]int32
+	epochVoteStorage      map[common.Address][]byte
+	epochStartSubChan     []chan interface{}
+	protocolEventSubChans []chan Event
+	votes                 map[common.Address]*Vote
+	lastExecutedBlock     *bc.Header
+	hqc                   *bc.QuorumCertificate
+	me                    *msg.Peer
+	pacer                 *StaticPacer
+	storage               bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
+	srv                   network.Service
+	controlChan           chan Command
+	stopChan              chan bool
 }
 
 func (p *Protocol) Vheight() int32 {
@@ -112,7 +130,6 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		pacer:               cfg.Pacer,
 		storage:             cfg.Storage,
 		srv:                 cfg.Srv,
-		roundEndChan:        cfg.RoundEndChan,
 		stopChan:            make(chan bool),
 		controlChan:         cfg.ControlChan,
 		currentEpoch:        val,
@@ -133,9 +150,6 @@ func (p *Protocol) GetPref() *bc.Block {
 func (p *Protocol) CheckCommit() bool {
 	log.Info("Check commit for", p.hqc.QrefBlock().Hash().Hex())
 	zero, one, two := p.blockchain.GetThreeChain(p.hqc.QrefBlock().Hash())
-	spew.Dump(zero)
-	spew.Dump(one)
-	spew.Dump(two)
 	if two.Header().Parent() == one.Header().Hash() && one.Header().Parent() == zero.Header().Hash() {
 		p.blockchain.OnCommit(zero)
 		return true
@@ -160,7 +174,7 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 	}
 }
 
-func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
+func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) error {
 	//-At first i thought it should be equivocation, but later i found out that we must process all proposers
 	// n. g. bad proposers can isolate us and make progress separately, the problem with it is that  in that case we have no way
 	// to synchronize proposal rotation with others. Accepting all proposals we will build forks,
@@ -207,9 +221,9 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 		if willTrigger {
 			trigger := make(chan interface{})
 			p.SubscribeEpochChange(trigger)
-			go p.srv.SendMessageTriggered(p.pacer.GetNext(p.GetCurrentView()), m, trigger)
+			go p.srv.SendMessageTriggered(ctx, p.pacer.GetNext(p.GetCurrentView()), m, trigger)
 		} else {
-			go p.srv.SendMessage(p.pacer.GetNext(p.GetCurrentView()), m)
+			go p.srv.SendMessage(ctx, p.pacer.GetNext(p.GetCurrentView()), m)
 		}
 	}
 
@@ -217,7 +231,7 @@ func (p *Protocol) OnReceiveProposal(proposal *Proposal) error {
 	return nil
 }
 
-func (p *Protocol) OnReceiveVote(vote *Vote) error {
+func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 	p.Update(vote.HQC)
 
 	if p.me != p.pacer.GetCurrent(p.GetCurrentView()) && p.me != p.pacer.GetNext(p.GetCurrentView()) {
@@ -232,12 +246,12 @@ func (p *Protocol) OnReceiveVote(vote *Vote) error {
 		//check whether peer voted previously for block with higher number
 		if stored.Header.Height() > vote.Header.Height() {
 			p.equivocate(vote.Sender)
-			return errors.New("peer voted for block with lower number")
+			return errors.New("peer voted for block with lower height")
 		}
 		if stored.Header.Height() == vote.Header.Height() &&
 			stored.Header.Hash() != vote.Header.Hash() {
 			p.equivocate(vote.Sender)
-			return errors.New("peer voted for different blocks on the same number")
+			return errors.New("peer voted for different blocks on the same height")
 		}
 	}
 
@@ -252,7 +266,7 @@ func (p *Protocol) OnReceiveVote(vote *Vote) error {
 		if loaded && p.me == p.pacer.GetNext(p.GetCurrentView()) {
 			p.OnNextView()
 		}
-		p.OnPropose() //propose random
+		p.OnPropose(ctx)
 	}
 	return nil
 }
@@ -297,9 +311,9 @@ func (p *Protocol) CheckConsensus() bool {
 
 //We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block
 //determined by it."
-func (p *Protocol) OnPropose() {
+func (p *Protocol) OnPropose(ctx context.Context) {
 	if p.pacer.GetCurrent(p.GetCurrentView()) != p.me {
-		log.Info("Can't propose when we are not proposers")
+		log.Debug("Can't propose when we are not proposers")
 		return
 	}
 	log.Debug("We are proposer, proposing")
@@ -324,7 +338,7 @@ func (p *Protocol) OnPropose() {
 		log.Error(e)
 	}
 	m := msg.CreateMessage(pb.Message_PROPOSAL, any, nil)
-	go p.srv.Broadcast(m)
+	go p.srv.Broadcast(ctx, m)
 	p.OnNextView()
 }
 
@@ -339,6 +353,7 @@ func (p *Protocol) FinishQC(header *bc.Header) {
 		aggregate = append(aggregate, v.Signature...)
 	}
 	p.hqc = bc.CreateQuorumCertificate(aggregate, header)
+	log.Debug("Generated new QC for %v on height %v", header.Hash().Hex(), header.Height())
 }
 
 func (p *Protocol) FinishGenesisQC(header *bc.Header) {
@@ -357,9 +372,7 @@ func (p *Protocol) HQC() *bc.QuorumCertificate {
 
 func (p *Protocol) OnNextView() {
 	p.changeView(p.GetCurrentView() + 1)
-	go func() {
-		p.roundEndChan <- CHANGED_VIEW
-	}()
+	p.notifyProtocolEvent(ChangedView)
 }
 
 func (p *Protocol) changeView(view int32) {
@@ -368,7 +381,7 @@ func (p *Protocol) changeView(view int32) {
 
 	p.currentView = view
 }
-func (p *Protocol) StartEpoch(i int32) {
+func (p *Protocol) StartEpoch(ctx context.Context, i int32) {
 	p.IsStartingEpoch = true
 	var epoch *Epoch
 	//todo think about moving it to epoch
@@ -382,10 +395,10 @@ func (p *Protocol) StartEpoch(i int32) {
 	if e != nil {
 		log.Error("Can't create Epoch message", e)
 	}
-	go p.srv.Broadcast(m)
+	go p.srv.Broadcast(ctx, m)
 }
 
-func (p *Protocol) OnEpochStart(m *msg.Message) {
+func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) {
 	epoch, e := CreateEpochFromMessage(m)
 	if e != nil {
 		log.Error(e)
@@ -430,7 +443,7 @@ func (p *Protocol) OnEpochStart(m *msg.Message) {
 
 	//We received at least 1 message from fair peer, should resynchronize our epoch
 	if int(max.c) == p.f/3+1 {
-		p.StartEpoch(max.n)
+		p.StartEpoch(ctx, max.n)
 	}
 
 	//We got quorum, lets start new epoch
@@ -453,28 +466,44 @@ func (p *Protocol) newEpoch(i int32) {
 
 	p.currentEpoch = i
 	p.epochMessageStorage = make(map[common.Address]int32)
+	p.notifyEpochChange()
+
+	p.IsStartingEpoch = false
+	log.Infof("Started new epoch %v", i)
+	log.Infof("Current view number %v, proposer %v", p.currentView, p.pacer.GetCurrent(p.currentView).GetAddress().Hex())
+	p.notifyProtocolEvent(StartedEpoch)
+}
+
+func (p *Protocol) SubscribeEpochChange(trigger chan interface{}) {
+	p.epochStartSubChan = append(p.epochStartSubChan, trigger)
+}
+func (p *Protocol) notifyEpochChange() {
 	for _, ch := range p.epochStartSubChan {
 		go func(c chan interface{}) {
 			c <- struct{}{}
 		}(ch)
 	}
-	p.IsStartingEpoch = false
-	log.Infof("Started new epoch %v", i)
-	log.Infof("Current view number %v, proposer %v", p.currentView, p.pacer.GetCurrent(p.currentView).GetAddress().Hex())
-	go func() {
-		p.roundEndChan <- STARTED_EPOCH
-	}()
 }
 
-func (p *Protocol) SubscribeEpochChange(trigger chan interface{}) {
-	p.epochStartSubChan = append(p.epochStartSubChan, trigger)
+//if we will need unsubscribe we can refactor list to map and identify subscribers
+func (p *Protocol) SubscribeProtocolEvents(sub chan Event) {
+	p.protocolEventSubChans = append(p.protocolEventSubChans, sub)
+}
+func (p *Protocol) notifyProtocolEvent(event Event) {
+	for _, ch := range p.protocolEventSubChans {
+		go func(c chan Event) {
+			c <- event
+		}(ch)
+	}
 }
 
 func (p *Protocol) Run(msgChan chan *msg.Message) {
 	log.Info("Starting hotstuff protocol...")
 
 	//bootstrap command
-	p.handleControlEvent(<-p.controlChan)
+	event := <-p.controlChan
+	ctx := event.ctx
+	p.handleControlEvent(event)
 
 	for {
 		select {
@@ -491,7 +520,8 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 					log.Error(err)
 					break
 				}
-				if err := p.OnReceiveVote(v); err != nil {
+				timeout, _ := context.WithTimeout(ctx, p.delta)
+				if err := p.OnReceiveVote(timeout, v); err != nil {
 					log.Error("Error while handling vote, ", err)
 				}
 			case pb.Message_PROPOSAL:
@@ -500,32 +530,34 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 					log.Error(err)
 					break
 				}
-				if err := p.OnReceiveProposal(pr); err != nil {
+				p.validate(pr)
+				timeout, _ := context.WithTimeout(ctx, p.delta)
+				if err := p.OnReceiveProposal(timeout, pr); err != nil {
 					log.Error("Error while handling proposal, ", err)
 				}
 			case pb.Message_EPOCH_START:
-				p.OnEpochStart(m)
+				timeout, _ := context.WithTimeout(ctx, p.delta)
+				p.OnEpochStart(timeout, m)
 			}
 		case event := <-p.controlChan:
+			ctx = event.ctx
 			p.handleControlEvent(event)
 		case <-p.stopChan:
 			log.Info("Stopping hotstuff...")
+
 			return
 		}
-
 	}
-
 }
 
-func (p *Protocol) handleControlEvent(event Event) {
-	log.Debugf("received %d event", event)
-	switch event {
-	case SUGGEST_PROPOSE:
-		p.OnPropose()
-	case NEXT_VIEW:
+func (p *Protocol) handleControlEvent(event Command) {
+	switch event.eventType {
+	case SuggestPropose:
+		p.OnPropose(event.ctx)
+	case NextView:
 		p.OnNextView()
-	case START_EPOCH:
-		p.StartEpoch(p.currentEpoch + 1)
+	case StartEpoch:
+		p.StartEpoch(event.ctx, p.currentEpoch+1)
 	}
 }
 
@@ -537,4 +569,15 @@ func (p *Protocol) GetCurrentView() int32 {
 	p.currentViewGuard.RLock()
 	defer p.currentViewGuard.RUnlock()
 	return p.currentView
+}
+
+func (p *Protocol) validate(proposal *Proposal) error {
+	if proposal.NewBlock == nil {
+		return errors.New("proposed block can't be empty")
+	}
+
+	//var sync bc.Synchronizer
+	//
+	//error := sync.RequestFork(proposal.NewBlock.Header().Hash())
+	return nil
 }

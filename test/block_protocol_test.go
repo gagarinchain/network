@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/blockchain"
 	msg "github.com/poslibp2p/message"
@@ -40,21 +41,23 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 		close(resp)
 	}()
 
-	srv.On("SendRequestToRandomPeer", mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		m := (args[0]).(*msg.Message)
+	srv.On("SendRequestToRandomPeer", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		m := (args[1]).(*msg.Message)
 		if m.Type != pb.Message_HELLO_REQUEST {
 			t.Error("Wrong message type")
 		}
 	}).Once().Return(resp)
 
-	synchr.On("RequestBlocks", mock.AnythingOfType("int32"), mock.AnythingOfType("int32")).Run(func(args mock.Arguments) {
-		low := (args[0]).(int32)
-		high := (args[1]).(int32)
+	synchr.On("RequestBlocks", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.AnythingOfType("int32"), mock.AnythingOfType("int32")).Run(func(args mock.Arguments) {
+		low := (args[1]).(int32)
+		high := (args[2]).(int32)
 
 		assert.True(t, low == 0 && high == 4)
 	})
 
-	p.Bootstrap()
+	p.Bootstrap(context.Background())
 }
 
 func TestBlockProtocolOnBlockRequest(t *testing.T) {
@@ -85,8 +88,9 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 
 	peer := generateIdentity(t)
 	msgChan := make(chan *blockchain.Block)
-	srv.On("SendMessage", peer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		m := (args[1]).(*msg.Message)
+	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		peer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		m := (args[2]).(*msg.Message)
 		if m.Type != pb.Message_BLOCK_RESPONSE {
 			t.Error("Wrong message type")
 		}
@@ -105,13 +109,13 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 
 	go func() {
 		any, _ := ptypes.MarshalAny(&pb.BlockRequestPayload{Height: int32(3)})
-		p.OnBlockRequest(msg.CreateMessage(pb.Message_BLOCK_REQUEST, any, peer))
+		p.OnBlockRequest(context.Background(), msg.CreateMessage(pb.Message_BLOCK_REQUEST, any, peer))
 	}()
 	assert.Equal(t, block34, <-msgChan)
 
 	go func() {
 		any, _ := ptypes.MarshalAny(&pb.BlockRequestPayload{Height: int32(4)})
-		p.OnBlockRequest(msg.CreateMessage(pb.Message_BLOCK_REQUEST, any, peer))
+		p.OnBlockRequest(context.Background(), msg.CreateMessage(pb.Message_BLOCK_REQUEST, any, peer))
 	}()
 	block41 := <-msgChan
 	if block41.Header().Hash() == block47.Header().Hash() {
@@ -124,7 +128,7 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 
 	go func() {
 		any, _ := ptypes.MarshalAny(&pb.BlockRequestPayload{Height: int32(5)})
-		p.OnBlockRequest(msg.CreateMessage(pb.Message_BLOCK_REQUEST, any, peer))
+		p.OnBlockRequest(context.Background(), msg.CreateMessage(pb.Message_BLOCK_REQUEST, any, peer))
 	}()
 	assert.Equal(t, block56, <-msgChan)
 }
@@ -159,8 +163,9 @@ func TestBlockProtocolOnHello(t *testing.T) {
 
 	peer := generateIdentity(t)
 	m := msg.CreateMessage(pb.Message_HELLO_REQUEST, nil, peer)
-	srv.On("SendMessage", peer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		m := (args[1]).(*msg.Message)
+	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		peer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		m := (args[2]).(*msg.Message)
 		if m.Type != pb.Message_HELLO_RESPONSE {
 			t.Error("Wrong message type")
 		}
@@ -170,6 +175,6 @@ func TestBlockProtocolOnHello(t *testing.T) {
 		assert.Equal(t, int32(5), payload.TopBlockHeight)
 	}).Once().Return(nil)
 
-	p.OnHello(m)
+	p.OnHello(context.Background(), m)
 
 }

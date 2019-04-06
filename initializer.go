@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/poslibp2p/blockchain"
@@ -36,12 +37,11 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 
 	me := generateIdentity(node.GetPeerInfo())
 
-	srv := network.CreateService(node, dispatcher)
+	srv := network.CreateService(context.Background(), node, dispatcher)
 	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(srv)
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
-	inBlocks := make(chan *blockchain.Block)
-	synchr := blockchain.CreateSynchronizer(inBlocks, me, bsrv, bc)
+	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
 	config := &hotstuff.ProtocolConfig{
@@ -52,14 +52,15 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 		Srv:          srv,
 		Storage:      storage,
 		Committee:    cfg.Committee,
-		RoundEndChan: make(chan int32),
-		ControlChan:  make(chan hotstuff.Event),
+		RoundEndChan: make(chan hotstuff.Command),
+		ControlChan:  make(chan hotstuff.Command),
 	}
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
 	p := hotstuff.CreateProtocol(config)
 	pacer.SetViewGetter(p)
+	pacer.SetEventNotifier(p)
 
 	return &Context{
 		node:          node,
@@ -75,9 +76,9 @@ func (c *Context) Bootstrap() {
 	}
 
 	msgChan := make(chan *message.Message)
-	go c.node.SubscribeAndListen(msgChan)
+	go c.node.SubscribeAndListen(context.Background(), msgChan)
 	go c.hotStuff.Run(msgChan)
-	go c.pacer.Run()
+	go c.pacer.Run(context.Background())
 }
 
 func generateIdentity(pi *peerstore.PeerInfo) *message.Peer {

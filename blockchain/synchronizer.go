@@ -1,31 +1,31 @@
 package blockchain
 
 import (
+	"context"
+	"github.com/poslibp2p/eth/common"
 	"github.com/poslibp2p/message"
 	"sync"
 )
 
 type Synchronizer interface {
-	Bootstrap()
 	//RequestBlockWithParent(header *Header)
 
 	//Requesting blocks (low, high]
-	RequestBlocks(low int32, high int32)
+	RequestBlocks(ctx context.Context, low int32, high int32)
+	RequestFork(ctx context.Context, hash common.Hash) error
 }
 
 type SynchronizerImpl struct {
-	bchan <-chan *Block
-	me    *message.Peer
-	bsrv  BlockService
-	bc    *Blockchain
+	me   *message.Peer
+	bsrv BlockService
+	bc   *Blockchain
 }
 
-func CreateSynchronizer(bchan <-chan *Block, me *message.Peer, bsrv BlockService, bc *Blockchain) Synchronizer {
+func CreateSynchronizer(me *message.Peer, bsrv BlockService, bc *Blockchain) Synchronizer {
 	return &SynchronizerImpl{
-		bchan: bchan,
-		me:    me,
-		bsrv:  bsrv,
-		bc:    bc,
+		me:   me,
+		bsrv: bsrv,
+		bc:   bc,
 	}
 }
 
@@ -62,18 +62,14 @@ func CreateSynchronizer(bchan <-chan *Block, me *message.Peer, bsrv BlockService
 //
 //}
 
-func (s *SynchronizerImpl) Bootstrap() {
-	go s.sync()
-}
-
 //TODO make kind of parallel batch loading here
-func (s *SynchronizerImpl) RequestBlocks(low int32, high int32) {
+func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high int32) {
 	wg := &sync.WaitGroup{}
 	wg.Add(int(high - low))
 
 	for i := low + 1; i <= high; i++ {
 		go func(group *sync.WaitGroup, ind int32) {
-			for b := range s.bsrv.RequestBlocksAtHeight(ind) {
+			for b := range s.bsrv.RequestBlocksAtHeight(ctx, ind) {
 				if err := s.bc.AddBlock(b); err != nil {
 					log.Warningf("Error adding block [%v]", b.Header().Hash().Hex())
 				}
@@ -86,12 +82,8 @@ func (s *SynchronizerImpl) RequestBlocks(low int32, high int32) {
 	wg.Wait()
 }
 
-func (s *SynchronizerImpl) sync() {
-	for {
-		block := <-s.bchan
-		e := s.bc.AddBlock(block)
-		if e != nil {
-			log.Error("Error while adding block", e)
-		}
-	}
+//request all unknown blocks sequentially from top height head descending
+func (s *SynchronizerImpl) RequestFork(ctx context.Context, head common.Hash) error {
+
+	return nil
 }
