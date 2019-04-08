@@ -85,14 +85,19 @@ func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded b
 	return b, loaded
 }
 
+//todo pass loading errors higher
 func (bc *Blockchain) LoadBlock(hash common.Hash) *Block {
 	log.Infof("Loading block with hash [%v]", hash.Hex())
-	ch := bc.blockService.RequestBlock(context.Background(), hash)
-	block := <-ch
-	if err := bc.AddBlock(block); err != nil {
-		log.Error("Can't add loaded block", err)
+	blocks, err := ReadBlocksWithErrors(bc.blockService.RequestBlock(context.Background(), hash, nil))
+	if err != nil {
+		log.Error("Can't load block", err)
+		return nil
 	}
-	return block
+	if err := bc.AddBlock(blocks[0]); err != nil {
+		log.Error("Can't add loaded block", err)
+		return nil
+	}
+	return blocks[0]
 }
 
 func (bc *Blockchain) Contains(hash common.Hash) bool {
@@ -173,7 +178,11 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	defer bc.indexGuard.Unlock()
 
 	if bc.blocksByHash[block.Header().Hash()] != nil || bc.storage.Contains(block.Header().Hash()) {
-		return errors.New(fmt.Sprintf("block with hash [%v] already exist", block.Header().Hash().Hex()))
+		log.Warning("Block with hash [%v] already exists", block.header.Hash().Hex())
+	}
+
+	if bc.blocksByHash[block.Header().Parent()] == nil && !bc.storage.Contains(block.Header().Parent()) && block.Height() != 0 {
+		return errors.New(fmt.Sprintf("block with hash [%v] don't have parent loaded to blockchain", block.Header().Hash().Hex()))
 	}
 
 	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
@@ -186,11 +195,39 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 	value = append(value.([]*Block), block)
 	bc.blocksByHash[block.Header().Hash()] = block
-
 	bc.uncommittedHeadByHeight.Put(block.Header().Height(), value)
 	if err := bc.storage.PutBlock(block); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (bc *Blockchain) RemoveBlock(block *Block) error {
+	log.Infof("Removing block with hash [%v]", block.header.Hash().Hex())
+	//spew.Dump(block)
+
+	bc.indexGuard.Lock()
+	defer bc.indexGuard.Unlock()
+
+	if bc.blocksByHash[block.Header().Hash()] == nil && !bc.storage.Contains(block.Header().Hash()) {
+		log.Warningf("Block with hash [%v] is absent", block.header.Hash().Hex())
+		return nil
+	}
+
+	//we can delete only leafs, so check whether this block is parent of any
+	value, found := bc.uncommittedHeadByHeight.Get(block.Height() + 1)
+	if found {
+		nextHeight := value.([]*Block)
+		for _, next := range nextHeight {
+			if block.Header().Parent().Big() == next.Header().Hash().Big() {
+				return errors.New(fmt.Sprintf("block [%v] has sibling [%v] on next level", block.header.Hash().Hex(), next.Header().Hash().Hex()))
+			}
+		}
+	}
+
+	delete(bc.blocksByHash, block.Header().Hash())
+	bc.uncommittedHeadByHeight.Remove(block.Header().Hash())
 
 	return nil
 }
@@ -219,6 +256,7 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 		return true
 	}
 
+	//todo should load blocks earlier
 	parent, _ := bc.GetBlockByHashOrLoad(sibling.parent)
 
 	if parent.Header().IsGenesisBlock() || parent.header.height < ancestor.height {
@@ -231,42 +269,6 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 
 	return bc.IsSibling(parent.Header(), ancestor)
 }
-
-//func (bc *Blockchain) GetMessageForHeader(h *Header) (msg *pb.BlockHeader) {
-//	parent := bc.GetBlockByHashOrLoad(h.Parent())
-//	return &pb.BlockHeader{ParentHash: parent.Header().Hash().Bytes(), DataHash: h.Hash().Bytes(), Height: h.Height(), Timestamp: h.Timestamp().Unix()}
-//}
-//
-//func (bc *Blockchain) GetMessageForBlock(b *Block) (msg *pb.Block) {
-//	pdata := &pb.BlockData{Data: b.Data()}
-//	qc := b.QC()
-//	var pqrefHeader = bc.GetMessageForHeader(qc.QrefBlock())
-//	pcert := &pb.QuorumCertificate{Header: pqrefHeader, SignatureAggregate: qc.SignatureAggregate()}
-//
-//	return &pb.Block{Header: bc.GetMessageForHeader(b.Header()), Data: pdata, Cert: pcert}
-//}
-//
-//func (bc *Blockchain) SerializeHeader(h *Header) []byte {
-//	msg := bc.GetMessageForHeader(h)
-//
-//	bytes, e := proto.Marshal(msg)
-//	if e != nil {
-//		log.Error("Can't marshall message", e)
-//	}
-//
-//	return bytes
-//}
-
-//func (bc *Blockchain) SerializeBlock(b *Block) []byte {
-//	msg := bc.GetMessageForBlock(b)
-//
-//	bytes, e := proto.Marshal(msg)
-//	if e != nil {
-//		log.Error("Can't marshall message", e)
-//	}
-//
-//	return bytes
-//}
 
 func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
 	header := createHeader(parent.Header().Height()+1, common.Hash{}, qc.GetHash(), crypto.Keccak256Hash(data),
@@ -322,4 +324,15 @@ func (bc *Blockchain) ValidateGenesisBlockSignature(signature []byte, address co
 
 func (bc *Blockchain) SetGenesisCertificate(signature []byte) {
 	bc.GetGenesisBlock().qc = CreateQuorumCertificate(signature, bc.GetGenesisBlock().Header())
+}
+
+func (bc *Blockchain) GetTopCommittedBlock() *Block {
+	bc.indexGuard.RLock()
+	defer bc.indexGuard.RUnlock()
+	_, block := bc.committedTailByHeight.Max()
+	//todo think about committing genesis at making QC
+	if block == nil {
+		return bc.GetGenesisBlock()
+	}
+	return block.(*Block)
 }

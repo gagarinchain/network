@@ -24,7 +24,8 @@ import (
 // Propose block with new QC
 func TestScenario1a(t *testing.T) {
 	ctx := initContext(t)
-	go ctx.pacer.Run(context.Background())
+	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout)
 	go ctx.protocol.Run(ctx.protocolChan)
 	defer ctx.pacer.Stop()
 	defer ctx.protocol.Stop()
@@ -127,6 +128,8 @@ func TestScenario1c(t *testing.T) {
 
 	go func() {
 		ctx.blockChan <- newBlock
+		close(ctx.blockChan)
+		ctx.blockChan = make(chan *blockchain.Block)
 	}()
 
 	p := ctx.createProposal(newBlock, 1)
@@ -335,7 +338,7 @@ func TestScenario5c(t *testing.T) {
 //Receive proposal fork
 //Get no block on arbitrary height
 //Reject proposal and all fork
-func Scenario6(t *testing.T) {
+func TestScenario6(t *testing.T) {
 	ctx := initContext(t)
 	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
@@ -364,9 +367,10 @@ func Scenario6(t *testing.T) {
 	proposal := ctx.createProposal(block4, 4)
 	ctx.protocolChan <- proposal
 
-	//ctx.blockChan <- block4
-	//ctx.blockChan <- block31
-	//ctx.blockChan <- block2
+	ctx.blockChan <- block4
+	ctx.blockChan <- block31
+	ctx.blockChan <- block2
+	close(ctx.blockChan)
 
 	ctx.waitRounds(5)
 
@@ -461,6 +465,7 @@ func initContext(t *testing.T) *TestContext {
 
 	loader := &mocks.CommitteeLoader{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
 	config := &hotstuff.ProtocolConfig{
 		F:           10,
 		Delta:       1 * time.Second,
@@ -468,6 +473,7 @@ func initContext(t *testing.T) *TestContext {
 		Me:          identity,
 		Srv:         srv,
 		Storage:     storage,
+		Sync:        sync,
 		Committee:   peers,
 		ControlChan: make(chan hotstuff.Command),
 	}
@@ -493,15 +499,16 @@ func initContext(t *testing.T) *TestContext {
 
 	voteChan := make(chan *msg.Message)
 	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*message.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
-		Return(make(chan *msg.Message)).Run(func(args mock.Arguments) {
-		voteChan <- (args[2]).(*msg.Message)
-	})
+		Return(make(chan *msg.Message), nil).
+		Run(func(args mock.Arguments) {
+			voteChan <- (args[2]).(*msg.Message)
+		})
 
 	blockChan := make(chan *blockchain.Block)
-	blockChanRead := func(c chan *blockchain.Block) <-chan *blockchain.Block {
-		return c
-	}(blockChan)
-	bsrv.On("RequestBlock", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("common.Hash")).Return(blockChanRead)
+	bsrv.On("RequestBlock", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("common.Hash"),
+		mock.AnythingOfType("*message.Peer")).Return(blockChan, nil)
+	bsrv.On("RequestFork", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("int32"), mock.AnythingOfType("common.Hash"),
+		mock.AnythingOfType("*message.Peer")).Return(blockChan, nil)
 	loader.On("LoadFromFile").Return(peers)
 
 	pacer := hotstuff.CreatePacer(config)

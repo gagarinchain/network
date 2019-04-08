@@ -25,6 +25,12 @@ type Header struct {
 	timestamp time.Time
 }
 
+type ByHeight []*Block
+
+func (h ByHeight) Len() int           { return len(h) }
+func (h ByHeight) Less(i, j int) bool { return h[i].Height() < h[j].Height() }
+func (h ByHeight) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
 func (b *Block) Header() *Header {
 	return b.header
 }
@@ -34,6 +40,9 @@ func (b *Block) Data() []byte {
 
 func (h *Header) Height() int32 {
 	return h.height
+}
+func (b *Block) Height() int32 {
+	return b.Header().Height()
 }
 func (h *Header) Hash() common.Hash {
 	return h.hash

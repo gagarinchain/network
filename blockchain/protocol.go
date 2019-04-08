@@ -27,7 +27,19 @@ func CreateBlockProtocol(srv network.Service, bc *Blockchain, sync Synchronizer)
 func (p *BlockProtocol) Bootstrap(ctx context.Context) {
 	rq := &pb.Message{Type: pb.Message_HELLO_REQUEST}
 	m := &msg.Message{Message: rq}
-	resp := <-p.srv.SendRequestToRandomPeer(ctx, m)
+	mChan, err := p.srv.SendRequestToRandomPeer(ctx, m)
+	var resp *msg.Message
+	select {
+	case b, ok := <-mChan:
+		if !ok {
+			log.Fatal("Error while requesting hello, channel is closed")
+			return
+		} else {
+			resp = b
+		}
+	case err := <-err:
+		log.Fatal("Error while requesting hello", err)
+	}
 
 	if resp.Type != pb.Message_HELLO_RESPONSE {
 		log.Errorf("Not expected msg type %v response to Hello", resp.Type)
@@ -38,14 +50,15 @@ func (p *BlockProtocol) Bootstrap(ctx context.Context) {
 		log.Error("Couldn't unmarshal response", err)
 	}
 	//TODO check here different equivocations, such as very high block heights etc
-
 	if h.GetVersion() != Version {
 		log.Fatal("Wrong version")
 		return
 	}
 
 	if h.GetTopBlockHeight() > p.bc.GetTopHeight() {
-		p.sync.RequestBlocks(ctx, p.bc.GetTopHeight(), h.GetTopBlockHeight())
+		if err := p.sync.RequestBlocks(ctx, p.bc.GetTopHeight(), h.GetTopBlockHeight(), nil); err != nil {
+			log.Fatal("Error while loading blocks", err)
+		}
 	}
 }
 

@@ -79,6 +79,7 @@ type ProtocolConfig struct {
 	Blockchain  *bc.Blockchain
 	Me          *msg.Peer
 	Srv         network.Service
+	Sync        bc.Synchronizer
 	Pacer       *StaticPacer
 	Storage     bc.Storage
 	Committee   []*msg.Peer
@@ -105,6 +106,7 @@ type Protocol struct {
 	pacer                 *StaticPacer
 	storage               bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	srv                   network.Service
+	sync                  bc.Synchronizer
 	controlChan           chan Command
 	stopChan              chan bool
 }
@@ -130,6 +132,7 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		pacer:               cfg.Pacer,
 		storage:             cfg.Storage,
 		srv:                 cfg.Srv,
+		sync:                cfg.Sync,
 		stopChan:            make(chan bool),
 		controlChan:         cfg.ControlChan,
 		currentEpoch:        val,
@@ -232,6 +235,7 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 }
 
 func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
+	log.Debugf("Received vote for block on height [%v]", vote.Header.Height())
 	p.Update(vote.HQC)
 
 	if p.me != p.pacer.GetCurrent(p.GetCurrentView()) && p.me != p.pacer.GetNext(p.GetCurrentView()) {
@@ -259,6 +263,7 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 
 	if p.CheckConsensus() {
 		p.FinishQC(vote.Header)
+		//todo load blocks earlier maybe
 		_, loaded := p.blockchain.GetBlockByHashOrLoad(vote.Header.Hash())
 		//rare case when we missed proposal, but we are next proposer and received all votes, in this case we go to next view and propose
 		//this situation is the same as when we received proposal
@@ -353,7 +358,7 @@ func (p *Protocol) FinishQC(header *bc.Header) {
 		aggregate = append(aggregate, v.Signature...)
 	}
 	p.hqc = bc.CreateQuorumCertificate(aggregate, header)
-	log.Debug("Generated new QC for %v on height %v", header.Hash().Hex(), header.Height())
+	log.Debugf("Generated new QC for %v on height %v", header.Hash().Hex(), header.Height())
 }
 
 func (p *Protocol) FinishGenesisQC(header *bc.Header) {
@@ -515,6 +520,8 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 
 			switch m.Type {
 			case pb.Message_VOTE:
+				log.Debugf("received vote")
+
 				v, err := CreateVoteFromMessage(m)
 				if err != nil {
 					log.Error(err)
@@ -525,10 +532,19 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 					log.Error("Error while handling vote, ", err)
 				}
 			case pb.Message_PROPOSAL:
+				log.Debugf("received proposal")
 				pr, err := CreateProposalFromMessage(m)
 				if err != nil {
 					log.Error(err)
 					break
+				}
+				parent := pr.NewBlock.Header().Parent()
+				if !p.blockchain.Contains(parent) {
+					err := p.sync.RequestFork(ctx, parent, pr.Sender)
+					if err != nil {
+						log.Error("Error while processing proposal", err)
+						continue
+					}
 				}
 				p.validate(pr)
 				timeout, _ := context.WithTimeout(ctx, p.delta)
@@ -576,8 +592,5 @@ func (p *Protocol) validate(proposal *Proposal) error {
 		return errors.New("proposed block can't be empty")
 	}
 
-	//var sync bc.Synchronizer
-	//
-	//error := sync.RequestFork(proposal.NewBlock.Header().Hash())
 	return nil
 }

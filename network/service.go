@@ -19,10 +19,10 @@ type Service interface {
 
 	SendMessageTriggered(ctx context.Context, peer *msg.Peer, msg *msg.Message, trigger chan interface{})
 
-	SendMessage(ctx context.Context, peer *msg.Peer, msg *msg.Message) (resp chan *msg.Message)
+	SendMessage(ctx context.Context, peer *msg.Peer, msg *msg.Message) (resp chan *msg.Message, err chan error)
 
 	//Send message to a random peer
-	SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message)
+	SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message, err chan error)
 
 	//Broadcast message to all peers
 	Broadcast(ctx context.Context, msg *msg.Message)
@@ -49,28 +49,32 @@ func CreateService(ctx context.Context, node *Node, dispatcher *msg.Dispatcher) 
 	return impl
 }
 
-func (s *ServiceImpl) SendMessage(ctx context.Context, peer *msg.Peer, m *msg.Message) (resp chan *msg.Message) {
+func (s *ServiceImpl) SendMessage(ctx context.Context, peer *msg.Peer, m *msg.Message) (resp chan *msg.Message, err chan error) {
 	resp = make(chan *msg.Message)
+	err = make(chan error)
 
 	go func() {
 		stream, e := s.node.Host.NewStream(ctx, peer.GetPeerInfo().ID, Libp2pProtocol)
 		if e != nil {
-			log.Error("Can't open stream to peer", e)
+			err <- e
+			close(resp)
 			return
 		}
 		writer := protoio.NewDelimitedWriter(stream)
-		if err := writer.WriteMsg(m); err != nil {
-			log.Error("Can't write message to stream", e)
+		if e := writer.WriteMsg(m); e != nil {
+			err <- e
+			close(resp)
 			return
 		}
 		close(resp)
 	}()
 
-	return resp
+	return resp, err
 }
 
-func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message) {
+func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message, err chan error) {
 	resp = make(chan *msg.Message)
+	err = make(chan error)
 
 	go func() {
 		connected := s.node.Host.Network().Peers()
@@ -78,13 +82,13 @@ func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Mess
 
 		stream, e := s.node.Host.NewStream(ctx, pid, Libp2pProtocol)
 		if e != nil {
-			log.Error("Can't open stream to peer", e)
+			err <- e
 			close(resp)
 		}
 
 		writer := protoio.NewDelimitedWriter(stream)
-		if err := writer.WriteMsg(req); err != nil {
-			log.Error("Can't write message to stream", e)
+		if e := writer.WriteMsg(req); e != nil {
+			err <- e
 			close(resp)
 		}
 
@@ -92,15 +96,15 @@ func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Mess
 		r := protoio.NewDelimitedReader(cr, net.MessageSizeMax) //TODO decide on msg size
 
 		respMsg := &pb.Message{}
-		if err := r.ReadMsg(respMsg); err != nil {
+		if e := r.ReadMsg(respMsg); e != nil {
 			_ = stream.Reset()
-			log.Error("Got error while reading response", e)
+			err <- e
 			close(resp)
 		}
 		resp <- &msg.Message{Message: respMsg}
 	}()
 
-	return resp
+	return resp, err
 }
 
 func (s *ServiceImpl) SendMessageTriggered(ctx context.Context, peer *msg.Peer, msg *msg.Message, trigger chan interface{}) {

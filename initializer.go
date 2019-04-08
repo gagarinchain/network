@@ -45,15 +45,14 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
 	config := &hotstuff.ProtocolConfig{
-		F:            10,
-		Delta:        1 * time.Second,
-		Blockchain:   bc,
-		Me:           me,
-		Srv:          srv,
-		Storage:      storage,
-		Committee:    cfg.Committee,
-		RoundEndChan: make(chan hotstuff.Command),
-		ControlChan:  make(chan hotstuff.Command),
+		F:           10,
+		Delta:       1 * time.Second,
+		Blockchain:  bc,
+		Me:          me,
+		Srv:         srv,
+		Storage:     storage,
+		Committee:   cfg.Committee,
+		ControlChan: make(chan hotstuff.Command),
 	}
 
 	pacer := hotstuff.CreatePacer(config)

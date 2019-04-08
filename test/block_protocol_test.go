@@ -47,15 +47,15 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 		if m.Type != pb.Message_HELLO_REQUEST {
 			t.Error("Wrong message type")
 		}
-	}).Once().Return(resp)
+	}).Once().Return(resp, nil)
 
 	synchr.On("RequestBlocks", mock.MatchedBy(func(ctx context.Context) bool { return true }),
-		mock.AnythingOfType("int32"), mock.AnythingOfType("int32")).Run(func(args mock.Arguments) {
+		mock.AnythingOfType("int32"), mock.AnythingOfType("int32"), mock.AnythingOfType("*message.Peer")).Run(func(args mock.Arguments) {
 		low := (args[1]).(int32)
 		high := (args[2]).(int32)
 
 		assert.True(t, low == 0 && high == 4)
-	})
+	}).Return(nil)
 
 	p.Bootstrap(context.Background())
 }
@@ -88,6 +88,8 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 
 	peer := generateIdentity(t)
 	msgChan := make(chan *blockchain.Block)
+	resp := make(chan *msg.Message)
+	close(resp)
 	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 		peer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
 		m := (args[2]).(*msg.Message)
@@ -105,7 +107,7 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 			msgChan <- blockchain.CreateBlockFromMessage(b)
 		}
 
-	}).Return(nil)
+	}).Return(resp, nil)
 
 	go func() {
 		any, _ := ptypes.MarshalAny(&pb.BlockRequestPayload{Height: int32(3)})
@@ -161,6 +163,9 @@ func TestBlockProtocolOnHello(t *testing.T) {
 	_ = bc.AddBlock(block47)
 	bc.OnCommit(block34)
 
+	resp := make(chan *msg.Message)
+	close(resp)
+
 	peer := generateIdentity(t)
 	m := msg.CreateMessage(pb.Message_HELLO_REQUEST, nil, peer)
 	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
@@ -173,7 +178,7 @@ func TestBlockProtocolOnHello(t *testing.T) {
 		payload := &pb.HelloPayload{}
 		ptypes.UnmarshalAny(m.Payload, payload)
 		assert.Equal(t, int32(5), payload.TopBlockHeight)
-	}).Once().Return(nil)
+	}).Once().Return(resp, nil)
 
 	p.OnHello(context.Background(), m)
 

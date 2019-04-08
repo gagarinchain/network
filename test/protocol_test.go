@@ -95,7 +95,7 @@ func TestOnReceiveProposal(t *testing.T) {
 	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 		nextProposer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
 		msgChan <- (args[2]).(*msg.Message)
-	}).Return(make(chan *msg.Message)).Once()
+	}).Return(make(chan *msg.Message), nil).Once()
 
 	go func() {
 		if err := p.OnReceiveProposal(context.Background(), proposal); err != nil {
