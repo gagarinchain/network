@@ -51,6 +51,7 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 			if e != nil {
 				log.Error("Can't read blocks", e)
 			}
+
 			for _, b := range blocks {
 				exec.lock.Lock()
 				exec.blocks = append(exec.blocks, b)
@@ -64,6 +65,10 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 	wg.Wait()
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	if len(exec.blocks) == 0 {
+		return errors.New("No blocks received")
 	}
 
 	sort.Sort(ByHeight(exec.blocks))
@@ -86,11 +91,15 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 	return s.addBlocksTransactional(exec.blocks)
 }
 
+//Request all blocks starting at top committed block, which all replicas must have and all forks must include and ending with block with given hash
 func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, peer *message.Peer) error {
 	resp, err := s.bsrv.RequestFork(ctx, s.bc.GetTopCommittedBlock().Header().Height(), hash, peer)
 	blocks, e := ReadBlocksWithErrors(resp, err)
 	if e != nil {
 		return e
+	}
+	if len(blocks) == 0 {
+		return errors.New("No blocks received")
 	}
 	sort.Sort(ByHeight(blocks))
 
@@ -104,6 +113,7 @@ func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, pe
 	}
 
 	//Check blockchain head is what we requested
+	log.Debug(blocks)
 	if blocks[len(blocks)-1].Header().Hash() != hash {
 		return errors.New("Head of fork is not expected")
 	}

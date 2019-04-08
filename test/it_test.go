@@ -332,13 +332,13 @@ func TestScenario5c(t *testing.T) {
 	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
-//Scenario 6:
+//Scenario 6a:
 //Start new epoch
 //Replica
 //Receive proposal fork
 //Get no block on arbitrary height
 //Reject proposal and all fork
-func TestScenario6(t *testing.T) {
+func TestScenario6a(t *testing.T) {
 	ctx := initContext(t)
 	go ctx.pacer.Run(context.Background())
 	go ctx.protocol.Run(ctx.protocolChan)
@@ -377,12 +377,177 @@ func TestScenario6(t *testing.T) {
 	assert.Equal(t, ctx.bc.GetHead().Header().Height(), int32(3))
 }
 
+//Scenario 6b:
+//Start new epoch
+//Replica
+//Receive fork Gc<-B1c<-B2<-B3<-B4
+//Receive proposal fork B1c-B22-B32-B42-B52 (reject cause don't extend QREF())
+func TestScenario6b(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run(context.Background())
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer func() {
+		go ctx.protocol.Stop()
+	}()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(8)
+
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	proposal1 := ctx.createProposal(block1, 1)
+	ctx.protocolChan <- proposal1
+	qcb1 := ctx.createQC(block1)
+	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	proposal2 := ctx.createProposal(block2, 2)
+	ctx.protocolChan <- proposal2
+	block3 := ctx.bc.NewBlock(block2, ctx.createQC(block2), []byte("block 3"))
+	proposal3 := ctx.createProposal(block3, 3)
+	ctx.protocolChan <- proposal3
+	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	proposal4 := ctx.createProposal(block4, 4)
+	ctx.protocolChan <- proposal4
+
+	block22 := ctx.bc.NewBlock(block1, qcb1, []byte("block 22"))
+	block32 := ctx.bc.NewBlock(block22, qcb1, []byte("block 32"))
+	block42 := ctx.bc.NewBlock(block32, qcb1, []byte("block 42"))
+	block52 := ctx.bc.NewBlock(block42, qcb1, []byte("block 52"))
+	proposal := ctx.createProposal(block52, 5)
+	ctx.protocolChan <- proposal
+
+	ctx.blockChan <- block22
+	ctx.blockChan <- block32
+	ctx.blockChan <- block42
+	close(ctx.blockChan)
+
+	ctx.waitRounds(6)
+
+	assert.Equal(t, int32(4), ctx.protocol.Vheight())
+	assert.Equal(t, block1, ctx.bc.GetTopCommittedBlock())
+	assert.Equal(t, block52, ctx.bc.GetBlockByHeight(5)[0])
+}
+
+//Scenario 6c:
+//Start new epoch
+//Replica
+//Receive fork Gc<-B1c<-B2<-B3<-B4
+//Receive proposal fork B2<-B32<-(B2)B42-B52 (vote for b52 as it extends QREF)
+func TestScenario6c(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run(context.Background())
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer func() {
+		go ctx.protocol.Stop()
+	}()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(8)
+
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	proposal1 := ctx.createProposal(block1, 1)
+	ctx.protocolChan <- proposal1
+	qcb1 := ctx.createQC(block1)
+	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	proposal2 := ctx.createProposal(block2, 2)
+	ctx.protocolChan <- proposal2
+	qcb2 := ctx.createQC(block2)
+	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	proposal3 := ctx.createProposal(block3, 3)
+	ctx.protocolChan <- proposal3
+	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	proposal4 := ctx.createProposal(block4, 4)
+	ctx.protocolChan <- proposal4
+
+	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+	proposal := ctx.createProposal(block52, 5)
+	ctx.protocolChan <- proposal
+
+	ctx.blockChan <- block2
+	ctx.blockChan <- block32
+	ctx.blockChan <- block42
+	close(ctx.blockChan)
+
+	ctx.waitRounds(6)
+
+	assert.Equal(t, int32(5), ctx.protocol.Vheight())
+	assert.Equal(t, block1, ctx.bc.GetTopCommittedBlock())
+	assert.Equal(t, block52, ctx.bc.GetBlockByHeight(5)[0])
+}
+
+//Scenario 6d:
+//Start new epoch
+//Replica
+//Receive fork Gc<-B1c<-B2<-B3<-B4
+//Receive fork B2<-B32<-(B2)B42-B52 (vote for B52 as it extends QREF)
+//Receive fork <-(B4)B51-(B4)B6 (vote for B6 as it extends QREF)
+func TestScenario6d(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run(context.Background())
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer func() {
+		go ctx.protocol.Stop()
+	}()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(8)
+
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	qcb1 := ctx.createQC(block1)
+	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	qcb2 := ctx.createQC(block2)
+	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+
+	_ = ctx.bc.AddBlock(block1)
+	_ = ctx.bc.AddBlock(block2)
+	_ = ctx.bc.AddBlock(block3)
+	_ = ctx.bc.AddBlock(block4)
+	_ = ctx.bc.AddBlock(block32)
+	_ = ctx.bc.AddBlock(block42)
+	_ = ctx.bc.AddBlock(block52)
+	ctx.bc.OnCommit(block1)
+	ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
+	ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
+	ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
+	ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
+	ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
+
+	qcb4 := ctx.createQC(block4)
+	block51 := ctx.bc.NewBlock(block4, qcb4, []byte("block 51"))
+	block6 := ctx.bc.NewBlock(block51, qcb4, []byte("block 6"))
+	proposal6 := ctx.createProposal(block6, 6)
+	ctx.protocolChan <- proposal6
+
+	ctx.blockChan <- block2
+	ctx.blockChan <- block3
+	ctx.blockChan <- block4
+	ctx.blockChan <- block51
+	close(ctx.blockChan)
+
+	ctx.waitRounds(7)
+
+	assert.Equal(t, block2, ctx.bc.GetTopCommittedBlock())
+	assert.Equal(t, int32(6), ctx.protocol.Vheight())
+	assert.Equal(t, block6, ctx.bc.GetBlockByHeight(6)[0])
+}
+
 type TestContext struct {
 	peers        []*msg.Peer
 	pacer        *hotstuff.StaticPacer
 	protocol     *hotstuff.Protocol
 	cfg          *hotstuff.ProtocolConfig
 	bc           *blockchain.Blockchain
+	bsrv         blockchain.BlockService
 	eventChan    chan hotstuff.Event
 	voteChan     chan *msg.Message
 	startChan    chan *msg.Message
@@ -448,10 +613,18 @@ func (ctx *TestContext) createProposal(newBlock *blockchain.Block, peerNumber in
 	return msg.CreateMessage(pb.Message_PROPOSAL, any, ctx.peers[peerNumber])
 }
 
+func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCertificate {
+	var sign []byte
+	for i := 0; i < 2*ctx.cfg.F/3+1; i++ {
+		sign = append(sign, block.Header().Sign(ctx.peers[i].GetPrivateKey())...)
+	}
+
+	return blockchain.CreateQuorumCertificate(sign, block.Header())
+}
+
 func initContext(t *testing.T) *TestContext {
 	identity := generateIdentity(t)
 	srv := &mocks.Service{}
-	//synchr := &mocks.Synchronizer{}
 	bsrv := &mocks.BlockService{}
 	storage := &mocks.Storage{}
 	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
@@ -533,6 +706,7 @@ func initContext(t *testing.T) *TestContext {
 		startChan:    startChan,
 		eventChan:    eventChan,
 		me:           identity,
+		bsrv:         bsrv,
 		protocolChan: protocolChan,
 	}
 }

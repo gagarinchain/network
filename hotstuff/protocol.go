@@ -154,6 +154,7 @@ func (p *Protocol) CheckCommit() bool {
 	log.Info("Check commit for", p.hqc.QrefBlock().Hash().Hex())
 	zero, one, two := p.blockchain.GetThreeChain(p.hqc.QrefBlock().Hash())
 	if two.Header().Parent() == one.Header().Hash() && one.Header().Parent() == zero.Header().Hash() {
+		log.Debugf("Committing block %v height %v", zero.Header().Hash().Hex(), zero.Height())
 		p.blockchain.OnCommit(zero)
 		return true
 	}
@@ -178,12 +179,6 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 }
 
 func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) error {
-	//-At first i thought it should be equivocation, but later i found out that we must process all proposers
-	// n. g. bad proposers can isolate us and make progress separately, the problem with it is that  in that case we have no way
-	// to synchronize proposal rotation with others. Accepting all proposals we will build forks,
-	// but it is ok, since we will have proof of equivocation later on and synchronize eventually
-	//-It is not ok, we must store proposal that was sent out of order, to collect equivocation proofs
-
 	p.Update(proposal.HQC)
 
 	log.Info(p.pacer.GetCurrent(p.GetCurrentView()).GetAddress().Hex())
