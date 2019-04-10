@@ -1,10 +1,10 @@
-package message
+package common
 
 import (
 	"crypto/ecdsa"
 	"github.com/libp2p/go-libp2p-peerstore"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/eth/crypto"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
 )
 
 type Peer struct {
@@ -12,6 +12,10 @@ type Peer struct {
 	publicKey  *ecdsa.PublicKey
 	privateKey *ecdsa.PrivateKey
 	peerInfo   *peerstore.PeerInfo
+}
+
+func (p *Peer) SetPrivateKey(privateKey *ecdsa.PrivateKey) {
+	p.privateKey = privateKey
 }
 
 func (p *Peer) GetAddress() common.Address {

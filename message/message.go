@@ -3,20 +3,21 @@ package message
 import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/poslibp2p/message/protobuff"
+	"github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/protobuff"
 )
 
 type Message struct {
-	source *Peer
+	source *common.Peer
 	sm     []byte
 	*pb.Message
 }
 
-func (m *Message) Source() *Peer {
+func (m *Message) Source() *common.Peer {
 	return m.source
 }
 
-func CreateMessage(messageType pb.Message_MessageType, payload *any.Any, source *Peer) *Message {
+func CreateMessage(messageType pb.Message_MessageType, payload *any.Any, source *common.Peer) *Message {
 	m := &Message{Message: &pb.Message{}}
 
 	m.Type = messageType
@@ -25,12 +26,12 @@ func CreateMessage(messageType pb.Message_MessageType, payload *any.Any, source 
 	return m
 }
 
-func CreateMessageFromProto(message *pb.Message, source *Peer) *Message {
+func CreateMessageFromProto(message *pb.Message, source *common.Peer) *Message {
 	m := &Message{Message: message, source: source}
 	return m
 }
 
-func CreateFromSerialized(serializedMessage []byte, source *Peer) *Message {
+func CreateFromSerialized(serializedMessage []byte, source *common.Peer) *Message {
 	var m = &Message{sm: serializedMessage}
 
 	e := proto.Unmarshal(serializedMessage, m)

@@ -21,7 +21,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/poslibp2p/eth/common/hexutil"
+	"github.com/poslibp2p/common/eth/common/hexutil"
 	"math/big"
 	"math/rand"
 	"reflect"

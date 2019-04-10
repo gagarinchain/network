@@ -3,7 +3,7 @@
 package mocks
 
 import blockchain "github.com/poslibp2p/blockchain"
-import common "github.com/poslibp2p/eth/common"
+import common "github.com/poslibp2p/common/eth/common"
 import leveldb "github.com/syndtr/goleveldb/leveldb"
 import mock "github.com/stretchr/testify/mock"
 

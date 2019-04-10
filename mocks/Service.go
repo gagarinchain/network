@@ -2,6 +2,7 @@
 
 package mocks
 
+import common "github.com/poslibp2p/common"
 import context "context"
 import message "github.com/poslibp2p/message"
 import mock "github.com/stretchr/testify/mock"
@@ -17,11 +18,11 @@ func (_m *Service) Broadcast(ctx context.Context, msg *message.Message) {
 }
 
 // SendMessage provides a mock function with given fields: ctx, peer, msg
-func (_m *Service) SendMessage(ctx context.Context, peer *message.Peer, msg *message.Message) (chan *message.Message, chan error) {
+func (_m *Service) SendMessage(ctx context.Context, peer *common.Peer, msg *message.Message) (chan *message.Message, chan error) {
 	ret := _m.Called(ctx, peer, msg)
 
 	var r0 chan *message.Message
-	if rf, ok := ret.Get(0).(func(context.Context, *message.Peer, *message.Message) chan *message.Message); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *common.Peer, *message.Message) chan *message.Message); ok {
 		r0 = rf(ctx, peer, msg)
 	} else {
 		if ret.Get(0) != nil {
@@ -30,7 +31,7 @@ func (_m *Service) SendMessage(ctx context.Context, peer *message.Peer, msg *mes
 	}
 
 	var r1 chan error
-	if rf, ok := ret.Get(1).(func(context.Context, *message.Peer, *message.Message) chan error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *common.Peer, *message.Message) chan error); ok {
 		r1 = rf(ctx, peer, msg)
 	} else {
 		if ret.Get(1) != nil {
@@ -42,7 +43,7 @@ func (_m *Service) SendMessage(ctx context.Context, peer *message.Peer, msg *mes
 }
 
 // SendMessageTriggered provides a mock function with given fields: ctx, peer, msg, trigger
-func (_m *Service) SendMessageTriggered(ctx context.Context, peer *message.Peer, msg *message.Message, trigger chan interface{}) {
+func (_m *Service) SendMessageTriggered(ctx context.Context, peer *common.Peer, msg *message.Message, trigger chan interface{}) {
 	_m.Called(ctx, peer, msg, trigger)
 }
 

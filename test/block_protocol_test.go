@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/blockchain"
+	"github.com/poslibp2p/common/protobuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -50,7 +50,7 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 	}).Once().Return(resp, nil)
 
 	synchr.On("RequestBlocks", mock.MatchedBy(func(ctx context.Context) bool { return true }),
-		mock.AnythingOfType("int32"), mock.AnythingOfType("int32"), mock.AnythingOfType("*message.Peer")).Run(func(args mock.Arguments) {
+		mock.AnythingOfType("int32"), mock.AnythingOfType("int32"), mock.AnythingOfType("*common.Peer")).Run(func(args mock.Arguments) {
 		low := (args[1]).(int32)
 		high := (args[2]).(int32)
 

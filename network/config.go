@@ -2,7 +2,7 @@ package network
 
 import (
 	"github.com/libp2p/go-libp2p-crypto"
-	"github.com/poslibp2p/message"
+	"github.com/poslibp2p/common"
 )
 
 // NodeConfig contains basic configuration information that we'll need to
@@ -22,5 +22,5 @@ type NodeConfig struct {
 	// DataDir is the path to a directory to store node data.
 	DataDir string
 
-	Committee []*message.Peer
+	Committee []*common.Peer
 }

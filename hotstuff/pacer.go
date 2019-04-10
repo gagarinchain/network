@@ -2,13 +2,13 @@ package hotstuff
 
 import (
 	"context"
-	msg "github.com/poslibp2p/message"
+	"github.com/poslibp2p/common"
 )
 
 //Static pacer that store validator set in file and round-robin elect proposer each 2 Delta-periods
 type StaticPacer struct {
 	config        *ProtocolConfig
-	committee     []*msg.Peer
+	committee     []*common.Peer
 	stopChan      chan interface{}
 	viewGetter    CurrentViewGetter
 	eventNotifier EventNotifier
@@ -39,7 +39,7 @@ func (p *StaticPacer) Stop() {
 	p.stopChan <- struct{}{}
 }
 
-func (p *StaticPacer) Committee() []*msg.Peer {
+func (p *StaticPacer) Committee() []*common.Peer {
 	return p.committee
 }
 
@@ -47,11 +47,11 @@ func (p *StaticPacer) WillNextViewForceEpochStart(currentView int32) bool {
 	return int(currentView+1)%len(p.committee) == 0
 }
 
-func (p *StaticPacer) GetCurrent(currentView int32) *msg.Peer {
+func (p *StaticPacer) GetCurrent(currentView int32) *common.Peer {
 	return p.committee[int(currentView)%len(p.committee)]
 }
 
-func (p *StaticPacer) GetNext(currentView int32) *msg.Peer {
+func (p *StaticPacer) GetNext(currentView int32) *common.Peer {
 	return p.committee[int(currentView+1)%len(p.committee)]
 }
 

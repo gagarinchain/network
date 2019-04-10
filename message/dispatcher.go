@@ -2,32 +2,34 @@ package message
 
 import (
 	"github.com/op/go-logging"
-	"github.com/poslibp2p/message/protobuff"
+	"github.com/poslibp2p"
+	"github.com/poslibp2p/common/protobuff"
 )
 
 var log = logging.MustGetLogger("cmd")
-var DEFAULT_HANDLER Handler = &DefaultHandler{}
 
 type Dispatcher struct {
-	Handlers map[pb.Message_MessageType]Handler
-	MsgChan  chan *Message
+	Validators        []poslibp2p.Validator
+	hotstuffChan      chan *Message
+	blockProtocolChan chan *Message
 }
 
-//Asynchronously dispatching message to appropriate handler
+//Dispatch makes simple message validations and choose channel to send message
 func (d *Dispatcher) Dispatch(msg *Message) {
-	d.MsgChan <- msg
-}
-
-func (d *Dispatcher) StartUp() {
-	for {
-		msg := <-d.MsgChan
-
-		handler, ok := d.Handlers[msg.Type]
-
-		if !ok {
-			handler = DEFAULT_HANDLER
-		}
-
-		handler.Handle(msg)
+	switch msg.Type {
+	case pb.Message_VOTE:
+		fallthrough
+	case pb.Message_EPOCH_START:
+		fallthrough
+	case pb.Message_PROPOSAL:
+		d.hotstuffChan <- msg
+	case pb.Message_HELLO_REQUEST:
+		fallthrough
+	case pb.Message_BLOCK_REQUEST:
+		d.blockProtocolChan <- msg
+	case pb.Message_HELLO_RESPONSE:
+		fallthrough
+	case pb.Message_BLOCK_RESPONSE:
+		log.Warningf("Received message %d, without request, ignoring", msg.Type.String())
 	}
 }

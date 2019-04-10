@@ -1,14 +1,13 @@
-package main
+package run
 
 import (
 	"context"
-	"fmt"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/eth/crypto"
+	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/protobuff"
 	"github.com/poslibp2p/hotstuff"
 	"github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
 
 	"time"
@@ -21,7 +20,23 @@ type Context struct {
 	pacer         *hotstuff.StaticPacer
 }
 
-func CreateContext(cfg *network.NodeConfig) *Context {
+func (c *Context) Pacer() *hotstuff.StaticPacer {
+	return c.pacer
+}
+
+func (c *Context) HotStuff() *hotstuff.Protocol {
+	return c.hotStuff
+}
+
+func (c *Context) BlockProtocol() *blockchain.BlockProtocol {
+	return c.blockProtocol
+}
+
+func (c *Context) Node() *network.Node {
+	return c.node
+}
+
+func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
 	handlers := make(map[pb.Message_MessageType]message.Handler)
 	dispatcher := &message.Dispatcher{Handlers: handlers, MsgChan: make(chan *message.Message, 1024)}
 
@@ -31,11 +46,7 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 	}
 	node.Dispatcher = dispatcher
 
-	log.Infof("This is my addrs %v", node.Host.Addrs())
-	fullAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", cfg.Port, node.Host.ID().Pretty())
-	log.Infof("Now run \"./poslibp2p -l %d -d %s\" on a different terminal\n", cfg.Port+1, fullAddr)
-
-	me := generateIdentity(node.GetPeerInfo())
+	log.Infof("This is my id %v", node.Host.ID().Pretty())
 
 	srv := network.CreateService(context.Background(), node, dispatcher)
 	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
@@ -51,6 +62,7 @@ func CreateContext(cfg *network.NodeConfig) *Context {
 		Me:          me,
 		Srv:         srv,
 		Storage:     storage,
+		Sync:        synchr,
 		Committee:   cfg.Committee,
 		ControlChan: make(chan hotstuff.Command),
 	}
@@ -76,11 +88,12 @@ func (c *Context) Bootstrap() {
 
 	msgChan := make(chan *message.Message)
 	go c.node.SubscribeAndListen(context.Background(), msgChan)
+	go c.blockProtocol.Bootstrap(context.Background())
 	go c.hotStuff.Run(msgChan)
 	go c.pacer.Run(context.Background())
 }
 
-func generateIdentity(pi *peerstore.PeerInfo) *message.Peer {
+func generateIdentity(pi *peerstore.PeerInfo) *common.Peer {
 	privateKey, e := crypto.GenerateKey() //Load keys here
 	if e != nil {
 		log.Error("failed to generate key")

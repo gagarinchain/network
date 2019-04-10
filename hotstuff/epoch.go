@@ -5,20 +5,37 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
 	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/eth/crypto"
+	comm "github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/protobuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 )
 
 type Epoch struct {
 	qc               *blockchain.QuorumCertificate
 	genesisSignature []byte
-	sender           *msg.Peer
+	sender           *comm.Peer
 	number           int32
 }
 
-func CreateEpoch(sender *msg.Peer, number int32, qc *blockchain.QuorumCertificate, genesisSignature []byte) *Epoch {
+func (ep *Epoch) Qc() *blockchain.QuorumCertificate {
+	return ep.qc
+}
+
+func (ep *Epoch) Number() int32 {
+	return ep.number
+}
+
+func (ep *Epoch) Sender() *comm.Peer {
+	return ep.sender
+}
+
+func (ep *Epoch) GenesisSignature() []byte {
+	return ep.genesisSignature
+}
+
+func CreateEpoch(sender *comm.Peer, number int32, qc *blockchain.QuorumCertificate, genesisSignature []byte) *Epoch {
 	return &Epoch{qc, genesisSignature, sender, number}
 }
 
@@ -40,9 +57,9 @@ func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
 		ep = CreateEpoch(msg.Source(), p.EpochNumber, nil, p.GetGenesisSignature())
 	}
 
-	hashbytes, e := getHash(ep.createPayload())
+	hash, e := CalculateHash(ep.createPayload())
 
-	pub, e := crypto.SigToPub(hashbytes, p.Signature)
+	pub, e := crypto.SigToPub(hash.Bytes(), p.Signature)
 	if e != nil {
 		return nil, errors.New("bad signature")
 	}
@@ -52,24 +69,24 @@ func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
 	return ep, nil
 }
 
-func getHash(ep *pb.EpochStartPayload) ([]byte, error) {
+func CalculateHash(ep *pb.EpochStartPayload) (common.Hash, error) {
 	payload := &pb.EpochStartPayload{EpochNumber: ep.EpochNumber, Body: &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.Signature}}
 	any, e := ptypes.MarshalAny(payload)
 	if e != nil {
-		return nil, errors.Errorf("error while marshalling payload", e)
+		return common.Hash{}, errors.Errorf("error while marshalling payload", e)
 	}
-	hashbytes := crypto.Keccak256(any.GetValue())
+	hashbytes := common.BytesToHash(crypto.Keccak256(any.GetValue()))
 	return hashbytes, e
 }
 
 func (ep *Epoch) GetMessage() (*msg.Message, error) {
 	payload := ep.createPayload()
-	hashbytes, err := getHash(payload)
+	hash, err := CalculateHash(payload)
 	if err != nil {
 		return nil, err
 	}
 
-	sig, err := crypto.Sign(hashbytes, ep.sender.GetPrivateKey())
+	sig, err := crypto.Sign(hash.Bytes(), ep.sender.GetPrivateKey())
 	if err != nil {
 		return nil, errors.Errorf("can't sign sync message", err)
 	}

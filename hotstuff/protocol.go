@@ -7,9 +7,10 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
 	bc "github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/eth/common"
+	comm "github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/protobuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
 	"math/rand"
 	"strconv"
@@ -56,7 +57,7 @@ type Replica interface {
 	CheckCommit() bool
 	OnNextView()
 	StartEpoch(i int32)
-	OnEpochStart(m *msg.Message, s *msg.Peer)
+	OnEpochStart(m *msg.Message, s *comm.Peer)
 	SubscribeEpochChange(trigger chan interface{})
 }
 
@@ -77,12 +78,12 @@ type ProtocolConfig struct {
 	F           int
 	Delta       time.Duration
 	Blockchain  *bc.Blockchain
-	Me          *msg.Peer
+	Me          *comm.Peer
 	Srv         network.Service
 	Sync        bc.Synchronizer
 	Pacer       *StaticPacer
 	Storage     bc.Storage
-	Committee   []*msg.Peer
+	Committee   []*comm.Peer
 	ControlChan chan Command
 }
 
@@ -102,7 +103,7 @@ type Protocol struct {
 	votes                 map[common.Address]*Vote
 	lastExecutedBlock     *bc.Header
 	hqc                   *bc.QuorumCertificate
-	me                    *msg.Peer
+	me                    *comm.Peer
 	pacer                 *StaticPacer
 	storage               bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	srv                   network.Service
@@ -342,7 +343,7 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 	p.OnNextView()
 }
 
-func (*Protocol) equivocate(peer *msg.Peer) {
+func (*Protocol) equivocate(peer *comm.Peer) {
 	log.Warningf("Peer [%v] equivocated", peer.GetAddress().Hex())
 }
 
@@ -541,6 +542,7 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 						continue
 					}
 				}
+
 				p.validate(pr)
 				timeout, _ := context.WithTimeout(ctx, p.delta)
 				if err := p.OnReceiveProposal(timeout, pr); err != nil {

@@ -1,4 +1,4 @@
-package main
+package common
 
 import (
 	"bytes"
@@ -9,14 +9,16 @@ import (
 	"fmt"
 	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
 	"github.com/libp2p/go-libp2p-peer"
-	"github.com/poslibp2p/eth/crypto"
-	"github.com/poslibp2p/message"
+	"github.com/op/go-logging"
+	"github.com/poslibp2p/common/eth/crypto"
 	"io/ioutil"
 	"strconv"
 )
 
+var log = logging.MustGetLogger("hotstuff")
+
 func GenerateIdentities() {
-	committee := message.CommitteeData{}
+	committee := CommitteeData{}
 
 	for i := 0; i < 10; i++ {
 		pk, _ := crypto.GenerateKey()
@@ -45,7 +47,7 @@ func GenerateIdentities() {
 
 		multiaddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/908%d/p2p/%s", i, id.Pretty())
 
-		p := message.PeerData{
+		p := PeerData{
 			Address:      address,
 			MultiAddress: multiaddr,
 		}

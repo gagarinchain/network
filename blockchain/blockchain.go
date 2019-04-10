@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"github.com/emirpasic/gods/utils"
 	"github.com/op/go-logging"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/eth/crypto"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
 	"sync"
 	"time"
 )

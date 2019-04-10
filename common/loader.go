@@ -1,10 +1,10 @@
-package message
+package common
 
 import (
 	"encoding/json"
 	"github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
-	"github.com/poslibp2p/eth/common"
+	"github.com/poslibp2p/common/eth/common"
 	"io/ioutil"
 	"os"
 )

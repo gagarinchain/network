@@ -4,25 +4,25 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/message"
+	comm "github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/common"
 	"sort"
 	"sync"
 )
 
 type Synchronizer interface {
 	//Requesting blocks (low, high]
-	RequestBlocks(ctx context.Context, low int32, high int32, peer *message.Peer) error
-	RequestFork(ctx context.Context, hash common.Hash, peer *message.Peer) error
+	RequestBlocks(ctx context.Context, low int32, high int32, peer *comm.Peer) error
+	RequestFork(ctx context.Context, hash common.Hash, peer *comm.Peer) error
 }
 
 type SynchronizerImpl struct {
-	me   *message.Peer
+	me   *comm.Peer
 	bsrv BlockService
 	bc   *Blockchain
 }
 
-func CreateSynchronizer(me *message.Peer, bsrv BlockService, bc *Blockchain) Synchronizer {
+func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc *Blockchain) Synchronizer {
 	return &SynchronizerImpl{
 		me:   me,
 		bsrv: bsrv,
@@ -31,7 +31,7 @@ func CreateSynchronizer(me *message.Peer, bsrv BlockService, bc *Blockchain) Syn
 }
 
 //TODO make kind of parallel batch loading here
-func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high int32, peer *message.Peer) error {
+func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high int32, peer *comm.Peer) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(int(high - low))
 
@@ -92,7 +92,7 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 }
 
 //Request all blocks starting at top committed block, which all replicas must have and all forks must include and ending with block with given hash
-func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, peer *message.Peer) error {
+func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, peer *comm.Peer) error {
 	resp, err := s.bsrv.RequestFork(ctx, s.bc.GetTopCommittedBlock().Header().Height(), hash, peer)
 	blocks, e := ReadBlocksWithErrors(resp, err)
 	if e != nil {

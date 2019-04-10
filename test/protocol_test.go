@@ -7,10 +7,11 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/eth/crypto"
+	"github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/protobuff"
 	"github.com/poslibp2p/hotstuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -372,7 +373,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), bsrv)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
-	peers := make([]*msg.Peer, 10)
+	peers := make([]*common.Peer, 10)
 
 	config := &hotstuff.ProtocolConfig{
 		F:           10,
@@ -400,7 +401,7 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	return bc, p, config, eventChan
 }
 
-func generateIdentity(t *testing.T) *msg.Peer {
+func generateIdentity(t *testing.T) *common.Peer {
 	privateKey, e := crypto.GenerateKey()
 	if e != nil {
 		t.Errorf("failed to generate key")
@@ -426,7 +427,7 @@ func generateIdentity(t *testing.T) *msg.Peer {
 		Addrs: []ma.Multiaddr{a, b},
 	}
 
-	return msg.CreatePeer(&privateKey.PublicKey, privateKey, pi)
+	return common.CreatePeer(&privateKey.PublicKey, privateKey, pi)
 }
 
 func mustAddr(t *testing.T, s string) ma.Multiaddr {

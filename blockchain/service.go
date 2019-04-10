@@ -3,16 +3,17 @@ package blockchain
 import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/poslibp2p/eth/common"
+	com "github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/protobuff"
 	"github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
 )
 
 type BlockService interface {
-	RequestBlock(ctx context.Context, hash common.Hash, peer *message.Peer) (resp chan *Block, err chan error)
-	RequestBlocksAtHeight(ctx context.Context, height int32, peer *message.Peer) (resp chan *Block, err chan error)
-	RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *message.Peer) (resp chan *Block, err chan error)
+	RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error)
+	RequestBlocksAtHeight(ctx context.Context, height int32, peer *com.Peer) (resp chan *Block, err chan error)
+	RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error)
 }
 
 type BlockServiceImpl struct {
@@ -23,17 +24,17 @@ func NewBlockService(srv network.Service) *BlockServiceImpl {
 	return &BlockServiceImpl{srv: srv}
 }
 
-func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, peer *message.Peer) (resp chan *Block, err chan error) {
+func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error) {
 	return s.requestBlockUgly(ctx, hash, -1, nil)
 }
 
-func (s *BlockServiceImpl) RequestBlocksAtHeight(ctx context.Context, height int32, peer *message.Peer) (resp chan *Block, err chan error) {
+func (s *BlockServiceImpl) RequestBlocksAtHeight(ctx context.Context, height int32, peer *com.Peer) (resp chan *Block, err chan error) {
 	return s.requestBlockUgly(ctx, common.Hash{}, height, nil)
 }
 
 //we can pass rather hash or block level here. if we want to omit height parameter must pass -1.
 //we can pass height and header hash, it will mean that we want to get fork starting from hash block up to block at parameter height excluded
-func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Hash, height int32, peer *message.Peer) (resp chan *Block, err chan error) {
+func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Hash, height int32, peer *com.Peer) (resp chan *Block, err chan error) {
 	var payload *pb.BlockRequestPayload
 
 	if height < 0 {
@@ -101,7 +102,7 @@ func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Has
 	return resp, err
 }
 
-func (s *BlockServiceImpl) RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *message.Peer) (resp chan *Block, err chan error) {
+func (s *BlockServiceImpl) RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error) {
 	return s.requestBlockUgly(ctx, hash, lowHeight, peer)
 }
 

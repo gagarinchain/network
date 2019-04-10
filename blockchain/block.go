@@ -3,9 +3,9 @@ package blockchain
 import (
 	"crypto/ecdsa"
 	"github.com/gogo/protobuf/proto"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/eth/crypto"
-	"github.com/poslibp2p/message/protobuff"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/protobuff"
 	"time"
 )
 

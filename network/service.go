@@ -8,8 +8,9 @@ import (
 	"github.com/libp2p/go-libp2p-net"
 	"github.com/libp2p/go-libp2p-peer"
 	"github.com/libp2p/go-libp2p-protocol"
+	"github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/protobuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"io"
 	"math/rand"
 )
@@ -17,9 +18,9 @@ import (
 type Service interface {
 	//Send message to particular peer
 
-	SendMessageTriggered(ctx context.Context, peer *msg.Peer, msg *msg.Message, trigger chan interface{})
+	SendMessageTriggered(ctx context.Context, peer *common.Peer, msg *msg.Message, trigger chan interface{})
 
-	SendMessage(ctx context.Context, peer *msg.Peer, msg *msg.Message) (resp chan *msg.Message, err chan error)
+	SendMessage(ctx context.Context, peer *common.Peer, msg *msg.Message) (resp chan *msg.Message, err chan error)
 
 	//Send message to a random peer
 	SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message, err chan error)
@@ -49,7 +50,7 @@ func CreateService(ctx context.Context, node *Node, dispatcher *msg.Dispatcher) 
 	return impl
 }
 
-func (s *ServiceImpl) SendMessage(ctx context.Context, peer *msg.Peer, m *msg.Message) (resp chan *msg.Message, err chan error) {
+func (s *ServiceImpl) SendMessage(ctx context.Context, peer *common.Peer, m *msg.Message) (resp chan *msg.Message, err chan error) {
 	resp = make(chan *msg.Message)
 	err = make(chan error)
 
@@ -107,7 +108,7 @@ func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Mess
 	return resp, err
 }
 
-func (s *ServiceImpl) SendMessageTriggered(ctx context.Context, peer *msg.Peer, msg *msg.Message, trigger chan interface{}) {
+func (s *ServiceImpl) SendMessageTriggered(ctx context.Context, peer *common.Peer, msg *msg.Message, trigger chan interface{}) {
 	<-trigger
 	s.SendMessage(ctx, peer, msg)
 }
@@ -171,7 +172,7 @@ func (n *Node) SubscribeAndListen(ctx context.Context, msgChan chan *msg.Message
 
 		//We do several very easy checks here and give control to dispatcher
 		info := n.Host.Peerstore().PeerInfo(pid)
-		message := msg.CreateFromSerialized(m.Data, msg.CreatePeer(nil, nil, &info))
+		message := msg.CreateFromSerialized(m.Data, common.CreatePeer(nil, nil, &info))
 		msgChan <- message
 	}
 

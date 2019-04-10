@@ -3,8 +3,8 @@ package blockchain
 import (
 	"encoding/binary"
 	"github.com/gogo/protobuf/proto"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/message/protobuff"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/protobuff"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/opt"

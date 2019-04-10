@@ -2,6 +2,7 @@
 
 package mocks
 
+import common "github.com/poslibp2p/common"
 import hotstuff "github.com/poslibp2p/hotstuff"
 import message "github.com/poslibp2p/message"
 import mock "github.com/stretchr/testify/mock"
@@ -26,7 +27,7 @@ func (_m *Replica) CheckCommit() bool {
 }
 
 // OnEpochStart provides a mock function with given fields: m, s
-func (_m *Replica) OnEpochStart(m *message.Message, s *message.Peer) {
+func (_m *Replica) OnEpochStart(m *message.Message, s *common.Peer) {
 	_m.Called(m, s)
 }
 

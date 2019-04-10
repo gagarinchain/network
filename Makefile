@@ -8,7 +8,7 @@ BINARY_NAME=poslibp2p
 BINARY_UNIX=$(BINARY_NAME)_unix
 all: test build
 protos:
-	cd message/protobuff/protos && PATH=$(PATH):$(GOPATH)/bin protoc --go_out=$(PKGMAP):.. *.proto
+	cd common/protobuff/protos && PATH=$(PATH):$(GOPATH)/bin protoc --go_out=$(PKGMAP):.. *.proto
 build: protos
 	$(GOBUILD) -o $(BINARY_NAME) -v
 test:

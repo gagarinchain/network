@@ -15,7 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p-record"
 	"github.com/libp2p/go-libp2p-routing"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/poslibp2p/message"
+	"github.com/poslibp2p/common"
 	"path"
 )
 
@@ -42,11 +42,7 @@ type Node struct {
 	// data.
 	Datastore datastore.Datastore
 
-	// Dispatcher for incoming messages which is used to wire messages and appropriate
-	// handlers
-	Dispatcher *message.Dispatcher
-
-	bootstrapPeers []*message.Peer
+	bootstrapPeers []*common.Peer
 }
 
 func CreateNode(config *NodeConfig) (*Node, error) {

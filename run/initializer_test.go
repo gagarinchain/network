@@ -1,4 +1,4 @@
-package main
+package run
 
 import (
 	"crypto/rand"
@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+//todo fix it
 func TestInitializing(t *testing.T) {
 	privKey, _, err := p2pcrypto.GenerateECDSAKeyPair(rand.Reader)
 	if err != nil {
@@ -24,10 +25,10 @@ func TestInitializing(t *testing.T) {
 		DataDir:    path.Join(os.TempDir(), strconv.Itoa(8081)),
 	}
 
-	ctx := CreateContext(cfg)
+	ctx := CreateContext(cfg, generateIdentity(nil))
 
-	assert.Equal(t, int32(3), ctx.hotStuff.GetCurrentView())
-	assert.Equal(t, ctx.node.Host.ID().Pretty(), ctx.node.GetPeerInfo().ID.Pretty())
-	assert.Equal(t, 10, len(ctx.pacer.Committee()))
+	assert.Equal(t, int32(1), ctx.HotStuff().GetCurrentView())
+	assert.Equal(t, ctx.Node().Host.ID().Pretty(), ctx.Node().GetPeerInfo().ID.Pretty())
+	assert.Equal(t, 10, len(ctx.Pacer().Committee()))
 
 }

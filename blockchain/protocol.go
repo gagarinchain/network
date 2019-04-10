@@ -3,9 +3,9 @@ package blockchain
 import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/poslibp2p/eth/common"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/protobuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/network"
 	"time"
 )

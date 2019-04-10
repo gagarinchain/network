@@ -6,20 +6,21 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
 	bc "github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/eth/crypto"
+	comm "github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/protobuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 )
 
 type Vote struct {
-	Sender    *msg.Peer
+	Sender    *comm.Peer
 	Header    *bc.Header
 	Signature []byte //We should not allow to change header if we want signature to be consistent with block
 	HQC       *bc.QuorumCertificate
 }
 
-func CreateVote(newBlock *bc.Header, hqc *bc.QuorumCertificate, sender *msg.Peer) *Vote {
+func CreateVote(newBlock *bc.Header, hqc *bc.QuorumCertificate, sender *comm.Peer) *Vote {
 	return &Vote{Sender: sender, Header: newBlock, HQC: hqc}
 }
 

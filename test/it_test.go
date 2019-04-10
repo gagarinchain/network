@@ -4,10 +4,11 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/eth/crypto"
+	"github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/protobuff"
 	"github.com/poslibp2p/hotstuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -542,7 +543,7 @@ func TestScenario6d(t *testing.T) {
 }
 
 type TestContext struct {
-	peers        []*msg.Peer
+	peers        []*common.Peer
 	pacer        *hotstuff.StaticPacer
 	protocol     *hotstuff.Protocol
 	cfg          *hotstuff.ProtocolConfig
@@ -552,7 +553,7 @@ type TestContext struct {
 	voteChan     chan *msg.Message
 	startChan    chan *msg.Message
 	proposalCHan chan *msg.Message
-	me           *msg.Peer
+	me           *common.Peer
 	protocolChan chan *msg.Message
 	blockChan    chan *blockchain.Block
 }
@@ -569,7 +570,7 @@ func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.
 	return votes
 }
 
-func makeVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, peer *msg.Peer) *hotstuff.Vote {
+func makeVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, peer *common.Peer) *hotstuff.Vote {
 	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), peer)
 	vote.Sign(peer.GetPrivateKey())
 	return vote
@@ -634,7 +635,7 @@ func initContext(t *testing.T) *TestContext {
 	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
 	storage.On("GetCurrentEpoch").Return(int32(0), nil)
 
-	peers := make([]*msg.Peer, 10)
+	peers := make([]*common.Peer, 10)
 
 	loader := &mocks.CommitteeLoader{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
@@ -671,7 +672,7 @@ func initContext(t *testing.T) *TestContext {
 	})
 
 	voteChan := make(chan *msg.Message)
-	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*message.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
+	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*common.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
 		Return(make(chan *msg.Message), nil).
 		Run(func(args mock.Arguments) {
 			voteChan <- (args[2]).(*msg.Message)
@@ -679,9 +680,9 @@ func initContext(t *testing.T) *TestContext {
 
 	blockChan := make(chan *blockchain.Block)
 	bsrv.On("RequestBlock", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("common.Hash"),
-		mock.AnythingOfType("*message.Peer")).Return(blockChan, nil)
+		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
 	bsrv.On("RequestFork", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("int32"), mock.AnythingOfType("common.Hash"),
-		mock.AnythingOfType("*message.Peer")).Return(blockChan, nil)
+		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
 	loader.On("LoadFromFile").Return(peers)
 
 	pacer := hotstuff.CreatePacer(config)

@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	bc "github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/eth/common"
-	"github.com/poslibp2p/eth/crypto"
+	comm "github.com/poslibp2p/common"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/protobuff"
 	msg "github.com/poslibp2p/message"
-	"github.com/poslibp2p/message/protobuff"
 )
 
 type Proposal struct {
-	Sender   *msg.Peer
+	Sender   *comm.Peer
 	NewBlock *bc.Block
 	//We should not allow to change header if we want signature to be consistent with block
 	Signature []byte
@@ -25,7 +26,7 @@ func (p *Proposal) GetMessage() *pb.ProposalPayload {
 
 }
 
-func CreateProposal(newBlock *bc.Block, hqc *bc.QuorumCertificate, me *msg.Peer) *Proposal {
+func CreateProposal(newBlock *bc.Block, hqc *bc.QuorumCertificate, me *comm.Peer) *Proposal {
 	return &Proposal{Sender: me, NewBlock: newBlock, HQC: hqc}
 }
 

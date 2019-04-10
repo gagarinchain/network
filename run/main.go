@@ -1,4 +1,4 @@
-package main
+package run
 
 import (
 	"encoding/hex"
@@ -7,6 +7,8 @@ import (
 	golog "github.com/ipfs/go-log"
 	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
 	"github.com/op/go-logging"
+	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
 	"github.com/poslibp2p/message"
 	"github.com/poslibp2p/network"
 	gologging "github.com/whyrusleeping/go-logging"
@@ -50,8 +52,11 @@ func main() {
 	// First let's create a new identity key pair for our node. If this was your
 	// application you would likely save this private key to a database and load
 	// it from the db on subsequent start ups.
-	pk := v["pkpeer"].(string)
-	decodeString, e := hex.DecodeString(pk)
+	pkpeer := v["pkpeer"].(string)
+	addr := v["addr"].(string)
+	pk := v["pk"].(string)
+
+	decodeString, e := hex.DecodeString(pkpeer)
 	privKey, err := p2pcrypto.UnmarshalPrivateKey(decodeString)
 	if err != nil {
 		log.Fatal(err)
@@ -67,7 +72,26 @@ func main() {
 		Committee:  committee,
 	}
 
-	ctx := CreateContext(cfg)
+	var me *common.Peer
+	for _, p := range committee {
+		if common.HexToAddress(addr) == p.GetAddress() {
+			me = p
+			pkbytes, e := hex.DecodeString(pk)
+			if e != nil {
+				log.Error(e)
+				return
+			}
+			key, e := crypto.ToECDSA(pkbytes)
+			if e != nil {
+				log.Error(e)
+				return
+			}
+			p.SetPrivateKey(key)
+			break
+		}
+	}
+
+	ctx := CreateContext(cfg, me)
 
 	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.
