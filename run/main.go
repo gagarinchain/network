@@ -9,7 +9,7 @@ import (
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
-	"github.com/poslibp2p/message"
+	"github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/network"
 	gologging "github.com/whyrusleeping/go-logging"
 	"io/ioutil"

@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"github.com/gogo/protobuf/proto"
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
@@ -71,7 +72,6 @@ func (b *Block) QRef() *Header {
 }
 
 func CreateGenesisBlock() (zero *Block) {
-	//TODO find out what to do with alfa cert
 	data := []byte("Zero")
 	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)),
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)), time.Now().Round(time.Millisecond))
@@ -152,4 +152,18 @@ func (h *Header) Sign(key *ecdsa.PrivateKey) []byte {
 	}
 
 	return sig
+}
+
+func IsValid(block *Block) (bool, error) {
+	if block == nil {
+		return false, errors.New("entity is nil")
+	}
+
+	hash := HashHeader(*block.Header())
+	if block.Header().Hash() != hash {
+		return false, errors.New("block hash is not valid")
+	}
+
+	//todo check other hashes here
+	return true, nil
 }

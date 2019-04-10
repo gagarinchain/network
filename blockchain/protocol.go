@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/common/eth/common"
+	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
-	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/network"
 	"time"
 )
@@ -90,7 +90,8 @@ func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) {
 		log.Error("Can't create response", e)
 		return
 	}
-	p.srv.SendMessage(ctx, req.Source(), msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil))
+	block := msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil)
+	p.srv.SendMessage(ctx, req.Source(), block)
 
 }
 

@@ -9,8 +9,8 @@ import (
 	comm "github.com/poslibp2p/common"
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
+	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
-	msg "github.com/poslibp2p/message"
 )
 
 type Vote struct {

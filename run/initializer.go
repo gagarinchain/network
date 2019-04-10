@@ -5,9 +5,9 @@ import (
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
 	"github.com/poslibp2p/hotstuff"
-	"github.com/poslibp2p/message"
 	"github.com/poslibp2p/network"
 
 	"time"

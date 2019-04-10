@@ -2,11 +2,13 @@ package blockchain
 
 import (
 	"context"
+	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/pkg/errors"
 	com "github.com/poslibp2p/common"
 	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/message"
 	"github.com/poslibp2p/network"
 )
 
@@ -77,14 +79,14 @@ func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Has
 		}
 
 		if m.Type != pb.Message_BLOCK_RESPONSE {
-			log.Errorf("Received message of type %v, but expected %v", m.Type.String(), pb.Message_BLOCK_RESPONSE.String())
+			err <- errors.New(fmt.Sprintf("Received message of type %v, but expected %v", m.Type.String(), pb.Message_BLOCK_RESPONSE.String()))
 			close(resp)
 			return
 		}
 
 		rp := &pb.BlockResponsePayload{}
-		if err := ptypes.UnmarshalAny(m.Payload, rp); err != nil {
-			log.Error("Couldn't unmarshal response", err)
+		if e := ptypes.UnmarshalAny(m.Payload, rp); e != nil {
+			err <- e
 			close(resp)
 			return
 		}
@@ -93,7 +95,15 @@ func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Has
 			block := CreateBlockFromMessage(blockM)
 
 			log.Info("Received new block")
-			//TODO validate block
+			isValid, e := IsValid(block)
+			if e != nil {
+				log.Errorf("Block %d is not  valid", block.Header().Hash())
+				continue
+			}
+			if !isValid {
+				log.Errorf("Block %d is not  valid", block.Header().Hash())
+				continue
+			}
 			resp <- block
 		}
 

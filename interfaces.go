@@ -23,4 +23,5 @@ import (
 type Validator interface {
 	IsValid(entity interface{}) (bool, error)
 	Supported(mType pb.Message_MessageType) bool
+	GetId() interface{}
 }

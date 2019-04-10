@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
+	"github.com/poslibp2p"
 	bc "github.com/poslibp2p/blockchain"
 	comm "github.com/poslibp2p/common"
 	"github.com/poslibp2p/common/eth/common"
+	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
-	msg "github.com/poslibp2p/message"
 	"github.com/poslibp2p/network"
 	"math/rand"
 	"strconv"
@@ -82,6 +83,7 @@ type ProtocolConfig struct {
 	Srv         network.Service
 	Sync        bc.Synchronizer
 	Pacer       *StaticPacer
+	Validators  []poslibp2p.Validator
 	Storage     bc.Storage
 	Committee   []*comm.Peer
 	ControlChan chan Command
@@ -105,6 +107,7 @@ type Protocol struct {
 	hqc                   *bc.QuorumCertificate
 	me                    *comm.Peer
 	pacer                 *StaticPacer
+	validators            []poslibp2p.Validator
 	storage               bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	srv                   network.Service
 	sync                  bc.Synchronizer
@@ -131,6 +134,7 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		hqc:                 cfg.Blockchain.GetGenesisCert(),
 		me:                  cfg.Me,
 		pacer:               cfg.Pacer,
+		validators:          cfg.Validators,
 		storage:             cfg.Storage,
 		srv:                 cfg.Srv,
 		sync:                cfg.Sync,
@@ -517,10 +521,12 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 			switch m.Type {
 			case pb.Message_VOTE:
 				log.Debugf("received vote")
-
-				v, err := CreateVoteFromMessage(m)
-				if err != nil {
-					log.Error(err)
+				v, e := CreateVoteFromMessage(m)
+				if e != nil {
+					log.Error("Error while creating proposal, ", e)
+					break
+				}
+				if !p.validateMessage(v, pb.Message_VOTE) {
 					break
 				}
 				timeout, _ := context.WithTimeout(ctx, p.delta)
@@ -534,6 +540,11 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 					log.Error(err)
 					break
 				}
+
+				if !p.validateMessage(p, pb.Message_PROPOSAL) {
+					break
+				}
+
 				parent := pr.NewBlock.Header().Parent()
 				if !p.blockchain.Contains(parent) {
 					err := p.sync.RequestFork(ctx, parent, pr.Sender)
@@ -543,13 +554,15 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 					}
 				}
 
-				p.validate(pr)
 				timeout, _ := context.WithTimeout(ctx, p.delta)
 				if err := p.OnReceiveProposal(timeout, pr); err != nil {
 					log.Error("Error while handling proposal, ", err)
 				}
 			case pb.Message_EPOCH_START:
 				timeout, _ := context.WithTimeout(ctx, p.delta)
+				if !p.validateMessage(p, pb.Message_EPOCH_START) {
+					break
+				}
 				p.OnEpochStart(timeout, m)
 			}
 		case event := <-p.controlChan:
@@ -561,6 +574,24 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 			return
 		}
 	}
+}
+
+func (p *Protocol) validateMessage(entity interface{}, messageType pb.Message_MessageType) bool {
+	for _, v := range p.validators {
+		if v.Supported(messageType) {
+			isValid, e := v.IsValid(entity)
+			if e != nil {
+				log.Error("Error while validating message, ", e)
+				return false
+			}
+			if !isValid {
+				log.Error("Message is not valid, failed rule %v", v.GetId())
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (p *Protocol) handleControlEvent(event Command) {

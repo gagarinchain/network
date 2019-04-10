@@ -9,8 +9,8 @@ import (
 	"github.com/libp2p/go-libp2p-peer"
 	"github.com/libp2p/go-libp2p-protocol"
 	"github.com/poslibp2p/common"
+	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
-	msg "github.com/poslibp2p/message"
 	"io"
 	"math/rand"
 )

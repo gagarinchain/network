@@ -11,6 +11,10 @@ type EpochStartValidator struct {
 	committee []*common.Peer
 }
 
+func (ev *EpochStartValidator) GetId() interface{} {
+	return "EpochStart"
+}
+
 func (ev *EpochStartValidator) IsValid(entity interface{}) (bool, error) {
 	if entity == nil {
 		return false, errors.New("entity is nil")
@@ -37,6 +41,10 @@ func (ev *EpochStartValidator) Supported(mType pb.Message_MessageType) bool {
 
 type ProposalValidator struct {
 	committee []*common.Peer
+}
+
+func (p *ProposalValidator) GetId() interface{} {
+	return "Proposal"
 }
 
 func (p *ProposalValidator) IsValid(entity interface{}) (bool, error) {
@@ -73,6 +81,10 @@ type VoteValidator struct {
 	committee []*common.Peer
 }
 
+func (p *VoteValidator) GetId() interface{} {
+	return "Proposal"
+}
+
 func (p *VoteValidator) IsValid(entity interface{}) (bool, error) {
 	if entity == nil {
 		return false, errors.New("entity is nil")
@@ -90,20 +102,6 @@ func (p *VoteValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("signature is not valid, unknown peer")
 	}
 
-	return true, nil
-}
-
-func IsValid(block *blockchain.Block) (bool, error) {
-	if block == nil {
-		return false, errors.New("entity is nil")
-	}
-
-	hash := blockchain.HashHeader(*block.Header())
-	if block.Header().Hash() != hash {
-		return false, errors.New("block hash is not valid")
-	}
-
-	//todo check other hashes here
 	return true, nil
 }
 
