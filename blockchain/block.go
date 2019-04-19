@@ -66,6 +66,8 @@ func (b *Block) QC() *QuorumCertificate {
 }
 func (b *Block) SetQC(qc *QuorumCertificate) {
 	b.qc = qc
+	b.header.qcHash = qc.GetHash()
+	b.header.SetHash()
 }
 func (b *Block) QRef() *Header {
 	return b.QC().QrefBlock()
@@ -74,7 +76,8 @@ func (b *Block) QRef() *Header {
 func CreateGenesisBlock() (zero *Block) {
 	data := []byte("Zero")
 	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)),
-		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)), time.Now().Round(time.Millisecond))
+		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)),
+		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
 	//We need block to calculate it's hash
 	zero = &Block{header: zeroHeader, data: data}
@@ -113,7 +116,7 @@ func (b *Block) GetMessage() *pb.Block {
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
-	return createHeader(header.Height, common.BytesToHash(header.Hash), common.BytesToHash(header.QcHash), common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(0, header.Timestamp))
+	return createHeader(header.Height, common.BytesToHash(header.Hash), common.BytesToHash(header.QcHash), common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(0, header.Timestamp).UTC())
 }
 
 func (h *Header) GetMessage() *pb.BlockHeader {
@@ -133,7 +136,10 @@ func (h *Header) SetHash() {
 
 //We intentionally use this method on structure not on pointer to it, we need of blockHeader here
 func HashHeader(h Header) common.Hash {
-	h.hash = common.Hash{}
+	h.hash = common.BytesToHash(make([]byte, common.HashLength))
+	if h.IsGenesisBlock() {
+		h.qcHash = common.BytesToHash(make([]byte, common.HashLength))
+	}
 	m := h.GetMessage()
 	bytes, e := proto.Marshal(m)
 	if e != nil {
@@ -164,6 +170,15 @@ func IsValid(block *Block) (bool, error) {
 		return false, errors.New("block hash is not valid")
 	}
 
-	//todo check other hashes here
+	dataHash := crypto.Keccak256(block.Data())
+	if common.BytesToHash(dataHash) != block.Header().DataHash() {
+		return false, errors.New("data hash is not valid")
+	}
+
+	qcHash := block.QC().GetHash()
+	if qcHash != block.Header().QCHash() {
+		return false, errors.New("QC hash is not valid")
+	}
+
 	return true, nil
 }

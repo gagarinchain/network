@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p"
@@ -114,6 +115,10 @@ type Protocol struct {
 	controlChan           chan Command
 	stopChan              chan bool
 }
+
+//func (p Protocol) String() string {
+//	return fmt.Sprintf("%b", b)
+//}
 
 func (p *Protocol) Vheight() int32 {
 	return p.vheight
@@ -263,7 +268,6 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 
 	if p.CheckConsensus() {
 		p.FinishQC(vote.Header)
-		//todo load blocks earlier maybe
 		_, loaded := p.blockchain.GetBlockByHashOrLoad(vote.Header.Hash())
 		//rare case when we missed proposal, but we are next proposer and received all votes, in this case we go to next view and propose
 		//this situation is the same as when we received proposal
@@ -390,8 +394,11 @@ func (p *Protocol) StartEpoch(ctx context.Context, i int32) {
 	p.IsStartingEpoch = true
 	var epoch *Epoch
 	//todo think about moving it to epoch
+	log.Debugf("current epoch %v", p.currentEpoch)
 	if p.currentEpoch == 0 {
-		epoch = CreateEpoch(p.me, i, nil, p.blockchain.GetGenesisBlockSignedHash(p.me.GetPrivateKey()))
+		signedHash := p.blockchain.GetGenesisBlockSignedHash(p.me.GetPrivateKey())
+		log.Debugf("current epoch is zero, got signature %v", signedHash)
+		epoch = CreateEpoch(p.me, i, nil, signedHash)
 	} else {
 		epoch = CreateEpoch(p.me, i, p.HQC(), nil)
 	}
@@ -400,27 +407,26 @@ func (p *Protocol) StartEpoch(ctx context.Context, i int32) {
 	if e != nil {
 		log.Error("Can't create Epoch message", e)
 	}
+	log.Info("Sending epoch message: " + spew.Sdump(m))
 	go p.srv.Broadcast(ctx, m)
 }
 
-func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) {
+func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) error {
 	epoch, e := CreateEpochFromMessage(m)
 	if e != nil {
-		log.Error(e)
-		return
+		return e
 	}
 
 	if epoch.number < p.currentEpoch+1 {
 		log.Warning("received epoch message for previous epoch ", epoch.number)
-		return
+		return nil
 	}
 
 	if epoch.genesisSignature != nil {
 		res := p.blockchain.ValidateGenesisBlockSignature(epoch.genesisSignature, epoch.sender.GetAddress())
 		if !res {
-			log.Errorf("Peer %v sent wrong genesis block signature", epoch.sender.GetAddress().Hex())
 			p.equivocate(epoch.sender)
-			return
+			return errors.New(fmt.Sprintf("Peer %v sent wrong genesis block signature", epoch.sender.GetAddress().Hex()))
 		}
 		p.epochVoteStorage[epoch.sender.GetAddress()] = epoch.genesisSignature
 	}
@@ -443,11 +449,12 @@ func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) {
 
 	if max.n <= p.currentEpoch && int(max.c) == p.f/3+1 {
 		//really impossible, because one peer is fair, and is not synchronized
-		log.Fatal("Somehow we are ahead on epochs than f + 1 peers, it is impossible")
+		return errors.New("somehow we are ahead on epochs than f + 1 peers, it is impossible")
 	}
 
 	//We received at least 1 message from fair peer, should resynchronize our epoch
-	if int(max.c) == p.f/3+1 {
+	if int(max.c) == p.f/3+1 && !p.IsStartingEpoch {
+		log.Debugf("Received F/3 + 1 start epoch messages, starting new epoch")
 		p.StartEpoch(ctx, max.n)
 	}
 
@@ -458,6 +465,8 @@ func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) {
 		}
 		p.newEpoch(max.n)
 	}
+
+	return nil
 }
 
 func (p *Protocol) newEpoch(i int32) {
@@ -517,53 +526,9 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 				log.Warningf("Received message [%v] while starting new epoch, skipping...", m.Type)
 				break
 			}
-
-			switch m.Type {
-			case pb.Message_VOTE:
-				log.Debugf("received vote")
-				v, e := CreateVoteFromMessage(m)
-				if e != nil {
-					log.Error("Error while creating proposal, ", e)
-					break
-				}
-				if !p.validateMessage(v, pb.Message_VOTE) {
-					break
-				}
-				timeout, _ := context.WithTimeout(ctx, p.delta)
-				if err := p.OnReceiveVote(timeout, v); err != nil {
-					log.Error("Error while handling vote, ", err)
-				}
-			case pb.Message_PROPOSAL:
-				log.Debugf("received proposal")
-				pr, err := CreateProposalFromMessage(m)
-				if err != nil {
-					log.Error(err)
-					break
-				}
-
-				if !p.validateMessage(p, pb.Message_PROPOSAL) {
-					break
-				}
-
-				parent := pr.NewBlock.Header().Parent()
-				if !p.blockchain.Contains(parent) {
-					err := p.sync.RequestFork(ctx, parent, pr.Sender)
-					if err != nil {
-						log.Error("Error while processing proposal", err)
-						continue
-					}
-				}
-
-				timeout, _ := context.WithTimeout(ctx, p.delta)
-				if err := p.OnReceiveProposal(timeout, pr); err != nil {
-					log.Error("Error while handling proposal, ", err)
-				}
-			case pb.Message_EPOCH_START:
-				timeout, _ := context.WithTimeout(ctx, p.delta)
-				if !p.validateMessage(p, pb.Message_EPOCH_START) {
-					break
-				}
-				p.OnEpochStart(timeout, m)
+			if err := p.handleMessage(ctx, m); err != nil {
+				log.Error(err)
+				break
 			}
 		case event := <-p.controlChan:
 			ctx = event.ctx
@@ -576,22 +541,20 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 	}
 }
 
-func (p *Protocol) validateMessage(entity interface{}, messageType pb.Message_MessageType) bool {
+func (p *Protocol) validateMessage(entity interface{}, messageType pb.Message_MessageType) error {
 	for _, v := range p.validators {
 		if v.Supported(messageType) {
 			isValid, e := v.IsValid(entity)
 			if e != nil {
-				log.Error("Error while validating message, ", e)
-				return false
+				return e
 			}
 			if !isValid {
-				log.Error("Message is not valid, failed rule %v", v.GetId())
-				return false
+				return e
 			}
 		}
 	}
 
-	return true
+	return nil
 }
 
 func (p *Protocol) handleControlEvent(event Command) {
@@ -606,7 +569,9 @@ func (p *Protocol) handleControlEvent(event Command) {
 }
 
 func (p *Protocol) Stop() {
-	p.stopChan <- true
+	go func() {
+		p.stopChan <- true
+	}()
 }
 
 func (p *Protocol) GetCurrentView() int32 {
@@ -618,6 +583,57 @@ func (p *Protocol) GetCurrentView() int32 {
 func (p *Protocol) validate(proposal *Proposal) error {
 	if proposal.NewBlock == nil {
 		return errors.New("proposed block can't be empty")
+	}
+
+	return nil
+}
+
+func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
+	switch m.Type {
+	case pb.Message_VOTE:
+		log.Debugf("received vote")
+		v, e := CreateVoteFromMessage(m)
+		if e != nil {
+			return e
+		}
+		if e := p.validateMessage(v, pb.Message_VOTE); e != nil {
+			return e
+		}
+		timeout, _ := context.WithTimeout(ctx, p.delta)
+		if err := p.OnReceiveVote(timeout, v); err != nil {
+			return err
+		}
+	case pb.Message_PROPOSAL:
+		log.Debugf("received proposal")
+		pr, err := CreateProposalFromMessage(m)
+		if err != nil {
+			return err
+		}
+
+		if e := p.validateMessage(p, pb.Message_PROPOSAL); e != nil {
+			return e
+		}
+
+		parent := pr.NewBlock.Header().Parent()
+		if !p.blockchain.Contains(parent) {
+			err := p.sync.RequestFork(ctx, parent, pr.Sender)
+			if err != nil {
+				return err
+			}
+		}
+
+		timeout, _ := context.WithTimeout(ctx, p.delta)
+		if err := p.OnReceiveProposal(timeout, pr); err != nil {
+			return err
+		}
+	case pb.Message_EPOCH_START:
+		timeout, _ := context.WithTimeout(ctx, p.delta)
+		if e := p.validateMessage(p, pb.Message_EPOCH_START); e != nil {
+			return e
+		}
+		if err := p.OnEpochStart(timeout, m); err != nil {
+			return err
+		}
 	}
 
 	return nil

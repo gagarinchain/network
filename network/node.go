@@ -60,7 +60,7 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("I am %v", peerHost.Addrs)
+	log.Infof("I am %v", peerHost.Addrs()[0])
 
 	// Create a leveldb datastore
 	dstore, err := leveldb.NewDatastore(path.Join(config.DataDir, "poslibp2p"), nil)
@@ -108,9 +108,9 @@ func (n *Node) GetPeerInfo() *peerstore.PeerInfo {
 
 // Will bootstrap the peer host using the provided bootstrap peers. Once the host
 // has been bootstrapped it will proceed to bootstrap the DHT.
-func (n *Node) Bootstrap() error {
+func (n *Node) Bootstrap(ctx context.Context) (statusChan chan int, errChan chan error) {
 	peers := n.bootstrapPeers
-	return Bootstrap(n.Routing.(*dht.IpfsDHT), n.Host, bootstrapWithPeers(peers))
+	return Bootstrap(ctx, n.Routing.(*dht.IpfsDHT), n.Host, bootstrapWithPeers(peers))
 }
 
 // Shutdown will cancel the context shared by the various components which will shut them all down

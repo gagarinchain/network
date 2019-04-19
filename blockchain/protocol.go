@@ -2,6 +2,8 @@ package blockchain
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/common/eth/common"
 	msg "github.com/poslibp2p/common/message"
@@ -16,15 +18,51 @@ type BlockProtocol struct {
 	srv  network.Service
 	bc   *Blockchain
 	sync Synchronizer
+	stop chan int
 }
 
 var Version int32 = 1
 
 func CreateBlockProtocol(srv network.Service, bc *Blockchain, sync Synchronizer) *BlockProtocol {
-	return &BlockProtocol{srv: srv, bc: bc, sync: sync}
+	return &BlockProtocol{srv: srv, bc: bc, sync: sync, stop: make(chan int)}
 }
 
-func (p *BlockProtocol) Bootstrap(ctx context.Context) {
+func (p *BlockProtocol) Bootstrap(ctx context.Context) (respChan chan int, errChan chan error) {
+	respChan = make(chan int)
+	errChan = make(chan error)
+	//todo move to config
+	t := time.NewTicker(5 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-t.C:
+				if err := p.SendHello(ctx); err != nil {
+					log.Debug(err)
+					errChan <- err
+				} else {
+					t.Stop()
+					respChan <- 0
+				}
+			case <-ctx.Done():
+				t.Stop()
+				return
+			}
+		}
+	}()
+	go func() {
+		if err := p.SendHello(ctx); err != nil {
+			log.Debug(err)
+			errChan <- err
+			return
+		}
+		t.Stop()
+		respChan <- 0
+	}()
+	return respChan, errChan
+}
+
+func (p *BlockProtocol) SendHello(ctx context.Context) error {
+	log.Debug("Sending Hello message")
 	rq := &pb.Message{Type: pb.Message_HELLO_REQUEST}
 	m := &msg.Message{Message: rq}
 	mChan, err := p.srv.SendRequestToRandomPeer(ctx, m)
@@ -32,42 +70,42 @@ func (p *BlockProtocol) Bootstrap(ctx context.Context) {
 	select {
 	case b, ok := <-mChan:
 		if !ok {
-			log.Fatal("Error while requesting hello, channel is closed")
-			return
+			return errors.New("error while requesting hello, channel is closed")
 		} else {
 			resp = b
 		}
 	case err := <-err:
-		log.Fatal("Error while requesting hello", err)
+		return err
 	}
 
 	if resp.Type != pb.Message_HELLO_RESPONSE {
-		log.Errorf("Not expected msg type %v response to Hello", resp.Type)
+		return errors.New(fmt.Sprintf("not expected msg type %v response to Hello", resp.Type))
 	}
 
 	h := &pb.HelloPayload{}
 	if err := ptypes.UnmarshalAny(resp.Payload, h); err != nil {
-		log.Error("Couldn't unmarshal response", err)
+		return err
 	}
 	//TODO check here different equivocations, such as very high block heights etc
 	if h.GetVersion() != Version {
-		log.Fatal("Wrong version")
-		return
+		return errors.New("wrong version")
 	}
 
 	if h.GetTopBlockHeight() > p.bc.GetTopHeight() {
-		if err := p.sync.RequestBlocks(ctx, p.bc.GetTopHeight(), h.GetTopBlockHeight(), nil); err != nil {
-			log.Fatal("Error while loading blocks", err)
+		//log.Info("loading absent blocks from %v to %v, peer %v", p.bc.GetTopHeight(), h.GetTopBlockHeight(), resp.Source().GetPeerInfo().ID.Pretty())
+		if err := p.sync.RequestBlocks(ctx, p.bc.GetTopHeight(), h.GetTopBlockHeight(), resp.Source()); err != nil {
+			return err
 		}
 	}
+
+	return nil
 }
 
-func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) {
+func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) error {
 	payload := req.GetPayload()
 	br := &pb.BlockRequestPayload{}
 	if err := ptypes.UnmarshalAny(payload, br); err != nil {
-		log.Error("Can't unmarshal block request payload", err)
-		return
+		return err
 	}
 
 	var blocks []*Block
@@ -81,18 +119,16 @@ func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) {
 
 	resp, e := createBlockResponse(blocks)
 	if e != nil {
-		log.Error("Can't create response", e)
-		return
+		return e
 	}
 
 	any, e := ptypes.MarshalAny(resp)
 	if e != nil {
-		log.Error("Can't create response", e)
-		return
+		return e
 	}
 	block := msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil)
 	p.srv.SendMessage(ctx, req.Source(), block)
-
+	return nil
 }
 
 func createBlockResponse(blocks []*Block) (*pb.BlockResponsePayload, error) {
@@ -110,10 +146,10 @@ func createBlockResponse(blocks []*Block) (*pb.BlockResponsePayload, error) {
 	return &pb.BlockResponsePayload{Response: p}, nil
 }
 
-func (p *BlockProtocol) OnHello(ctx context.Context, m *msg.Message) {
+func (p *BlockProtocol) OnHello(ctx context.Context, m *msg.Message) error {
+	log.Debug("processing hello message")
 	if m.GetType() != pb.Message_HELLO_REQUEST {
-		log.Error("wrong message type, expected ", pb.Message_HELLO_REQUEST.String())
-		return
+		return errors.New(fmt.Sprintf("wrong message type, expected %v", pb.Message_HELLO_REQUEST.String()))
 	}
 
 	payload := &pb.HelloPayload{}
@@ -123,9 +159,51 @@ func (p *BlockProtocol) OnHello(ctx context.Context, m *msg.Message) {
 
 	any, e := ptypes.MarshalAny(payload)
 	if e != nil {
-		log.Error("Can't marshal block request payload", e)
-		return
+		return e
 	}
 	resp := msg.CreateMessage(pb.Message_HELLO_RESPONSE, any, nil)
+	resp.SetStream(m.Stream())
 	p.srv.SendMessage(ctx, m.Source(), resp)
+
+	return nil
+}
+
+func (p *BlockProtocol) Run(ctx context.Context, protocolChan chan *msg.Message) {
+	for {
+		select {
+		case m := <-protocolChan:
+			log.Debug("received message")
+			e := p.handleMessage(ctx, m)
+			if e != nil {
+				log.Error(e)
+			}
+		case <-ctx.Done():
+			log.Error(ctx.Err())
+			return
+		case <-p.stop:
+			log.Info("Block protocol stopped")
+			return
+		}
+	}
+}
+
+func (p *BlockProtocol) Stop() {
+	go func() {
+		p.stop <- 0
+	}()
+}
+
+func (p *BlockProtocol) handleMessage(ctx context.Context, m *msg.Message) error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("panic occurred: ", r)
+		}
+	}()
+	switch m.GetType() {
+	case pb.Message_HELLO_REQUEST:
+		return p.OnHello(ctx, m)
+	case pb.Message_BLOCK_REQUEST:
+		return p.OnHello(ctx, m)
+	}
+	return nil
 }

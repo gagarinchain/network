@@ -35,9 +35,9 @@ type BootstrapConfig struct {
 
 //Default parameters for bootstrapping
 var DefaultBootstrapConfig = BootstrapConfig{
-	MinPeerThreshold:  2,
-	Period:            30 * time.Second,
-	ConnectionTimeout: (30 * time.Second) / 3,
+	MinPeerThreshold:  3,
+	Period:            10 * time.Second,
+	ConnectionTimeout: (10 * time.Second) / 3,
 }
 
 func bootstrapWithPeers(committee []*common.Peer) BootstrapConfig {
@@ -51,32 +51,56 @@ func bootstrapWithPeers(committee []*common.Peer) BootstrapConfig {
 	return cfg
 }
 
-//We Start services here
-func Bootstrap(routing *dht.IpfsDHT, peerHost host.Host, cfg BootstrapConfig) error {
-	// ticker for bootstrapping
-	tick := func() {
-		if err := bootstrapTick(context.Background(), peerHost, cfg); err != nil {
-			log.Debugf("bootstrap error: %s", err)
-		}
+//Start network services here
+func Bootstrap(ctx context.Context, routing *dht.IpfsDHT, peerHost host.Host, cfg BootstrapConfig) (statusChan chan int, errChan chan error) {
+	statusChan = make(chan int)
+	errChan = make(chan error)
+
+	watchdog := &Watchdog{
+		host: peerHost,
+		cfg:  cfg,
+		res:  statusChan,
+		err:  errChan,
+	}
+	go watchdog.watch(ctx)
+	//Start DHT
+	_, err := routing.BootstrapWithConfig(dht.DefaultBootstrapConfig)
+	if err != nil {
+		go func() {
+			errChan <- err
+		}()
 	}
 
-	t := time.NewTicker(cfg.Period)
+	return statusChan, errChan
+}
+
+type Watchdog struct {
+	host host.Host
+	cfg  BootstrapConfig
+	res  chan int
+	err  chan error
+}
+
+func (w *Watchdog) watch(ctx context.Context) {
+	t := time.NewTicker(w.cfg.Period)
 	go func() {
 		for {
 			select {
 			case <-t.C:
-				log.Debugf("Ticking...")
-				tick()
+				if err := bootstrapTick(ctx, w.host, w.cfg); err != nil {
+					w.err <- err
+				} else {
+					w.res <- 0
+				}
+			case <-ctx.Done():
+				t.Stop()
+				return
 			}
 		}
 	}()
-	tick()
-
-	//Start DHT
-	if _, err := routing.BootstrapWithConfig(dht.DefaultBootstrapConfig); err != nil {
-		return err
+	if err := bootstrapTick(ctx, w.host, w.cfg); err != nil {
+		w.err <- err
 	}
-	return nil
 }
 
 func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) error {

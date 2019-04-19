@@ -10,6 +10,22 @@ type Validator struct {
 	mock.Mock
 }
 
+// GetId provides a mock function with given fields:
+func (_m *Validator) GetId() interface{} {
+	ret := _m.Called()
+
+	var r0 interface{}
+	if rf, ok := ret.Get(0).(func() interface{}); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(interface{})
+		}
+	}
+
+	return r0
+}
+
 // IsValid provides a mock function with given fields: entity
 func (_m *Validator) IsValid(entity interface{}) (bool, error) {
 	ret := _m.Called(entity)

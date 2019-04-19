@@ -1,4 +1,4 @@
-package run
+package main
 
 import (
 	"encoding/hex"
@@ -7,9 +7,9 @@ import (
 	golog "github.com/ipfs/go-log"
 	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
 	"github.com/op/go-logging"
+	cmn "github.com/poslibp2p/common"
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
-	"github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/network"
 	gologging "github.com/whyrusleeping/go-logging"
 	"io/ioutil"
@@ -31,10 +31,10 @@ func main() {
 	golog.SetAllLoggers(gologging.INFO)
 
 	// Parse options from the command line
-	ind := flag.Int("l", 0, "peer index")
+	ind := flag.Int("l", -1, "peer index")
 	flag.Parse()
 
-	if *ind == 0 {
+	if *ind == -1 {
 		log.Fatal("Please provide peer index with -l")
 	}
 
@@ -62,17 +62,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var loader message.CommitteeLoader = &message.CommitteeLoaderImpl{}
+	var loader cmn.CommitteeLoader = &cmn.CommitteeLoaderImpl{}
 	committee := loader.LoadFromFile("static/peers.json")
 	// Next we'll create the node config
 	cfg := &network.NodeConfig{
 		PrivateKey: privKey,
-		Port:       8000 + uint16(*ind),
+		Port:       9080 + uint16(*ind),
 		DataDir:    path.Join(os.TempDir(), strconv.Itoa(*ind)),
-		Committee:  committee,
+		Committee:  committee[0:2],
 	}
 
-	var me *common.Peer
+	var me *cmn.Peer
 	for _, p := range committee {
 		if common.HexToAddress(addr) == p.GetAddress() {
 			me = p
@@ -96,40 +96,6 @@ func main() {
 	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.
 	ctx.Bootstrap()
-
-	// Publish to the topic
-	//var text = "Hello"
-	//any, e := ptypes.MarshalAny(&pb.HelloPayload{HelloMessage: text})
-	//if e != nil {
-	//	log.Fatal(err)
-	//}
-	//
-	//var msg = &pb.Message{Type: pb.Message_HELLO, Payload: any}
-	//marshalled, e := proto.Marshal(msg)
-	//if e != nil {
-	//	log.Fatal(err)
-	//}
-
-	//log.Infof("Publishing message [%s] to topic..", marshalled)
-	//
-	//tick := func() {
-	//	err = node.PubSub.Publish(context.Background(), "shard", marshalled)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//}
-	//
-	//t := time.NewTicker(11 * time.Second)
-	//go func() {
-	//	for {
-	//		select {
-	//		case <-t.C:
-	//			log.Debugf("Sending...")
-	//			tick()
-	//		}
-	//	}
-	//}()
-	//tick()
 
 	select {}
 

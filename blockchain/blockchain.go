@@ -74,6 +74,19 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
 	return block
 }
 
+func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
+	block, ok := bc.committedTailByHeight.Get(height)
+	if !ok {
+		blocks, ok := bc.uncommittedHeadByHeight.Get(height)
+		if ok {
+			res = append(res, blocks.([]*Block)...)
+		}
+	} else {
+		res = append(res, block.(*Block))
+	}
+	return res
+}
+
 func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded bool) {
 	loaded = !bc.Contains(hash)
 	if loaded {
@@ -257,7 +270,7 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 	}
 
 	//todo should load blocks earlier
-	parent, _ := bc.GetBlockByHashOrLoad(sibling.parent)
+	parent := bc.GetBlockByHash(sibling.parent)
 
 	if parent.Header().IsGenesisBlock() || parent.header.height < ancestor.height {
 		return false
@@ -272,7 +285,7 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 
 func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
 	header := createHeader(parent.Header().Height()+1, common.Hash{}, qc.GetHash(), crypto.Keccak256Hash(data),
-		parent.Header().Hash(), time.Now().Round(time.Second))
+		parent.Header().Hash(), time.Now().UTC().Round(time.Second))
 	header.SetHash()
 	block := &Block{header: header, data: data, qc: qc}
 
@@ -290,21 +303,9 @@ func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
 	return block
 }
 
-func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
-	block, ok := bc.committedTailByHeight.Get(height)
-	if !ok {
-		blocks, ok := bc.uncommittedHeadByHeight.Get(height)
-		if ok {
-			res = append(res, blocks.([]*Block)...)
-		}
-	} else {
-		res = append(res, block.(*Block))
-	}
-	return res
-}
-
 func (bc *Blockchain) GetGenesisBlockSignedHash(key *ecdsa.PrivateKey) []byte {
-	sig, e := crypto.Sign(bc.GetGenesisBlock().Header().Hash().Bytes(), key)
+	hash := bc.GetGenesisBlock().Header().Hash()
+	sig, e := crypto.Sign(hash.Bytes(), key)
 	if e != nil {
 		log.Fatal("Can't sign genesis block")
 	}
@@ -312,7 +313,8 @@ func (bc *Blockchain) GetGenesisBlockSignedHash(key *ecdsa.PrivateKey) []byte {
 
 }
 func (bc *Blockchain) ValidateGenesisBlockSignature(signature []byte, address common.Address) bool {
-	pub, e := crypto.SigToPub(bc.GetGenesisBlock().Header().Hash().Bytes(), signature)
+	hash := bc.GetGenesisBlock().Header().Hash()
+	pub, e := crypto.SigToPub(hash.Bytes(), signature)
 	if e != nil {
 		log.Error("bad epoch signature")
 		return false

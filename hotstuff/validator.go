@@ -11,6 +11,10 @@ type EpochStartValidator struct {
 	committee []*common.Peer
 }
 
+func NewEpochStartValidator(committee []*common.Peer) *EpochStartValidator {
+	return &EpochStartValidator{committee: committee}
+}
+
 func (ev *EpochStartValidator) GetId() interface{} {
 	return "EpochStart"
 }
@@ -41,6 +45,10 @@ func (ev *EpochStartValidator) Supported(mType pb.Message_MessageType) bool {
 
 type ProposalValidator struct {
 	committee []*common.Peer
+}
+
+func NewProposalValidator(committee []*common.Peer) *ProposalValidator {
+	return &ProposalValidator{committee: committee}
 }
 
 func (p *ProposalValidator) GetId() interface{} {
@@ -79,6 +87,10 @@ func (p *ProposalValidator) Supported(mType pb.Message_MessageType) bool {
 
 type VoteValidator struct {
 	committee []*common.Peer
+}
+
+func NewVoteValidator(committee []*common.Peer) *VoteValidator {
+	return &VoteValidator{committee: committee}
 }
 
 func (p *VoteValidator) GetId() interface{} {

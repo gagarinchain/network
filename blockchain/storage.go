@@ -23,8 +23,9 @@ type Storage interface {
 }
 
 const BlockPrefix = byte(0x0)
-const CurrentEpochPrefix = byte(0x1)
-const CurrentTopHeightPrefix = byte(0x2)
+const HeightIndexPrefix = byte(0x1)
+const CurrentEpochPrefix = byte(0x2)
+const CurrentTopHeightPrefix = byte(0x3)
 
 const DefaultIntValue = 0
 

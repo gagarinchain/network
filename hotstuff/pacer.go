@@ -55,7 +55,7 @@ func (p *StaticPacer) GetNext(currentView int32) *common.Peer {
 	return p.committee[int(currentView+1)%len(p.committee)]
 }
 
-func (p *StaticPacer) Run(ctx context.Context) error {
+func (p *StaticPacer) Run(ctx context.Context) {
 	log.Info("Starting pacer...")
 	p.eventNotifier.SubscribeProtocolEvents(p.eventChan)
 
@@ -109,9 +109,9 @@ func (p *StaticPacer) Run(ctx context.Context) error {
 			}
 		case <-p.stopChan:
 			f()
-			return nil
+			return
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		}
 
 	}

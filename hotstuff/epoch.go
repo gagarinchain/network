@@ -53,6 +53,7 @@ func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
 	var ep *Epoch
 	if cert := p.GetCert(); cert != nil {
 		ep = CreateEpoch(msg.Source(), p.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(cert), p.GetGenesisSignature())
+
 	} else {
 		ep = CreateEpoch(msg.Source(), p.EpochNumber, nil, p.GetGenesisSignature())
 	}
@@ -76,6 +77,7 @@ func CalculateHash(ep *pb.EpochStartPayload) (common.Hash, error) {
 		return common.Hash{}, errors.Errorf("error while marshalling payload", e)
 	}
 	hashbytes := common.BytesToHash(crypto.Keccak256(any.GetValue()))
+
 	return hashbytes, e
 }
 
@@ -96,6 +98,7 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 	if e != nil {
 		return nil, errors.Errorf("error while marshalling payload", e)
 	}
+	log.Debugf("to message addr: %v, hash %v", ep.sender.GetAddress().Hex(), hash)
 
 	return msg.CreateMessage(pb.Message_EPOCH_START, any2, ep.sender), nil
 }

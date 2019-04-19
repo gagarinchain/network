@@ -38,3 +38,8 @@ func (qc *QuorumCertificate) GetHash() common.Hash {
 	bytes := append(crypto.Keccak256(qc.signatureAggregate), qc.QrefBlock().Hash().Bytes()...)
 	return common.BytesToHash(crypto.Keccak256(bytes))
 }
+
+func (qc *QuorumCertificate) RecoverSigners() []common.Address {
+
+	return nil
+}

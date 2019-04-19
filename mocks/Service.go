@@ -12,6 +12,31 @@ type Service struct {
 	mock.Mock
 }
 
+// Bootstrap provides a mock function with given fields: ctx
+func (_m *Service) Bootstrap(ctx context.Context) (chan int, chan error) {
+	ret := _m.Called(ctx)
+
+	var r0 chan int
+	if rf, ok := ret.Get(0).(func(context.Context) chan int); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(chan int)
+		}
+	}
+
+	var r1 chan error
+	if rf, ok := ret.Get(1).(func(context.Context) chan error); ok {
+		r1 = rf(ctx)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(chan error)
+		}
+	}
+
+	return r0, r1
+}
+
 // Broadcast provides a mock function with given fields: ctx, msg
 func (_m *Service) Broadcast(ctx context.Context, msg *message.Message) {
 	_m.Called(ctx, msg)
