@@ -16,8 +16,12 @@ type Storage interface {
 	GetCurrentEpoch() (val int32, err error)
 	PutCurrentTopHeight(currentTopHeight int32) error
 	GetCurrentTopHeight() (val int32, err error)
+	PutTopCommittedHeight(currentTopHeight int32) error
+	GetTopCommittedHeight() (val int32, err error)
 	PutBlock(b *Block) error
 	GetBlock(hash common.Hash) (b *Block, er error)
+	GetHeightIndexRecord(height int32) (hashes []common.Hash, err error)
+
 	Contains(hash common.Hash) bool
 	Stats() *leveldb.DBStats
 }
@@ -26,8 +30,9 @@ const BlockPrefix = byte(0x0)
 const HeightIndexPrefix = byte(0x1)
 const CurrentEpochPrefix = byte(0x2)
 const CurrentTopHeightPrefix = byte(0x3)
+const TopCommittedHeightPrefix = byte(0x4)
 
-const DefaultIntValue = 0
+const DefaultIntValue = -1
 
 type StorageImpl struct {
 	db   *leveldb.DB
@@ -82,6 +87,16 @@ func (s *StorageImpl) GetCurrentTopHeight() (val int32, err error) {
 	return s.getInt32(prefix)
 }
 
+func (s *StorageImpl) PutTopCommittedHeight(currentTopHeight int32) error {
+	prefix := append(make([]byte, 1), TopCommittedHeightPrefix)
+	return s.putInt32(prefix, currentTopHeight)
+}
+
+func (s *StorageImpl) GetTopCommittedHeight() (val int32, err error) {
+	prefix := append(make([]byte, 1), TopCommittedHeightPrefix)
+	return s.getInt32(prefix)
+}
+
 func (s *StorageImpl) putInt32(key []byte, val int32) error {
 	buf := make([]byte, binary.MaxVarintLen64)
 	binary.PutVarint(buf, int64(val))
@@ -104,6 +119,9 @@ func (s *StorageImpl) PutBlock(b *Block) error {
 	}
 	prefix := append(make([]byte, 1), BlockPrefix)
 	key := append(prefix, b.Header().Hash().Bytes()...)
+	if err := s.putHeightIndexRecord(b); err != nil {
+		return err
+	}
 	return s.db.Put(key, bytes, &opt.WriteOptions{})
 }
 
@@ -136,4 +154,48 @@ func (s *StorageImpl) GetBlock(hash common.Hash) (b *Block, er error) {
 	}
 
 	return CreateBlockFromMessage(block), nil
+}
+
+func (s *StorageImpl) putHeightIndexRecord(b *Block) error {
+	indexKey := getIndexKey(int64(b.Header().Height()))
+	found, err := s.db.Has(indexKey, &opt.ReadOptions{})
+	var indexValue []byte
+	if err != nil {
+		return err
+	}
+
+	if found {
+		value, err := s.db.Get(indexKey, &opt.ReadOptions{})
+		if err != nil {
+			return err
+		}
+		indexValue = value
+	}
+
+	indexValue = append(indexValue, b.Header().Hash().Bytes()...)
+	return s.db.Put(indexKey, indexValue, &opt.WriteOptions{})
+}
+
+func (s *StorageImpl) GetHeightIndexRecord(height int32) (hashes []common.Hash, err error) {
+	indexKey := getIndexKey(int64(height))
+	val, err := s.db.Get(indexKey, &opt.ReadOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	hashes = make([]common.Hash, len(val)/common.HashLength)
+
+	for i := 0; i < len(val)/common.HashLength; i++ {
+		hashes[i] = common.BytesToHash(val[i*common.HashLength : (i+1)*common.HashLength])
+	}
+
+	return hashes, nil
+}
+
+func getIndexKey(h int64) []byte {
+	indexPrefix := append(make([]byte, 1), HeightIndexPrefix)
+	buf := make([]byte, binary.MaxVarintLen64)
+	binary.PutVarint(buf, h)
+	indexKey := append(indexPrefix, buf...)
+	return indexKey
 }

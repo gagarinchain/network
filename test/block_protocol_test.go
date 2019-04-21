@@ -17,12 +17,8 @@ import (
 func TestBlockProtocolBootstrap(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
-	storage := &mocks.Storage{}
+	storage := initStorage()
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
@@ -63,12 +59,8 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 func TestBlockProtocolOnBlockRequest(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
-	storage := &mocks.Storage{}
+	storage := initStorage()
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
@@ -138,12 +130,8 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 func TestBlockProtocolOnHello(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
-	storage := &mocks.Storage{}
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
+	storage := initStorage()
 
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
@@ -182,4 +170,15 @@ func TestBlockProtocolOnHello(t *testing.T) {
 
 	p.OnHello(context.Background(), m)
 
+}
+
+func initStorage() *mocks.Storage {
+	storage := &mocks.Storage{}
+	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
+	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
+	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
+	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
+	storage.On("GetTopCommittedHeight").Return(0)
+	storage.On("PutTopCommittedHeight", mock.AnythingOfType("int32")).Return(nil)
+	return storage
 }

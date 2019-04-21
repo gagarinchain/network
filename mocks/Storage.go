@@ -91,6 +91,50 @@ func (_m *Storage) GetCurrentTopHeight() (int32, error) {
 	return r0, r1
 }
 
+// GetHeightIndexRecord provides a mock function with given fields: height
+func (_m *Storage) GetHeightIndexRecord(height int32) ([]common.Hash, error) {
+	ret := _m.Called(height)
+
+	var r0 []common.Hash
+	if rf, ok := ret.Get(0).(func(int32) []common.Hash); ok {
+		r0 = rf(height)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]common.Hash)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(int32) error); ok {
+		r1 = rf(height)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTopCommittedHeight provides a mock function with given fields:
+func (_m *Storage) GetTopCommittedHeight() (int32, error) {
+	ret := _m.Called()
+
+	var r0 int32
+	if rf, ok := ret.Get(0).(func() int32); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(int32)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // PutBlock provides a mock function with given fields: b
 func (_m *Storage) PutBlock(b *blockchain.Block) error {
 	ret := _m.Called(b)
@@ -121,6 +165,20 @@ func (_m *Storage) PutCurrentEpoch(currentEpoch int32) error {
 
 // PutCurrentTopHeight provides a mock function with given fields: currentTopHeight
 func (_m *Storage) PutCurrentTopHeight(currentTopHeight int32) error {
+	ret := _m.Called(currentTopHeight)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(int32) error); ok {
+		r0 = rf(currentTopHeight)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// PutTopCommittedHeight provides a mock function with given fields: currentTopHeight
+func (_m *Storage) PutTopCommittedHeight(currentTopHeight int32) error {
 	ret := _m.Called(currentTopHeight)
 
 	var r0 error

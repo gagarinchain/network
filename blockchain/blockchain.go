@@ -57,6 +57,52 @@ func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService
 	return blockchain
 }
 
+func CreateBlockchainFromStorage(storage Storage, blockService BlockService) *Blockchain {
+	topHeight, err := storage.GetCurrentTopHeight()
+	if err != nil || topHeight < 0 {
+		return CreateBlockchainFromGenesisBlock(storage, blockService)
+	}
+
+	blockchain := &Blockchain{
+		blocksByHash:            make(map[common.Hash]*Block),
+		committedTailByHeight:   treemap.NewWith(utils.Int32Comparator),
+		uncommittedHeadByHeight: treemap.NewWith(utils.Int32Comparator),
+		indexGuard:              &sync.RWMutex{},
+		storage:                 storage,
+		blockService:            blockService,
+	}
+
+	topCommittedHeight, err := storage.GetTopCommittedHeight()
+	blockchain.indexGuard.RLock()
+	defer blockchain.indexGuard.RUnlock()
+
+	//TODO this place should be heavily optimized, i think we should preload everything except transactions for committed part of bc, headers and signatures will take 1k per block amortised
+	for i := topHeight; i >= 0; i-- {
+		hashes, err := storage.GetHeightIndexRecord(i)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, h := range hashes {
+			b, err := storage.GetBlock(h)
+			if err != nil {
+				log.Fatal(err)
+			}
+			blockchain.blocksByHash[h] = b
+
+			if i > topCommittedHeight {
+				if err := blockchain.addUncommittedBlock(b); err != nil {
+					log.Fatal(err)
+				}
+			} else {
+				blockchain.committedTailByHeight.Put(b.Height(), b)
+			}
+
+		}
+	}
+
+	return blockchain
+}
+
 func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
@@ -80,6 +126,16 @@ func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
 		blocks, ok := bc.uncommittedHeadByHeight.Get(height)
 		if ok {
 			res = append(res, blocks.([]*Block)...)
+		} else { //TODO it seems like a hack, we should preload blockchain structure from index to memory
+			hashes, err := bc.storage.GetHeightIndexRecord(height)
+			if err == nil {
+				for _, hash := range hashes {
+					block, err := bc.storage.GetBlock(hash)
+					if err == nil {
+						res = append(res, block)
+					}
+				}
+			}
 		}
 	} else {
 		res = append(res, block.(*Block))
@@ -152,6 +208,10 @@ func (bc *Blockchain) OnCommit(b *Block) {
 		bc.uncommittedHeadByHeight.Remove(b.Header().Height())
 		bc.indexGuard.Unlock()
 
+		err := bc.storage.PutTopCommittedHeight(b.Height())
+		if err != nil {
+			log.Error(err)
+		}
 		b = bc.GetBlockByHash(b.Header().Hash())
 	}
 
@@ -191,7 +251,8 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	defer bc.indexGuard.Unlock()
 
 	if bc.blocksByHash[block.Header().Hash()] != nil || bc.storage.Contains(block.Header().Hash()) {
-		log.Warning("Block with hash [%v] already exists", block.header.Hash().Hex())
+		log.Debugf("Block with hash [%v] already exists, updating", block.header.Hash().Hex())
+		return bc.storage.PutBlock(block)
 	}
 
 	if bc.blocksByHash[block.Header().Parent()] == nil && !bc.storage.Contains(block.Header().Parent()) && block.Height() != 0 {
@@ -200,18 +261,31 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
 	if value == nil {
-		value = make([]*Block, 0)
 		if err := bc.storage.PutCurrentTopHeight(block.Header().Height()); err != nil {
 			return err
 		}
 	}
 
-	value = append(value.([]*Block), block)
-	bc.blocksByHash[block.Header().Hash()] = block
-	bc.uncommittedHeadByHeight.Put(block.Header().Height(), value)
+	if err := bc.addUncommittedBlock(block); err != nil {
+		return err
+	}
+
 	if err := bc.storage.PutBlock(block); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (bc *Blockchain) addUncommittedBlock(block *Block) error {
+	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
+	if value == nil {
+		value = make([]*Block, 0)
+	}
+
+	value = append(value.([]*Block), block)
+	bc.blocksByHash[block.Header().Hash()] = block
+	bc.uncommittedHeadByHeight.Put(block.Header().Height(), value)
 
 	return nil
 }

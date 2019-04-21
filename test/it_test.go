@@ -635,6 +635,8 @@ func initContext(t *testing.T) *TestContext {
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
 	storage.On("GetCurrentEpoch").Return(int32(0), nil)
+	storage.On("GetTopCommittedHeight").Return(0)
+	storage.On("PutTopCommittedHeight", mock.AnythingOfType("int32")).Return(nil)
 
 	peers := make([]*common.Peer, 10)
 
