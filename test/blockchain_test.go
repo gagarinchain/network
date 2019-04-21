@@ -164,6 +164,7 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 
 	assert.Equal(t, genesisBlock, bc2.GetGenesisBlock())
 	assert.Equal(t, block34, bc2.GetTopCommittedBlock())
+	assert.Equal(t, []*bch.Block{block45, block47}, bc2.GetBlockByHeight(4))
 	assert.Equal(t, block56, bc2.GetHead())
 
 }
