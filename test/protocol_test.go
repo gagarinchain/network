@@ -71,7 +71,7 @@ func TestProposalSignature(t *testing.T) {
 }
 
 func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
-	_, p, cfg, eventChan := initProtocol(t)
+	_, p, cfg, _ := initProtocol(t)
 
 	mocksrv := (cfg.Srv).(*mocks.Service)
 
@@ -84,11 +84,41 @@ func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
 
 	go p.OnPropose(context.Background())
 
-	<-eventChan
 	m := <-msgChan
 	assert.Equal(t, pb.Message_PROPOSAL, m.Type)
 
 	mocksrv.AssertCalled(t, "Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*message.Message"))
+}
+
+func TestProtocolProposeOnGenesisBlockchainVoteForSelfProposal(t *testing.T) {
+	_, p, cfg, eventChan := initProtocol(t)
+
+	mocksrv := (cfg.Srv).(*mocks.Service)
+
+	cfg.Pacer.Committee()[1] = cfg.Me
+	msgChan := make(chan *msg.Message)
+	mocksrv.On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[1]).(*msg.Message)
+		assert.Equal(t, pb.Message_PROPOSAL, args[1].(*msg.Message).Type)
+	}).Once()
+	mocksrv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		cfg.Pacer.Committee()[2], mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		msgChan <- (args[2]).(*msg.Message)
+	}).Return(make(chan *msg.Message), nil).Once()
+
+	go p.OnPropose(context.Background())
+
+	m := <-msgChan
+	assert.Equal(t, pb.Message_PROPOSAL, m.Type)
+
+	proposal, _ := hotstuff.CreateProposalFromMessage(msg.CreateMessage(m.Type, m.Payload, &common.Peer{}))
+	go p.OnReceiveProposal(context.Background(), proposal)
+
+	<-eventChan
+	v := <-msgChan
+
+	assert.Equal(t, pb.Message_VOTE, v.Type)
+
 }
 
 func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
@@ -209,7 +239,7 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 }
 
 func TestOnReceiveVote(t *testing.T) {
-	bc, p, cfg, eventChan := initProtocol(t)
+	bc, p, cfg, _ := initProtocol(t)
 	cfg.Pacer.Committee()[1] = cfg.Me
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
@@ -237,7 +267,6 @@ func TestOnReceiveVote(t *testing.T) {
 		}
 	}()
 
-	<-eventChan
 	m := <-msgChan
 
 	assert.Equal(t, newBlock.Header().Hash(), p.HQC().QrefBlock().Hash())

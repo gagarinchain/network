@@ -348,7 +348,6 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 	}
 	m := msg.CreateMessage(pb.Message_PROPOSAL, any, nil)
 	go p.srv.Broadcast(ctx, m)
-	p.OnNextView()
 }
 
 func (*Protocol) equivocate(peer *comm.Peer) {

@@ -143,6 +143,19 @@ func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
 	return res
 }
 
+func (bc *Blockchain) GetFork(height int32, headHash common.Hash) (res []*Block) {
+	head := bc.blocksByHash[headHash]
+	hash := headHash
+	res = make([]*Block, head.Height()-height+1)
+	for i := 0; i < len(res); i++ {
+		head = bc.blocksByHash[hash]
+		res[i] = head
+		hash = head.Header().Parent()
+	}
+
+	return res
+}
+
 func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded bool) {
 	loaded = !bc.Contains(hash)
 	if loaded {

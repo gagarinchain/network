@@ -109,11 +109,12 @@ func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) er
 	}
 
 	var blocks []*Block
-	if br.GetHash() != nil {
+	if br.GetHeight() != -1 && br.GetHash() != nil {
+		blocks = p.bc.GetFork(br.GetHeight(), common.BytesToHash(br.GetHash()))
+	} else if br.GetHash() != nil { //requesting exact
 		hash := common.BytesToHash(br.GetHash())
 		blocks = append(blocks, p.bc.GetBlockByHash(hash))
-	}
-	if br.GetHeight() != -1 {
+	} else if br.GetHeight() != -1 { //requesting by height
 		blocks = append(blocks, p.bc.GetBlockByHeight(br.GetHeight())...)
 	}
 
