@@ -105,6 +105,9 @@ func (s *StorageImpl) putInt32(key []byte, val int32) error {
 
 func (s *StorageImpl) getInt32(key []byte) (val int32, err error) {
 	value, err := s.db.Get(key, &opt.ReadOptions{})
+	if err != nil {
+		return DefaultIntValue, err
+	}
 	int64Val, n := binary.Varint(value)
 	if n > binary.MaxVarintLen32 {
 		return DefaultIntValue, errors.New("wrong int32 length")

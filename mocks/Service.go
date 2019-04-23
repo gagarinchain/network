@@ -43,7 +43,17 @@ func (_m *Service) Broadcast(ctx context.Context, msg *message.Message) {
 }
 
 // SendMessage provides a mock function with given fields: ctx, peer, msg
-func (_m *Service) SendMessage(ctx context.Context, peer *common.Peer, msg *message.Message) (chan *message.Message, chan error) {
+func (_m *Service) SendMessage(ctx context.Context, peer *common.Peer, msg *message.Message) {
+	_m.Called(ctx, peer, msg)
+}
+
+// SendMessageTriggered provides a mock function with given fields: ctx, peer, msg, trigger
+func (_m *Service) SendMessageTriggered(ctx context.Context, peer *common.Peer, msg *message.Message, trigger chan interface{}) {
+	_m.Called(ctx, peer, msg, trigger)
+}
+
+// SendRequest provides a mock function with given fields: ctx, peer, msg
+func (_m *Service) SendRequest(ctx context.Context, peer *common.Peer, msg *message.Message) (chan *message.Message, chan error) {
 	ret := _m.Called(ctx, peer, msg)
 
 	var r0 chan *message.Message
@@ -65,11 +75,6 @@ func (_m *Service) SendMessage(ctx context.Context, peer *common.Peer, msg *mess
 	}
 
 	return r0, r1
-}
-
-// SendMessageTriggered provides a mock function with given fields: ctx, peer, msg, trigger
-func (_m *Service) SendMessageTriggered(ctx context.Context, peer *common.Peer, msg *message.Message, trigger chan interface{}) {
-	_m.Called(ctx, peer, msg, trigger)
 }
 
 // SendRequestToRandomPeer provides a mock function with given fields: ctx, req
@@ -95,4 +100,9 @@ func (_m *Service) SendRequestToRandomPeer(ctx context.Context, req *message.Mes
 	}
 
 	return r0, r1
+}
+
+// SendResponse provides a mock function with given fields: ctx, msg
+func (_m *Service) SendResponse(ctx context.Context, msg *message.Message) {
+	_m.Called(ctx, msg)
 }

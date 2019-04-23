@@ -5,7 +5,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/eth/crypto"
 	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
 	"github.com/poslibp2p/hotstuff"
@@ -249,6 +248,7 @@ func TestScenario5a(t *testing.T) {
 	defer ctx.protocol.Stop()
 
 	ctx.StartFirstEpoch()
+
 	ctx.setMe(0)
 
 	log.Infof("me %v", ctx.pacer.Committee()[0].GetAddress().Hex())
@@ -264,7 +264,7 @@ func TestScenario5a(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(20), payload.Block.GetHeader().GetHeight())
 	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
@@ -286,7 +286,7 @@ func TestScenario5b(t *testing.T) {
 	log.Infof("me %v", ctx.pacer.Committee()[0].GetAddress().Hex())
 
 	<-ctx.startChan
-	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
+	ctx.sendStartEpochMessages(1, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
 
 	proposal := <-ctx.proposalCHan
 
@@ -330,7 +330,7 @@ func TestScenario5c(t *testing.T) {
 		log.Error(err)
 	}
 
-	assert.Equal(t, int32(10), payload.Block.GetHeader().GetHeight())
+	assert.Equal(t, int32(20), payload.Block.GetHeader().GetHeight())
 	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
@@ -580,18 +580,21 @@ func makeVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, peer *commo
 func (ctx *TestContext) StartFirstEpoch() {
 	trigger := make(chan interface{})
 	ctx.protocol.SubscribeEpochChange(trigger)
-	ctx.sendStartEpochMessages(1, 2*ctx.cfg.F/3+1, nil)
+	ctx.sendStartEpochMessages(0, 2*ctx.cfg.F/3+1, nil)
 	<-trigger
 }
 
 func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blockchain.QuorumCertificate) {
 	for i := 0; i < amount; i++ {
 		var epoch *hotstuff.Epoch
+		p := ctx.pacer.Committee()[i]
 		if hqc == nil {
-			sig, _ := crypto.Sign(ctx.bc.GetGenesisBlock().Header().Hash().Bytes(), ctx.pacer.Committee()[i].GetPrivateKey())
-			epoch = hotstuff.CreateEpoch(ctx.pacer.Committee()[i], index, nil, sig)
+			hash := ctx.bc.GetGenesisBlockSignedHash(p.GetPrivateKey())
+			peer := common.CreatePeer(nil, p.GetPrivateKey(), p.GetPeerInfo())
+			epoch = hotstuff.CreateEpoch(peer, index, nil, hash)
 		} else {
-			epoch = hotstuff.CreateEpoch(ctx.pacer.Committee()[i], index, hqc, nil)
+			peer := common.CreatePeer(nil, p.GetPrivateKey(), p.GetPeerInfo())
+			epoch = hotstuff.CreateEpoch(peer, index, hqc, nil)
 		}
 		message, _ := epoch.GetMessage()
 		ctx.protocolChan <- message
@@ -599,7 +602,10 @@ func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blo
 }
 
 func (ctx *TestContext) setMe(peerNumber int) {
+	peer := ctx.pacer.Committee()[peerNumber]
 	ctx.pacer.Committee()[peerNumber] = ctx.me
+	ctx.pacer.Committee()[0] = peer
+
 }
 
 func (ctx *TestContext) waitRounds(count int) {
@@ -625,7 +631,8 @@ func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCert
 }
 
 func initContext(t *testing.T) *TestContext {
-	identity := generateIdentity(t)
+	identity := generateIdentity(t, 0)
+	log.Debugf("Current me ", identity.GetAddress().Hex())
 	srv := &mocks.Service{}
 	bsrv := &mocks.BlockService{}
 	storage := &mocks.Storage{}
@@ -634,13 +641,15 @@ func initContext(t *testing.T) *TestContext {
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
-	storage.On("GetCurrentEpoch").Return(int32(0), nil)
+	storage.On("GetCurrentEpoch").Return(int32(-1), nil)
 	storage.On("GetTopCommittedHeight").Return(0)
 	storage.On("PutTopCommittedHeight", mock.AnythingOfType("int32")).Return(nil)
 
 	peers := make([]*common.Peer, 10)
+	for i := 0; i < 10; i++ {
+		peers[i] = generateIdentity(t, i)
+	}
 
-	loader := &mocks.CommitteeLoader{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
 	config := &hotstuff.ProtocolConfig{
@@ -653,10 +662,6 @@ func initContext(t *testing.T) *TestContext {
 		Sync:        sync,
 		Committee:   peers,
 		ControlChan: make(chan hotstuff.Command),
-	}
-
-	for i := 0; i < 10; i++ {
-		peers[i] = generateIdentity(t)
 	}
 
 	matcher := func(msgType pb.Message_MessageType) func(m *msg.Message) bool {
@@ -686,7 +691,6 @@ func initContext(t *testing.T) *TestContext {
 		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
 	bsrv.On("RequestFork", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("int32"), mock.AnythingOfType("common.Hash"),
 		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
-	loader.On("LoadFromFile").Return(peers)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer

@@ -10,7 +10,7 @@ type CommitteeLoader struct {
 	mock.Mock
 }
 
-// LoadFromFile provides a mock function with given fields: filePath
+// LoadPeerListFromFile provides a mock function with given fields: filePath
 func (_m *CommitteeLoader) LoadFromFile(filePath string) []*common.Peer {
 	ret := _m.Called(filePath)
 

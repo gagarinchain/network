@@ -78,13 +78,13 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 	block47 := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-7"))
 	_ = bc.AddBlock(block47)
 
-	peer := generateIdentity(t)
+	peer := generateIdentity(t, 0)
 	msgChan := make(chan *blockchain.Block)
 	resp := make(chan *msg.Message)
 	close(resp)
-	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
-		peer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		m := (args[2]).(*msg.Message)
+	srv.On("SendResponse", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		m := (args[1]).(*msg.Message)
 		if m.Type != pb.Message_BLOCK_RESPONSE {
 			t.Error("Wrong message type")
 		}
@@ -154,11 +154,11 @@ func TestBlockProtocolOnHello(t *testing.T) {
 	resp := make(chan *msg.Message)
 	close(resp)
 
-	peer := generateIdentity(t)
+	peer := generateIdentity(t, 0)
 	m := msg.CreateMessage(pb.Message_HELLO_REQUEST, nil, peer)
-	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
-		peer, mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
-		m := (args[2]).(*msg.Message)
+	srv.On("SendResponse", mock.MatchedBy(func(ctx context.Context) bool { return true }),
+		mock.AnythingOfType("*message.Message")).Run(func(args mock.Arguments) {
+		m := (args[1]).(*msg.Message)
 		if m.Type != pb.Message_HELLO_RESPONSE {
 			t.Error("Wrong message type")
 		}

@@ -2,8 +2,8 @@ package test
 
 import (
 	"context"
-	"github.com/libp2p/go-libp2p-peer"
-	"github.com/libp2p/go-libp2p-peerstore"
+	"encoding/hex"
+	"github.com/golang/protobuf/ptypes"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/blockchain"
@@ -15,14 +15,60 @@ import (
 	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	mrnd "math/rand"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 )
 
 var log = logging.MustGetLogger("hotstuff")
+
+func TestKey(t *testing.T) {
+	hash := "0x42696f016ed5365c8c1b31b25e8218ea6dd1c9fe76c8e4e7a7d448089736b88a"
+	sign := []byte{180, 225, 109, 238, 46, 101, 134, 179, 210, 125, 23, 104, 21, 242, 26, 113, 174, 170, 185, 14, 23,
+		126, 203, 3, 8, 16, 192, 205, 66, 64, 206, 2, 89, 104, 19, 74, 198, 75, 128, 154, 137, 138, 107, 151, 26, 60,
+		33, 235, 4, 180, 183, 173, 107, 14, 220, 221, 3, 219, 45, 174, 129, 195, 249, 27, 1}
+
+	bytes, _ := hex.DecodeString(hash[2:])
+	log.Debug(len(bytes))
+	log.Debug(len(sign))
+	key, _ := crypto.SigToPub(bytes, sign)
+	recovered := crypto.PubkeyToAddress(*key).Hex()
+
+	log.Debug(recovered)
+}
+func TestKeySerialize(t *testing.T) {
+	pk, _ := crypto.GenerateKey()
+	pkbytes := crypto.FromECDSA(pk)
+	pkstring := hex.EncodeToString(pkbytes)
+	log.Debug(pkstring)
+
+	fromString, _ := hex.DecodeString(pkstring)
+	key, _ := crypto.ToECDSA(fromString)
+
+	assert.Equal(t, pk, key)
+
+}
+
+func TestProposalSignature(t *testing.T) {
+	bc, _, cfg, _ := initProtocol(t)
+
+	block := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("hello sign"))
+	proposal := hotstuff.CreateProposal(block, bc.GetGenesisCert(), cfg.Me)
+
+	proposal.Sign(cfg.Me.GetPrivateKey())
+
+	payload := proposal.GetMessage()
+	any, e := ptypes.MarshalAny(payload)
+	if e != nil {
+		log.Error(e)
+	}
+	m := msg.CreateMessage(pb.Message_PROPOSAL, any, &common.Peer{})
+
+	proposal2, e := hotstuff.CreateProposalFromMessage(m)
+
+	assert.Equal(t, cfg.Me.GetAddress(), proposal2.Sender.GetAddress())
+
+}
 
 func TestProtocolProposeOnGenesisBlockchain(t *testing.T) {
 	_, p, cfg, eventChan := initProtocol(t)
@@ -144,7 +190,7 @@ func TestOnReceiveVoteForNotProposer(t *testing.T) {
 
 func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
-	id := generateIdentity(t)
+	id := generateIdentity(t, 4)
 	cfg.Pacer.Committee()[1] = cfg.Me
 	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	newBlock2 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
@@ -225,7 +271,7 @@ func TestOnStartEpochWithBrokenSignature(t *testing.T) {
 
 	assert.True(t, p.IsStartingEpoch)
 
-	sign := bc.GetGenesisBlockSignedHash(generateIdentity(t).GetPrivateKey()) // generate random signature
+	sign := bc.GetGenesisBlockSignedHash(generateIdentity(t, 3).GetPrivateKey()) // generate random signature
 	epoch := hotstuff.CreateEpoch(cfg.Pacer.Committee()[2*cfg.F/3], 1, nil, sign)
 	message, _ := epoch.GetMessage()
 	p.OnEpochStart(context.Background(), message)
@@ -347,7 +393,7 @@ func TestOnStartEpochWithBrokenSignature(t *testing.T) {
 //}
 
 func createVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) *hotstuff.Vote {
-	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), generateIdentity(t))
+	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), generateIdentity(t, 2))
 	return vote
 }
 
@@ -355,14 +401,14 @@ func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Bloc
 	votes := make([]*hotstuff.Vote, count)
 
 	for i := 0; i < count; i++ {
-		votes[i] = createVote(bc, newBlock, t)
+		votes[i] = hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), generateIdentity(t, i))
 	}
 
 	return votes
 }
 
 func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig, chan hotstuff.Event) {
-	identity := generateIdentity(t)
+	identity := generateIdentity(t, 1)
 	srv := &mocks.Service{}
 	storage := &mocks.Storage{}
 	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
@@ -387,10 +433,10 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	}
 
 	for i := 0; i < 10; i++ {
-		peers[i] = generateIdentity(t)
+		peers[i] = generateIdentity(t, i)
 	}
 
-	loader.On("LoadFromFile").Return(peers)
+	loader.On("LoadPeerListFromFile").Return(peers)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
@@ -401,33 +447,12 @@ func initProtocol(t *testing.T) (*blockchain.Blockchain, *hotstuff.Protocol, *ho
 	return bc, p, config, eventChan
 }
 
-func generateIdentity(t *testing.T) *common.Peer {
-	privateKey, e := crypto.GenerateKey()
-	if e != nil {
-		t.Errorf("failed to generate key")
-	}
+func generateIdentity(t *testing.T, ind int) *common.Peer {
+	loader := &common.CommitteeLoaderImpl{}
+	committee := loader.LoadPeerListFromFile("../static/peers.json")
+	_, _ = loader.LoadPeerFromFile("../static/peer"+strconv.Itoa(ind)+".json", committee[ind])
 
-	var sb strings.Builder
-	sb.WriteString("/ip4/1.2.3.4/tcp/")
-	sb.WriteString(strconv.Itoa(mrnd.Intn(10000)))
-	a := mustAddr(t, sb.String())
-	sb.Reset()
-
-	sb.WriteString("/ip4/1.2.3.4/tcp/")
-	sb.WriteString(strconv.Itoa(mrnd.Intn(10000)))
-	b := mustAddr(t, sb.String())
-
-	id, err := peer.IDB58Decode("QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pi := &peerstore.PeerInfo{
-		ID:    id,
-		Addrs: []ma.Multiaddr{a, b},
-	}
-
-	return common.CreatePeer(&privateKey.PublicKey, privateKey, pi)
+	return committee[ind]
 }
 
 func mustAddr(t *testing.T, s string) ma.Multiaddr {

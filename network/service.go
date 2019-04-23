@@ -22,7 +22,11 @@ type Service interface {
 
 	SendMessageTriggered(ctx context.Context, peer *common.Peer, msg *msg.Message, trigger chan interface{})
 
-	SendMessage(ctx context.Context, peer *common.Peer, msg *msg.Message) (resp chan *msg.Message, err chan error)
+	SendMessage(ctx context.Context, peer *common.Peer, msg *msg.Message)
+
+	SendResponse(ctx context.Context, msg *msg.Message)
+
+	SendRequest(ctx context.Context, peer *common.Peer, msg *msg.Message) (resp chan *msg.Message, err chan error)
 
 	//Send message to a random peer
 	SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message, err chan error)
@@ -54,78 +58,80 @@ func CreateService(ctx context.Context, node *Node, dispatcher *msg.Dispatcher) 
 	return impl
 }
 
-func (s *ServiceImpl) SendMessage(ctx context.Context, peer *common.Peer, m *msg.Message) (resp chan *msg.Message, err chan error) {
-	resp = make(chan *msg.Message)
-	err = make(chan error)
+func (s *ServiceImpl) SendMessage(ctx context.Context, peer *common.Peer, m *msg.Message) {
+	s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, m, false)
+}
 
+func (s *ServiceImpl) SendResponse(ctx context.Context, m *msg.Message) {
 	go func() {
 		log.Debug("Sending response")
 		stream := m.Stream()
-		if stream == nil {
-			log.Debug("Open new stream")
-			var e error
-			stream, e = s.node.Host.NewStream(ctx, peer.GetPeerInfo().ID, Libp2pProtocol)
-			if e != nil {
-				err <- e
-				close(resp)
-				return
-			}
-		}
 		writer := protoio.NewDelimitedWriter(stream)
 		spew.Dump(m)
 		if e := writer.WriteMsg(m.Message); e != nil {
-			log.Debug("Response not sent", e)
-
-			err <- e
-			close(resp)
+			log.Error("Response not sent", e)
 			return
 		}
 		log.Debug("Response sent")
-
-		close(resp)
 	}()
+}
+
+func (s *ServiceImpl) SendRequest(ctx context.Context, peer *common.Peer, req *msg.Message) (resp chan *msg.Message, err chan error) {
+	return s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, req, true)
+}
+
+func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *msg.Message, withResponse bool) (resp chan *msg.Message, err chan error) {
+	resp = make(chan *msg.Message)
+	err = make(chan error)
+	go func(ctx context.Context, pid peer.ID, m *msg.Message, withResponse bool) {
+		message, e := s.sendRequestSync(ctx, pid, m, withResponse)
+		if e != nil {
+			err <- e
+			close(resp)
+		} else if !withResponse {
+			close(resp)
+		} else {
+			resp <- message
+		}
+	}(ctx, pid, req, withResponse)
 
 	return resp, err
 }
 
 func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message, err chan error) {
-	resp = make(chan *msg.Message)
-	err = make(chan error)
+	connected := s.node.Host.Network().Peers()
+	pid := randomSubsetOfIds(connected, 1)[0]
 
-	go func() {
-		connected := s.node.Host.Network().Peers()
-		pid := randomSubsetOfIds(connected, 1)[0]
+	return s.sendRequestAsync(ctx, pid, req, true)
 
-		stream, e := s.node.Host.NewStream(ctx, pid, Libp2pProtocol)
-		if e != nil {
-			err <- e
-			close(resp)
-			return
-		}
+}
 
-		writer := protoio.NewDelimitedWriter(stream)
-		if e := writer.WriteMsg(req.Message); e != nil {
-			err <- e
-			close(resp)
-			return
-		}
+func (s *ServiceImpl) sendRequestSync(ctx context.Context, pid peer.ID, req *msg.Message, withResponse bool) (resp *msg.Message, err error) {
+	stream, e := s.node.Host.NewStream(ctx, pid, Libp2pProtocol)
+	if e != nil {
+		return nil, e
+	}
 
-		cr := ctxio.NewReader(ctx, stream)
-		r := protoio.NewDelimitedReader(cr, net.MessageSizeMax) //TODO decide on msg size
+	writer := protoio.NewDelimitedWriter(stream)
+	if e := writer.WriteMsg(req.Message); e != nil {
+		return nil, e
+	}
 
-		respMsg := &pb.Message{}
-		if e := r.ReadMsg(respMsg); e != nil {
-			_ = stream.Reset()
-			err <- e
-			close(resp)
-			return
-		}
-		info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
-		p := common.CreatePeer(nil, nil, &info)
-		resp <- msg.CreateMessageFromProto(respMsg, p, nil)
-	}()
+	if !withResponse {
+		return nil, nil
+	}
 
-	return resp, err
+	cr := ctxio.NewReader(ctx, stream)
+	r := protoio.NewDelimitedReader(cr, net.MessageSizeMax) //TODO decide on msg size
+
+	respMsg := &pb.Message{}
+	if e := r.ReadMsg(respMsg); e != nil {
+		_ = stream.Reset()
+		return nil, e
+	}
+	info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
+	p := common.CreatePeer(nil, nil, &info)
+	return msg.CreateMessageFromProto(respMsg, p, nil), nil
 }
 
 func (s *ServiceImpl) SendMessageTriggered(ctx context.Context, peer *common.Peer, msg *msg.Message, trigger chan interface{}) {

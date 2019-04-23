@@ -127,7 +127,8 @@ func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) er
 		return e
 	}
 	block := msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil)
-	p.srv.SendMessage(ctx, req.Source(), block)
+	block.SetStream(req.Stream())
+	p.srv.SendResponse(ctx, block)
 	return nil
 }
 
@@ -163,7 +164,7 @@ func (p *BlockProtocol) OnHello(ctx context.Context, m *msg.Message) error {
 	}
 	resp := msg.CreateMessage(pb.Message_HELLO_RESPONSE, any, nil)
 	resp.SetStream(m.Stream())
-	p.srv.SendMessage(ctx, m.Source(), resp)
+	p.srv.SendResponse(ctx, resp)
 
 	return nil
 }
@@ -203,7 +204,7 @@ func (p *BlockProtocol) handleMessage(ctx context.Context, m *msg.Message) error
 	case pb.Message_HELLO_REQUEST:
 		return p.OnHello(ctx, m)
 	case pb.Message_BLOCK_REQUEST:
-		return p.OnHello(ctx, m)
+		return p.OnBlockRequest(ctx, m)
 	}
 	return nil
 }

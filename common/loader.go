@@ -1,16 +1,20 @@
 package common
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
 	"github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
 	"io/ioutil"
 	"os"
 )
 
 type CommitteeLoader interface {
-	LoadFromFile(filePath string) []*Peer
+	LoadPeerListFromFile(filePath string) []*Peer
+	LoadPeerFromFile(fileName string, peer *Peer) (peerKey p2pcrypto.PrivKey, err error)
 }
 
 type CommitteeData struct {
@@ -25,7 +29,7 @@ type PeerData struct {
 type CommitteeLoaderImpl struct {
 }
 
-func (c *CommitteeLoaderImpl) LoadFromFile(filePath string) (res []*Peer) {
+func (c *CommitteeLoaderImpl) LoadPeerListFromFile(filePath string) (res []*Peer) {
 	file, e := os.Open(filePath)
 	if e != nil {
 		log.Fatal("Can't load committee list", e)
@@ -62,4 +66,45 @@ func (c *CommitteeLoaderImpl) LoadFromFile(filePath string) (res []*Peer) {
 	}
 
 	return res
+}
+
+func (c *CommitteeLoaderImpl) LoadPeerFromFile(fileName string, peer *Peer) (peerKey p2pcrypto.PrivKey, err error) {
+	var v map[string]interface{}
+
+	bytes, e := ioutil.ReadFile(fileName)
+	if e != nil {
+		return nil, e
+	}
+	e = json.Unmarshal(bytes, &v)
+	if e != nil {
+		return nil, e
+	}
+
+	// First let's create a new identity key pair for our node. If this was your
+	// application you would likely save this private key to a database and load
+	// it from the db on subsequent start ups.
+	pkpeer := v["pkpeer"].(string)
+	addr := v["addr"].(string)
+	pk := v["pk"].(string)
+
+	decodeString, e := hex.DecodeString(pkpeer)
+	privKey, err := p2pcrypto.UnmarshalPrivateKey(decodeString)
+	if err != nil {
+		return nil, err
+	}
+
+	pkbytes, e := hex.DecodeString(pk)
+	if e != nil {
+		return nil, e
+
+	}
+	key, e := crypto.ToECDSA(pkbytes)
+	if e != nil {
+		return nil, e
+
+	}
+	peer.SetAddress(common.HexToAddress(addr))
+	peer.SetPrivateKey(key)
+
+	return privKey, nil
 }

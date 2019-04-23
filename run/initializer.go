@@ -58,7 +58,7 @@ func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
 	srv := network.CreateService(context.Background(), node, dispatcher)
 	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(srv)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc := blockchain.CreateBlockchainFromStorage(storage, bsrv)
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr)
 

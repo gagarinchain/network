@@ -3,6 +3,7 @@ package blockchain
 import (
 	"crypto/ecdsa"
 	"errors"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
@@ -80,7 +81,7 @@ func CreateGenesisBlock() (zero *Block) {
 		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
 	//We need block to calculate it's hash
-	zero = &Block{header: zeroHeader, data: data}
+	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(make([]byte, 256), zeroHeader)}
 
 	return zero
 }
@@ -102,9 +103,8 @@ func (h *Header) IsGenesisBlock() bool {
 
 func CreateBlockFromMessage(block *pb.Block) *Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
-
-	certificate := CreateQuorumCertificate(block.Cert.GetSignatureAggregate(), CreateBlockHeaderFromMessage(block.Cert.Header))
-	return &Block{header: header, qc: certificate, data: block.Data.Data}
+	cert := CreateQuorumCertificate(block.Cert.GetSignatureAggregate(), CreateBlockHeaderFromMessage(block.Cert.Header))
+	return &Block{header: header, qc: cert, data: block.Data.Data}
 }
 
 func (b *Block) GetMessage() *pb.Block {
@@ -116,7 +116,9 @@ func (b *Block) GetMessage() *pb.Block {
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
-	return createHeader(header.Height, common.BytesToHash(header.Hash), common.BytesToHash(header.QcHash), common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash), time.Unix(0, header.Timestamp).UTC())
+	return createHeader(header.Height, common.BytesToHash(header.Hash), common.BytesToHash(header.QcHash),
+		common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash),
+		time.Unix(0, header.Timestamp).UTC())
 }
 
 func (h *Header) GetMessage() *pb.BlockHeader {
@@ -167,16 +169,20 @@ func IsValid(block *Block) (bool, error) {
 
 	hash := HashHeader(*block.Header())
 	if block.Header().Hash() != hash {
+		log.Debugf("calculated %v, received %v", hash, block.Header().Hash())
 		return false, errors.New("block hash is not valid")
 	}
 
 	dataHash := crypto.Keccak256(block.Data())
 	if common.BytesToHash(dataHash) != block.Header().DataHash() {
+		log.Debugf("calculated %v, received %v", dataHash, block.Header().DataHash())
 		return false, errors.New("data hash is not valid")
 	}
 
 	qcHash := block.QC().GetHash()
+	//TODO updated genesis block now will fail this validation, it is an error probably, we can't load genesis blok
 	if qcHash != block.Header().QCHash() {
+		spew.Dump(block)
 		return false, errors.New("QC hash is not valid")
 	}
 

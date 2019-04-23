@@ -64,7 +64,7 @@ func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
 	if e != nil {
 		return nil, errors.New("bad signature")
 	}
-	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
+	a := crypto.PubkeyToAddress(*pub)
 	msg.Source().SetAddress(a)
 
 	return ep, nil
@@ -98,7 +98,6 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 	if e != nil {
 		return nil, errors.Errorf("error while marshalling payload", e)
 	}
-	log.Debugf("to message addr: %v, hash %v", ep.sender.GetAddress().Hex(), hash)
 
 	return msg.CreateMessage(pb.Message_EPOCH_START, any2, ep.sender), nil
 }

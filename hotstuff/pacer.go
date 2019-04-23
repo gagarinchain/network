@@ -57,6 +57,12 @@ func (p *StaticPacer) GetNext(currentView int32) *common.Peer {
 
 func (p *StaticPacer) Run(ctx context.Context) {
 	log.Info("Starting pacer...")
+	for i, c := range p.committee {
+		if c == p.config.Me {
+			log.Infof("I am %dth %v proposer", i, p.config.Me.GetAddress().Hex())
+		}
+	}
+
 	p.eventNotifier.SubscribeProtocolEvents(p.eventChan)
 
 	timeout, f := context.WithTimeout(ctx, 4*p.config.Delta)
@@ -77,7 +83,7 @@ func (p *StaticPacer) Run(ctx context.Context) {
 				p.config.ControlChan <- Command{eventType: SuggestPropose, ctx: timeout}
 				currentState = SuggestPropose
 			case SuggestPropose: //we failed to propose in time, change view and go on progress
-				log.Info("Couldn't propose in time, force view change")
+				log.Info("Received no propose in time, force view change")
 				timeout, f = context.WithTimeout(ctx, p.config.Delta)
 				p.config.ControlChan <- Command{eventType: NextView, ctx: timeout}
 				currentState = NextView
@@ -92,8 +98,6 @@ func (p *StaticPacer) Run(ctx context.Context) {
 				p.config.ControlChan <- Command{eventType: SuggestVote, ctx: timeout}
 				currentState = SuggestVote
 			case ChangedView:
-				log.Infof("Round %v ended", p.viewGetter.GetCurrentView())
-
 				i := int(p.viewGetter.GetCurrentView()) % len(p.committee)
 				if i == 0 {
 					log.Info("Starting new epoch")

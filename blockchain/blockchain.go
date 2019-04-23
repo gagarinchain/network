@@ -393,13 +393,9 @@ func (bc *Blockchain) ValidateGenesisBlockSignature(signature []byte, address co
 		log.Error("bad epoch signature")
 		return false
 	}
-	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
+	a := crypto.PubkeyToAddress(*pub)
 
 	return a == address
-}
-
-func (bc *Blockchain) SetGenesisCertificate(signature []byte) {
-	bc.GetGenesisBlock().qc = CreateQuorumCertificate(signature, bc.GetGenesisBlock().Header())
 }
 
 func (bc *Blockchain) GetTopCommittedBlock() *Block {
@@ -411,4 +407,14 @@ func (bc *Blockchain) GetTopCommittedBlock() *Block {
 		return bc.GetGenesisBlock()
 	}
 	return block.(*Block)
+}
+
+func (bc *Blockchain) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
+	bc.GetGenesisBlock().qc = certificate
+	//we can simply put new block and replace existing. in fact ignoring height index is not a problem for us since Genesis is hashed without it's QC
+	if err := bc.storage.PutBlock(bc.GetGenesisBlock()); err != nil {
+		log.Error(err)
+		return
+	}
+
 }

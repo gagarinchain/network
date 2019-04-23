@@ -68,7 +68,7 @@ func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Has
 				return
 			}
 		} else {
-			resps, errs := s.srv.SendMessage(ctx, peer, msg)
+			resps, errs := s.srv.SendRequest(ctx, peer, msg)
 			select {
 			case m = <-resps:
 			case e := <-errs:
@@ -94,14 +94,14 @@ func (s *BlockServiceImpl) requestBlockUgly(ctx context.Context, hash common.Has
 		for _, blockM := range rp.GetBlocks().GetBlocks() {
 			block := CreateBlockFromMessage(blockM)
 
-			log.Info("Received new block")
+			log.Infof("Received new block with hash %v", block.Header().Hash().Hex())
 			isValid, e := IsValid(block)
 			if e != nil {
-				log.Errorf("Block %d is not  valid", block.Header().Hash())
+				log.Errorf("Block %v is not  valid, %v", block.Header().Hash().Hex(), e)
 				continue
 			}
 			if !isValid {
-				log.Errorf("Block %d is not  valid", block.Header().Hash())
+				log.Errorf("Block %v is not  valid", block.Header().Hash().Hex())
 				continue
 			}
 			resp <- block

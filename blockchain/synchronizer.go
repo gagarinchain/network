@@ -93,7 +93,8 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 
 //Request all blocks starting at top committed block, which all replicas must have and all forks must include and ending with block with given hash
 func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, peer *comm.Peer) error {
-	resp, err := s.bsrv.RequestFork(ctx, s.bc.GetTopCommittedBlock().Header().Height(), hash, peer)
+	//we never request genesis block here, cause it will break block validity
+	resp, err := s.bsrv.RequestFork(ctx, max(s.bc.GetTopCommittedBlock().Header().Height(), 1), hash, peer)
 	blocks, e := ReadBlocksWithErrors(resp, err)
 	if e != nil {
 		return e
@@ -119,6 +120,14 @@ func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, pe
 	}
 
 	return s.addBlocksTransactional(blocks)
+}
+
+func max(a int32, b int32) int32 {
+	if a > b {
+		return a
+	} else {
+		return b
+	}
 }
 
 func (s *SynchronizerImpl) addBlocksTransactional(blocks []*Block) error {

@@ -44,7 +44,7 @@ func TestSynchRequestBlocksForHeight(t *testing.T) {
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	bsrv := blockchain.NewBlockService(srv)
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))
@@ -77,7 +77,7 @@ func TestSynchRequestBlocksForWrongHeight(t *testing.T) {
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	bsrv := blockchain.NewBlockService(srv)
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block31 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock31"))
@@ -102,13 +102,13 @@ func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	bsrv := blockchain.NewBlockService(srv)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))
 	_ = bc.AddBlock(block11)
-	block21 := bc.NewBlock(block11, bc.GetGenesisCert(), []byte("newBlock21"))
+	block21 := bc.PadEmptyBlock(block11)
 	_ = bc.AddBlock(block21)
 
 	block31 := bc.NewBlock(block21, bc.GetGenesisCert(), []byte("newBlock31"))
@@ -150,7 +150,7 @@ func TestSynchRequestBlocksForHeightRangePartiallyWithTimeout(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	bsrv := blockchain.NewBlockService(srv)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
@@ -206,7 +206,7 @@ func TestSynchRequestBlocksForHeightRangeBreakingBlockchain(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	bsrv := blockchain.NewBlockService(srv)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
@@ -246,7 +246,7 @@ func TestSyncFork(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	bsrv := blockchain.NewBlockService(srv)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
@@ -263,7 +263,7 @@ func TestSyncFork(t *testing.T) {
 			if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
 				t.Error("Can't unmarshal request payload")
 			}
-			return br.Height == 0
+			return br.Height == 1
 		})).Return(getMessage(block11.GetMessage(), block21.GetMessage(), block31.GetMessage(), block41.GetMessage()), nil).Once()
 
 	err := toTest.RequestFork(context.Background(), block41.Header().Hash(), nil)
@@ -281,7 +281,7 @@ func TestSyncForkIntegrityViolation(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	bsrv := blockchain.NewBlockService(srv)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
@@ -300,7 +300,7 @@ func TestSyncForkIntegrityViolation(t *testing.T) {
 			if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
 				t.Error("Can't unmarshal request payload")
 			}
-			return br.Height == 0
+			return br.Height == 1
 		})).Return(getMessage(block31.GetMessage(), block32.GetMessage(), block33.GetMessage()), nil).Once()
 
 	err := toTest.RequestFork(context.Background(), block41.Header().Hash(), nil)
@@ -311,7 +311,7 @@ func TestSyncForkPartial(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
-	me := generateIdentity(t)
+	me := generateIdentity(t, 0)
 	bsrv := blockchain.NewBlockService(srv)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
@@ -328,7 +328,7 @@ func TestSyncForkPartial(t *testing.T) {
 			if err := ptypes.UnmarshalAny(msg.Payload, br); err != nil {
 				t.Error("Can't unmarshal request payload")
 			}
-			return br.Height == 0
+			return br.Height == 1
 		})).Return(getMessage(block11.GetMessage(), block21.GetMessage(), block31.GetMessage()), nil).Once()
 
 	err := toTest.RequestFork(context.Background(), block41.Header().Hash(), nil)

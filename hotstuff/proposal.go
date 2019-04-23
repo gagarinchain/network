@@ -7,7 +7,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	bc "github.com/poslibp2p/blockchain"
 	comm "github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
 	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
@@ -26,8 +25,8 @@ func (p *Proposal) GetMessage() *pb.ProposalPayload {
 
 }
 
-func CreateProposal(newBlock *bc.Block, hqc *bc.QuorumCertificate, me *comm.Peer) *Proposal {
-	return &Proposal{Sender: me, NewBlock: newBlock, HQC: hqc}
+func CreateProposal(newBlock *bc.Block, hqc *bc.QuorumCertificate, peer *comm.Peer) *Proposal {
+	return &Proposal{Sender: peer, NewBlock: newBlock, HQC: hqc}
 }
 
 func (p *Proposal) Sign(key *ecdsa.PrivateKey) {
@@ -47,11 +46,12 @@ func CreateProposalFromMessage(msg *msg.Message) (*Proposal, error) {
 	block := bc.CreateBlockFromMessage(pp.Block)
 	qc := bc.CreateQuorumCertificateFromMessage(pp.Cert)
 
-	pub, e := crypto.SigToPub(block.Header().Hash().Bytes(), pp.Signature)
+	pub, e := crypto.SigToPub(bc.HashHeader(*block.Header()).Bytes(), pp.Signature)
+
 	if e != nil {
 		return nil, errors.New("bad signature")
 	}
-	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
+	a := crypto.PubkeyToAddress(*pub)
 
 	msg.Source().SetAddress(a)
 

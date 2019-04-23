@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p"
@@ -127,7 +126,7 @@ func (p *Protocol) Vheight() int32 {
 func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 	val, err := cfg.Storage.GetCurrentEpoch()
 	if err != nil {
-		log.Warning("Can't load current epoch from storage")
+		log.Info("Starting node from scratch, storage is empty")
 	}
 	return &Protocol{
 		f:                   cfg.F,
@@ -191,7 +190,8 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) error {
 	p.Update(proposal.HQC)
 
-	log.Info(p.pacer.GetCurrent(p.GetCurrentView()).GetAddress().Hex())
+	log.Infof("current proposer %v", p.pacer.GetCurrent(p.GetCurrentView()).GetAddress().Hex())
+
 	//TODO move this two validations
 	if !proposal.Sender.Equals(p.pacer.GetCurrent(p.GetCurrentView())) {
 		log.Warningf("This proposer [%v] is not expected", proposal.Sender.GetAddress().Hex())
@@ -321,8 +321,8 @@ func (p *Protocol) CheckConsensus() bool {
 //We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block
 //determined by it."
 func (p *Protocol) OnPropose(ctx context.Context) {
-	if p.pacer.GetCurrent(p.GetCurrentView()) != p.me {
-		log.Debug("Can't propose when we are not proposers")
+	if !p.pacer.GetCurrent(p.GetCurrentView()).Equals(p.me) {
+		log.Debug("Not my turn to propose, skipping")
 		return
 	}
 	log.Debug("We are proposer, proposing")
@@ -371,7 +371,7 @@ func (p *Protocol) FinishGenesisQC(header *bc.Header) {
 	for _, v := range p.epochVoteStorage {
 		aggregate = append(aggregate, v...)
 	}
-	p.blockchain.GetGenesisBlock().SetQC(bc.CreateQuorumCertificate(aggregate, header))
+	p.blockchain.UpdateGenesisBlockQC(bc.CreateQuorumCertificate(aggregate, header))
 	p.hqc = p.blockchain.GetGenesisCert()
 }
 
@@ -389,15 +389,16 @@ func (p *Protocol) changeView(view int32) {
 	defer p.currentViewGuard.Unlock()
 
 	p.currentView = view
+	log.Debugf("New view %d is started", view)
 }
 func (p *Protocol) StartEpoch(ctx context.Context, i int32) {
 	p.IsStartingEpoch = true
 	var epoch *Epoch
 	//todo think about moving it to epoch
 	log.Debugf("current epoch %v", p.currentEpoch)
-	if p.currentEpoch == 0 {
+	if p.currentEpoch == -1 { //not yet started
 		signedHash := p.blockchain.GetGenesisBlockSignedHash(p.me.GetPrivateKey())
-		log.Debugf("current epoch is zero, got signature %v", signedHash)
+		log.Debugf("current epoch is genesis, got signature %v", signedHash)
 		epoch = CreateEpoch(p.me, i, nil, signedHash)
 	} else {
 		epoch = CreateEpoch(p.me, i, p.HQC(), nil)
@@ -407,7 +408,6 @@ func (p *Protocol) StartEpoch(ctx context.Context, i int32) {
 	if e != nil {
 		log.Error("Can't create Epoch message", e)
 	}
-	log.Info("Sending epoch message: " + spew.Sdump(m))
 	go p.srv.Broadcast(ctx, m)
 }
 
@@ -460,7 +460,7 @@ func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) error {
 
 	//We got quorum, lets start new epoch
 	if int(max.c) == p.f/3*2+1 {
-		if max.n == 1 {
+		if max.n == 0 {
 			p.FinishGenesisQC(p.blockchain.GetGenesisBlock().Header())
 		}
 		p.newEpoch(max.n)
@@ -470,8 +470,8 @@ func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) error {
 }
 
 func (p *Protocol) newEpoch(i int32) {
-	if i > 1 {
-		p.changeView((i - 1) * int32(p.f))
+	if i > 0 {
+		p.changeView((i) * int32(p.f))
 	}
 	e := p.storage.PutCurrentEpoch(i)
 	if e != nil {
@@ -627,6 +627,7 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 			return err
 		}
 	case pb.Message_EPOCH_START:
+		log.Debugf("received epoch message")
 		timeout, _ := context.WithTimeout(ctx, p.delta)
 		if e := p.validateMessage(p, pb.Message_EPOCH_START); e != nil {
 			return e
