@@ -92,6 +92,11 @@ func (p *StaticPacer) Run(ctx context.Context) {
 			}
 		case event := <-p.eventChan:
 			switch event {
+			case ForceEpochStart:
+				log.Info("Starting new epoch")
+				timeout, f = context.WithTimeout(ctx, 4*p.config.Delta)
+				p.config.ControlChan <- Command{eventType: StartEpoch, ctx: timeout}
+				currentState = StartEpoch
 			case StartedEpoch:
 				log.Info("Started new epoch, collect votes")
 				timeout, f = context.WithTimeout(ctx, p.config.Delta)

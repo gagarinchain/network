@@ -42,8 +42,9 @@ const (
 type Event int
 
 const (
-	StartedEpoch Event = iota
-	ChangedView  Event = iota
+	StartedEpoch    Event = iota
+	ForceEpochStart Event = iota
+	ChangedView     Event = iota
 )
 
 type Proposer interface {
@@ -90,13 +91,16 @@ type ProtocolConfig struct {
 }
 
 type Protocol struct {
-	f                     int
-	delta                 time.Duration
-	blockchain            *bc.Blockchain
-	currentView           int32
-	currentViewGuard      *sync.RWMutex
+	f           int
+	delta       time.Duration
+	blockchain  *bc.Blockchain
+	currentView struct {
+		number int32
+		guard  *sync.RWMutex
+	}
 	vheight               int32
 	currentEpoch          int32
+	epochToStart          int32
 	IsStartingEpoch       bool
 	epochMessageStorage   map[common.Address]int32
 	epochVoteStorage      map[common.Address][]byte
@@ -129,24 +133,26 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		log.Info("Starting node from scratch, storage is empty")
 	}
 	return &Protocol{
-		f:                   cfg.F,
-		delta:               cfg.Delta,
-		blockchain:          cfg.Blockchain,
-		vheight:             0,
-		votes:               make(map[common.Address]*Vote),
-		lastExecutedBlock:   cfg.Blockchain.GetGenesisBlock().Header(),
-		hqc:                 cfg.Blockchain.GetGenesisCert(),
-		me:                  cfg.Me,
-		pacer:               cfg.Pacer,
-		validators:          cfg.Validators,
-		storage:             cfg.Storage,
-		srv:                 cfg.Srv,
-		sync:                cfg.Sync,
-		stopChan:            make(chan bool),
-		controlChan:         cfg.ControlChan,
-		currentEpoch:        val,
-		currentView:         1,
-		currentViewGuard:    &sync.RWMutex{},
+		f:                 cfg.F,
+		delta:             cfg.Delta,
+		blockchain:        cfg.Blockchain,
+		vheight:           0,
+		votes:             make(map[common.Address]*Vote),
+		lastExecutedBlock: cfg.Blockchain.GetGenesisBlock().Header(),
+		hqc:               cfg.Blockchain.GetGenesisCert(),
+		me:                cfg.Me,
+		pacer:             cfg.Pacer,
+		validators:        cfg.Validators,
+		storage:           cfg.Storage,
+		srv:               cfg.Srv,
+		sync:              cfg.Sync,
+		stopChan:          make(chan bool),
+		controlChan:       cfg.ControlChan,
+		currentEpoch:      val,
+		currentView: struct {
+			number int32
+			guard  *sync.RWMutex
+		}{number: 1, guard: &sync.RWMutex{}},
 		IsStartingEpoch:     false,
 		epochMessageStorage: make(map[common.Address]int32),
 		epochVoteStorage:    make(map[common.Address][]byte),
@@ -224,15 +230,7 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 			log.Error(e)
 		}
 		m := msg.CreateMessage(pb.Message_VOTE, any, p.me)
-
-		willTrigger := p.pacer.WillNextViewForceEpochStart(p.GetCurrentView())
-		if willTrigger {
-			trigger := make(chan interface{})
-			p.SubscribeEpochChange(trigger)
-			go p.srv.SendMessageTriggered(ctx, p.pacer.GetNext(p.GetCurrentView()), m, trigger)
-		} else {
-			go p.srv.SendMessage(ctx, p.pacer.GetNext(p.GetCurrentView()), m)
-		}
+		go p.srv.SendMessage(ctx, p.pacer.GetNext(p.GetCurrentView()), m)
 	}
 
 	p.OnNextView()
@@ -385,13 +383,13 @@ func (p *Protocol) OnNextView() {
 }
 
 func (p *Protocol) changeView(view int32) {
-	p.currentViewGuard.Lock()
-	defer p.currentViewGuard.Unlock()
+	p.currentView.guard.Lock()
+	defer p.currentView.guard.Unlock()
 
-	p.currentView = view
+	p.currentView.number = view
 	log.Debugf("New view %d is started", view)
 }
-func (p *Protocol) StartEpoch(ctx context.Context, i int32) {
+func (p *Protocol) StartEpoch(ctx context.Context) {
 	p.IsStartingEpoch = true
 	var epoch *Epoch
 	//todo think about moving it to epoch
@@ -399,9 +397,9 @@ func (p *Protocol) StartEpoch(ctx context.Context, i int32) {
 	if p.currentEpoch == -1 { //not yet started
 		signedHash := p.blockchain.GetGenesisBlockSignedHash(p.me.GetPrivateKey())
 		log.Debugf("current epoch is genesis, got signature %v", signedHash)
-		epoch = CreateEpoch(p.me, i, nil, signedHash)
+		epoch = CreateEpoch(p.me, p.epochToStart, nil, signedHash)
 	} else {
-		epoch = CreateEpoch(p.me, i, p.HQC(), nil)
+		epoch = CreateEpoch(p.me, p.epochToStart, p.HQC(), nil)
 	}
 
 	m, e := epoch.GetMessage()
@@ -456,7 +454,8 @@ func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) error {
 	if int(max.c) == p.f/3+1 {
 		if p.IsStartingEpoch && p.currentEpoch < max.n-1 || !p.IsStartingEpoch {
 			log.Debugf("Received F/3 + 1 start epoch messages, starting new epoch")
-			p.StartEpoch(ctx, max.n)
+			p.epochToStart = max.n
+			p.notifyProtocolEvent(ForceEpochStart)
 		}
 	}
 
@@ -486,7 +485,7 @@ func (p *Protocol) newEpoch(i int32) {
 
 	p.IsStartingEpoch = false
 	log.Infof("Started new epoch %v", i)
-	log.Infof("Current view number %v, proposer %v", p.currentView, p.pacer.GetCurrent(p.currentView).GetAddress().Hex())
+	log.Infof("Current view number %v, proposer %v", p.currentView, p.pacer.GetCurrent(p.currentView.number).GetAddress().Hex())
 	p.notifyProtocolEvent(StartedEpoch)
 }
 
@@ -524,10 +523,15 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 	for {
 		select {
 		case m := <-msgChan:
+			//when we receive message during epoch start we delay this message processing until we start this epoch or cancel it otherwise
 			if p.IsStartingEpoch && m.Type != pb.Message_EPOCH_START {
-				log.Warningf("Received message [%v] while starting new epoch, skipping...", m.Type)
+				log.Infof("Received message [%v] while starting new epoch, delaying it", m.Type)
+				trigger := make(chan interface{})
+				p.SubscribeEpochChange(trigger)
+				go p.resendDelayed(ctx, m, trigger, msgChan)
 				break
 			}
+
 			if err := p.handleMessage(ctx, m); err != nil {
 				log.Error(err)
 				break
@@ -540,6 +544,23 @@ func (p *Protocol) Run(msgChan chan *msg.Message) {
 
 			return
 		}
+	}
+}
+
+func (p *Protocol) resendDelayed(ctx context.Context, m *msg.Message, trigger chan interface{}, msgChan chan *msg.Message) {
+	select {
+	case <-trigger:
+		log.Infof("Sending delayed message [%v]", m.Type)
+		select {
+		case msgChan <- m:
+			log.Infof("Sent delayed message [%v]", m.Type)
+		case <-ctx.Done():
+			log.Warning("Cancelled delayed message send")
+			return
+		}
+	case <-ctx.Done():
+		log.Warning("Cancelled delayed message send")
+		return
 	}
 }
 
@@ -566,7 +587,8 @@ func (p *Protocol) handleControlEvent(event Command) {
 	case NextView:
 		p.OnNextView()
 	case StartEpoch:
-		p.StartEpoch(event.ctx, p.currentEpoch+1)
+		p.epochToStart = p.currentEpoch + 1
+		p.StartEpoch(event.ctx)
 	}
 }
 
@@ -577,9 +599,9 @@ func (p *Protocol) Stop() {
 }
 
 func (p *Protocol) GetCurrentView() int32 {
-	p.currentViewGuard.RLock()
-	defer p.currentViewGuard.RUnlock()
-	return p.currentView
+	p.currentView.guard.RLock()
+	defer p.currentView.guard.RUnlock()
+	return p.currentView.number
 }
 
 func (p *Protocol) validate(proposal *Proposal) error {

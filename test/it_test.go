@@ -355,6 +355,88 @@ func TestScenario5c(t *testing.T) {
 	assert.Equal(t, int32(0), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
+//Scenario 5d:
+//Replica
+//Start new epoch
+//Receive f + 1 start messages
+//Wait 4 * D
+//Receive f start messages
+//Start new epoch
+func TestScenario5d(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run(context.Background())
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer ctx.protocol.Stop()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(2)
+
+	log.Infof("me %v", ctx.pacer.Committee()[2].GetAddress().Hex())
+
+	ctx.sendStartEpochMessages(2, ctx.cfg.F/3+1, ctx.protocol.HQC())
+	<-ctx.startChan //mine start message
+
+	time.Sleep(4 * ctx.cfg.Delta)
+
+	ctx.sendMoreStartEpochMessages(2, ctx.cfg.F/3+1, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
+
+	ctx.waitRounds(3)
+
+	assert.Equal(t, int32(20), ctx.protocol.GetCurrentView())
+}
+
+//Scenario 5e:
+//Replica
+//Start new epoch
+//Receive f + 1 start messages
+//Receive Proposal
+//Receive f start messages
+//Start new epoch
+//Process proposal and vote for it
+func TestScenario5e(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run(context.Background())
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer ctx.protocol.Stop()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(2)
+
+	log.Infof("me %v", ctx.pacer.Committee()[2].GetAddress().Hex())
+
+	ctx.sendStartEpochMessages(2, ctx.cfg.F/3+1, ctx.protocol.HQC())
+	<-ctx.startChan //mine start message
+
+	block := ctx.bc.GetHead()
+	for i := 1; i < 20; i++ {
+		block = ctx.bc.PadEmptyBlock(block)
+	}
+	newBlock := ctx.bc.NewBlock(block, ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	p := ctx.createProposal(newBlock, 0)
+	ctx.waitRounds(2)
+	//time.Sleep(ctx.cfg.Delta)
+
+	ctx.protocolChan <- p
+
+	ctx.sendMoreStartEpochMessages(2, ctx.cfg.F/3+1, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
+
+	v := <-ctx.voteChan
+
+	vote := &pb.VotePayload{}
+	if err := ptypes.UnmarshalAny(v.Payload, vote); err != nil {
+		log.Error(err)
+	}
+
+	ctx.waitRounds(2)
+	assert.Equal(t, int32(21), ctx.protocol.GetCurrentView())
+
+	assert.Equal(t, int32(20), vote.GetHeader().GetHeight())
+}
+
 //Scenario 6a:
 //Start new epoch
 //Replica
@@ -605,8 +687,8 @@ func (ctx *TestContext) StartFirstEpoch() {
 	<-trigger
 }
 
-func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blockchain.QuorumCertificate) {
-	for i := 0; i < amount; i++ {
+func (ctx *TestContext) sendMoreStartEpochMessages(index int32, start int, amount int, hqc *blockchain.QuorumCertificate) {
+	for i := start; i < amount; i++ {
 		var epoch *hotstuff.Epoch
 		p := ctx.pacer.Committee()[i]
 		if hqc == nil {
@@ -620,6 +702,9 @@ func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blo
 		message, _ := epoch.GetMessage()
 		ctx.protocolChan <- message
 	}
+}
+func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blockchain.QuorumCertificate) {
+	ctx.sendMoreStartEpochMessages(index, 0, amount, hqc)
 }
 
 func (ctx *TestContext) setMe(peerNumber int) {
@@ -653,7 +738,7 @@ func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCert
 
 func initContext(t *testing.T) *TestContext {
 	identity := generateIdentity(t, 0)
-	log.Debugf("Current me ", identity.GetAddress().Hex())
+	log.Debugf("Current me %v", identity.GetAddress().Hex())
 	srv := &mocks.Service{}
 	bsrv := &mocks.BlockService{}
 	storage := &mocks.Storage{}
