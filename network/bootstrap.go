@@ -112,11 +112,11 @@ func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) err
 	//manage bootstrap connections
 	connected := host.Network().Peers()
 	if len(connected) >= cfg.MinPeerThreshold {
-		log.Debugf("%s core bootstrap skipped -- connected to %d (> %d) nodes",
-			id, len(connected), cfg.MinPeerThreshold)
-		return nil
+		log.Debugf("Connected to %d (> %d) nodes", len(connected), cfg.MinPeerThreshold)
 	}
-	numToDial := cfg.MinPeerThreshold - len(connected)
+	numToDial := len(cfg.InitialPeers) - len(connected)
+
+	threshold := len(cfg.InitialPeers) - cfg.MinPeerThreshold
 
 	// filter out connected nodes
 	var notConnected []peerstore.PeerInfo
@@ -131,14 +131,11 @@ func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) err
 		return ErrNotEnoughPeers
 	}
 
-	// connect to a random susbset of bootstrap candidates
-	randSubset := randomSubsetOfPeers(notConnected, numToDial)
-
-	log.Debugf("%s bootstrapping to %d nodes: %v", id, numToDial, randSubset)
-	return bootstrapConnect(ctx, host, randSubset)
+	log.Debugf("%s bootstrapping to %d nodes: %v", id, numToDial, notConnected)
+	return bootstrapConnect(ctx, host, notConnected, threshold)
 }
 
-func bootstrapConnect(ctx context.Context, ph host.Host, peers []peerstore.PeerInfo) error {
+func bootstrapConnect(ctx context.Context, ph host.Host, peers []peerstore.PeerInfo, threshold int) error {
 	if len(peers) < 1 {
 		return ErrNotEnoughPeers
 	}
@@ -174,7 +171,7 @@ func bootstrapConnect(ctx context.Context, ph host.Host, peers []peerstore.PeerI
 			count++
 		}
 	}
-	if count == len(peers) {
+	if count > threshold {
 		return fmt.Errorf("failed to bootstrap. %s", err)
 	}
 	return nil

@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 	bc "github.com/poslibp2p/blockchain"
 	comm "github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
 	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
@@ -45,7 +44,7 @@ func CreateVoteFromMessage(msg *msg.Message) (*Vote, error) {
 	if e != nil {
 		return nil, errors.New("bad signature")
 	}
-	a := common.BytesToAddress(crypto.FromECDSAPub(pub))
+	a := crypto.PubkeyToAddress(*pub)
 	msg.Source().SetAddress(a)
 
 	return CreateVote(header, qc, msg.Source()), nil

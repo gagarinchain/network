@@ -136,7 +136,7 @@ func (h *Header) SetHash() {
 	h.hash = HashHeader(*h)
 }
 
-//We intentionally use this method on structure not on pointer to it, we need of blockHeader here
+//We intentionally use this method on value not on pointer, because we need a blockHeader here
 func HashHeader(h Header) common.Hash {
 	h.hash = common.BytesToHash(make([]byte, common.HashLength))
 	if h.IsGenesisBlock() {

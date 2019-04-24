@@ -118,6 +118,9 @@ func (s *ServiceImpl) sendRequestSync(ctx context.Context, pid peer.ID, req *msg
 	}
 
 	if !withResponse {
+		if err := stream.Close(); err != nil {
+			log.Debugf("error while closing stream %e", err)
+		}
 		return nil, nil
 	}
 
@@ -162,12 +165,16 @@ func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream net.Stream) {
 		err := r.ReadMsg(m)
 		if err != nil {
 			if err != io.EOF {
-				stream.Reset()
+				if err := stream.Reset(); err != nil {
+					log.Error("error resetting stream", err)
+				}
 				log.Infof("error reading message from %s: %s", stream.Conn().RemotePeer(), err)
 			} else {
 				// Just be nice. They probably won't read this
 				// but it doesn't hurt to send it.
-				stream.Close()
+				if err := stream.Close(); err != nil {
+					log.Error("error closing stream", err)
+				}
 			}
 			return
 		}
@@ -192,7 +199,7 @@ func (s *ServiceImpl) Subscribe(ctx context.Context) (*pubsub.Subscription, erro
 func (s *ServiceImpl) Listen(ctx context.Context, sub *pubsub.Subscription) {
 	log.Info("Listening topic...")
 	for {
-		e := s.handleMessage(ctx, sub)
+		e := s.handleTopicMessage(ctx, sub)
 		if e == context.Canceled {
 			break
 		}
@@ -203,7 +210,7 @@ func (s *ServiceImpl) Listen(ctx context.Context, sub *pubsub.Subscription) {
 
 }
 
-func (s *ServiceImpl) handleMessage(ctx context.Context, sub *pubsub.Subscription) error {
+func (s *ServiceImpl) handleTopicMessage(ctx context.Context, sub *pubsub.Subscription) error {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Error("panic occurred: ", r)

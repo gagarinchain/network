@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	comm "github.com/poslibp2p/common"
 	"github.com/poslibp2p/common/eth/common"
@@ -91,10 +92,12 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 	return s.addBlocksTransactional(exec.blocks)
 }
 
-//Request all blocks starting at top committed block, which all replicas must have and all forks must include and ending with block with given hash
+//Request all blocks starting at top committed block (not included), which all replicas must have (not sure that all, but 2 *f + 1)
+//and all forks must include and ending with block with given hash
 func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, peer *comm.Peer) error {
 	//we never request genesis block here, cause it will break block validity
-	resp, err := s.bsrv.RequestFork(ctx, max(s.bc.GetTopCommittedBlock().Header().Height(), 1), hash, peer)
+	requestedHeight := max(s.bc.GetTopCommittedBlock().Header().Height()+1, 1)
+	resp, err := s.bsrv.RequestFork(ctx, requestedHeight, hash, peer)
 	blocks, e := ReadBlocksWithErrors(resp, err)
 	if e != nil {
 		return e
@@ -108,7 +111,13 @@ func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, pe
 	parent := s.bc.GetTopCommittedBlock()
 	for i, b := range blocks {
 		if b.Header().Parent() != parent.Header().Hash() || b.Header().Height()-parent.Header().Height() != 1 {
-			return errors.New(fmt.Sprintf("fork integrity violation for fork block [%v] %d in fork", b.Header().Hash().Hex(), i))
+			for _, v := range blocks {
+				log.Debugf(spew.Sdump(v.Header()))
+			}
+
+			log.Debugf("Blocks parent %v, parent hash %v", b.Header().Parent().Hex(), parent.header.hash.Hex())
+			log.Debugf("Height difference %d", b.Header().Height()-parent.Header().Height())
+			return fmt.Errorf("fork integrity violation for fork block [%v] %d in fork", b.Header().Hash().Hex(), i)
 		}
 		parent = b
 	}

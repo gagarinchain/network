@@ -249,6 +249,7 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 
 	addr := vote.Sender.GetAddress()
 
+	//todo add vote validation
 	if stored, ok := p.votes[addr]; ok {
 		log.Infof("Already got vote for block [%v] from [%v]", stored.Header.Hash().Hex(), addr.Hex())
 
@@ -267,8 +268,8 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 	p.votes[addr] = vote
 
 	if p.CheckConsensus() {
-		p.FinishQC(vote.Header)
 		_, loaded := p.blockchain.GetBlockByHashOrLoad(vote.Header.Hash())
+		p.FinishQC(vote.Header)
 		//rare case when we missed proposal, but we are next proposer and received all votes, in this case we go to next view and propose
 		//this situation is the same as when we received proposal
 		//TODO think about it again, mb it is safer to ignore votes and simply push next view after 2 deltas
@@ -360,7 +361,7 @@ func (p *Protocol) FinishQC(header *bc.Header) {
 	for _, v := range p.votes {
 		aggregate = append(aggregate, v.Signature...)
 	}
-	p.hqc = bc.CreateQuorumCertificate(aggregate, header)
+	p.Update(bc.CreateQuorumCertificate(aggregate, header))
 	log.Debugf("Generated new QC for %v on height %v", header.Hash().Hex(), header.Height())
 }
 
@@ -452,13 +453,15 @@ func (p *Protocol) OnEpochStart(ctx context.Context, m *msg.Message) error {
 	}
 
 	//We received at least 1 message from fair peer, should resynchronize our epoch
-	if int(max.c) == p.f/3+1 && !p.IsStartingEpoch {
-		log.Debugf("Received F/3 + 1 start epoch messages, starting new epoch")
-		p.StartEpoch(ctx, max.n)
+	if int(max.c) == p.f/3+1 {
+		if p.IsStartingEpoch && p.currentEpoch < max.n-1 || !p.IsStartingEpoch {
+			log.Debugf("Received F/3 + 1 start epoch messages, starting new epoch")
+			p.StartEpoch(ctx, max.n)
+		}
 	}
 
 	//We got quorum, lets start new epoch
-	if int(max.c) == p.f/3*2+1 {
+	if int(max.c) == (p.f/3)*2+1 {
 		if max.n == 0 {
 			p.FinishGenesisQC(p.blockchain.GetGenesisBlock().Header())
 		}
@@ -615,6 +618,7 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 
 		parent := pr.NewBlock.Header().Parent()
 		if !p.blockchain.Contains(parent) {
+			log.Debugf("Requesting for fork starting at block %v at height %v", parent.Hex(), pr.NewBlock.Height()-1)
 			err := p.sync.RequestFork(ctx, parent, pr.Sender)
 			if err != nil {
 				return err

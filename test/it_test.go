@@ -114,7 +114,7 @@ func TestScenario1c(t *testing.T) {
 	go ctx.protocol.Run(ctx.protocolChan)
 
 	defer ctx.pacer.Stop()
-	//todo find out why we hangs here
+	//todo find out why protocol hangs here
 	//defer ctx.protocol.Stop()
 
 	ctx.StartFirstEpoch()
@@ -172,6 +172,27 @@ func TestScenario2(t *testing.T) {
 	vote := <-ctx.voteChan
 
 	assert.Equal(t, pb.Message_VOTE, vote.Type)
+
+}
+
+//Scenario 2b:
+//Start new epoch 0
+//Receive messages for starting epoch 2
+//Start epoch 2
+func TestScenario2b(t *testing.T) {
+	ctx := initContext(t)
+	go ctx.pacer.Run(context.Background())
+	go ctx.protocol.Run(ctx.protocolChan)
+
+	defer ctx.pacer.Stop()
+	defer ctx.protocol.Stop()
+
+	trigger := make(chan interface{})
+	ctx.protocol.SubscribeEpochChange(trigger)
+	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, nil)
+	<-trigger
+
+	assert.Equal(t, int32(20), ctx.protocol.GetCurrentView())
 
 }
 
