@@ -63,24 +63,20 @@ func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
 	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
 	config := &hotstuff.ProtocolConfig{
-		F:           4,
-		Delta:       10 * time.Second,
-		Blockchain:  bc,
-		Me:          me,
-		Srv:         srv,
-		Storage:     storage,
-		Sync:        synchr,
-		Committee:   cfg.Committee,
-		ControlChan: make(chan hotstuff.Command),
+		F:          4,
+		Delta:      10 * time.Second,
+		Blockchain: bc,
+		Me:         me,
+		Srv:        srv,
+		Storage:    storage,
+		Sync:       synchr,
+		Committee:  cfg.Committee,
 	}
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
 	p := hotstuff.CreateProtocol(config)
 	log.Debugf("%+v\n", p)
-	pacer.SetViewGetter(p)
-	pacer.SetEventNotifier(p)
-
 	return &Context{
 		node:              node,
 		blockProtocol:     protocol,
@@ -128,7 +124,6 @@ END:
 		}
 	}
 END_BP:
-
-	go c.hotStuff.Run(c.hotstuffChan)
-	go c.pacer.Run(rootCtx)
+	c.pacer.Bootstrap(rootCtx, c.hotStuff)
+	go c.pacer.Run(rootCtx, c.hotstuffChan)
 }

@@ -27,7 +27,7 @@ func TestInitializing(t *testing.T) {
 
 	ctx := CreateContext(cfg, generateIdentity(nil))
 
-	assert.Equal(t, int32(1), ctx.HotStuff().GetCurrentView())
+	assert.Equal(t, int32(1), ctx.HotStuff().getCurrentView())
 	assert.Equal(t, ctx.Node().Host.ID().Pretty(), ctx.Node().GetPeerInfo().ID.Pretty())
 	assert.Equal(t, 10, len(ctx.Pacer().Committee()))
 

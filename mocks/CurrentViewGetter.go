@@ -10,7 +10,7 @@ type CurrentViewGetter struct {
 }
 
 // GetCurrentView provides a mock function with given fields:
-func (_m *CurrentViewGetter) GetCurrentView() int32 {
+func (_m *CurrentViewGetter) getCurrentView() int32 {
 	ret := _m.Called()
 
 	var r0 int32
