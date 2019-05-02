@@ -11,20 +11,21 @@ var log = logging.MustGetLogger("cmd")
 type Dispatcher struct {
 	validators        []poslibp2p.Validator
 	hotstuffChan      chan *Message
+	epochChan         chan *Message
 	blockProtocolChan chan *Message
 }
 
-func NewDispatcher(validators []poslibp2p.Validator, hotstuffChan chan *Message, blockProtocolChan chan *Message) *Dispatcher {
-	return &Dispatcher{validators: validators, hotstuffChan: hotstuffChan, blockProtocolChan: blockProtocolChan}
+func NewDispatcher(validators []poslibp2p.Validator, hotstuffChan chan *Message, epochChan chan *Message, blockProtocolChan chan *Message) *Dispatcher {
+	return &Dispatcher{validators: validators, hotstuffChan: hotstuffChan, epochChan: epochChan, blockProtocolChan: blockProtocolChan}
 }
 
 //Dispatch makes simple message validations and choose channel to send message
 func (d *Dispatcher) Dispatch(msg *Message) {
 	go func() {
 		switch msg.Type {
-		case pb.Message_VOTE:
-			fallthrough
 		case pb.Message_EPOCH_START:
+			d.epochChan <- msg
+		case pb.Message_VOTE:
 			fallthrough
 		case pb.Message_PROPOSAL:
 			d.hotstuffChan <- msg

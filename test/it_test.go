@@ -25,9 +25,9 @@ import (
 // Propose block with new QC
 func TestScenario1a(t *testing.T) {
 	ctx := initContext(t)
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
@@ -35,11 +35,11 @@ func TestScenario1a(t *testing.T) {
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
 	p := ctx.createProposal(newBlock, 1)
-	ctx.protocolChan <- p
+	ctx.hottuffChan <- p
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes {
-		ctx.protocolChan <- v
+		ctx.hottuffChan <- v
 	}
 
 	proposal := <-ctx.proposalCHan
@@ -64,9 +64,9 @@ func TestScenario1a(t *testing.T) {
 // Propose block with new QC
 func TestScenario1b(t *testing.T) {
 	ctx := initContext(t)
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
@@ -75,14 +75,14 @@ func TestScenario1b(t *testing.T) {
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes[:2*ctx.cfg.F/3-2] {
-		ctx.protocolChan <- v
+		ctx.hottuffChan <- v
 	}
 
 	p := ctx.createProposal(newBlock, 1)
-	ctx.protocolChan <- p
+	ctx.hottuffChan <- p
 
 	for _, v := range votes[2*ctx.cfg.F/3-2:] {
-		ctx.protocolChan <- v
+		ctx.hottuffChan <- v
 	}
 
 	proposal := <-ctx.proposalCHan
@@ -107,11 +107,11 @@ func TestScenario1b(t *testing.T) {
 func TestScenario1c(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
-	defer ctx.pacer.Stop()
+	defer f()
 	//defer ctx.protocol.Stop()
 
 	ctx.StartFirstEpoch()
@@ -121,7 +121,7 @@ func TestScenario1c(t *testing.T) {
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes {
-		ctx.protocolChan <- v
+		ctx.hottuffChan <- v
 	}
 
 	go func() {
@@ -131,7 +131,7 @@ func TestScenario1c(t *testing.T) {
 	}()
 
 	p := ctx.createProposal(newBlock, 1)
-	ctx.protocolChan <- p
+	ctx.hottuffChan <- p
 
 	proposal := <-ctx.proposalCHan
 
@@ -153,16 +153,16 @@ func TestScenario1c(t *testing.T) {
 //Vote
 func TestScenario2(t *testing.T) {
 	ctx := initContext(t)
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(0)
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
-	ctx.protocolChan <- p
+	ctx.hottuffChan <- p
 
 	vote := <-ctx.voteChan
 
@@ -177,9 +177,9 @@ func TestScenario2(t *testing.T) {
 func TestScenario2b(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	trigger := make(chan interface{})
 	ctx.pacer.SubscribeEpochChange(timeout, trigger)
@@ -197,16 +197,16 @@ func TestScenario2b(t *testing.T) {
 func TestScenario3(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
-	ctx.protocolChan <- p
+	ctx.hottuffChan <- p
 	<-ctx.voteChan
 
 	proposal := <-ctx.proposalCHan
@@ -228,9 +228,9 @@ func TestScenario3(t *testing.T) {
 func TestScenario4(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
@@ -255,9 +255,9 @@ func TestScenario4(t *testing.T) {
 func TestScenario5a(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 12*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 
@@ -289,9 +289,9 @@ func TestScenario5a(t *testing.T) {
 func TestScenario5b(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(1)
@@ -322,9 +322,9 @@ func TestScenario5b(t *testing.T) {
 func TestScenario5c(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 40*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(1)
@@ -357,9 +357,9 @@ func TestScenario5c(t *testing.T) {
 func TestScenario5d(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
@@ -389,9 +389,9 @@ func TestScenario5d(t *testing.T) {
 func TestScenario5e(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 30*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
@@ -408,8 +408,9 @@ func TestScenario5e(t *testing.T) {
 	newBlock := ctx.bc.NewBlock(block, ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
 
-	ctx.protocolChan <- p
-	time.Sleep(ctx.cfg.Delta)
+	go func() {
+		ctx.hottuffChan <- p
+	}()
 
 	ctx.sendMoreStartEpochMessages(2, ctx.cfg.F/3+1, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
 
@@ -434,28 +435,28 @@ func TestScenario5e(t *testing.T) {
 func TestScenario6a(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
-	ctx.protocolChan <- proposal1
+	ctx.hottuffChan <- proposal1
 	block2 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
-	ctx.protocolChan <- proposal2
+	ctx.hottuffChan <- proposal2
 	block3 := ctx.bc.NewBlock(block2, ctx.bc.GetGenesisCert(), []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
-	ctx.protocolChan <- proposal3
+	ctx.hottuffChan <- proposal3
 
 	block21 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 21"))
 	block31 := ctx.bc.NewBlock(block21, ctx.bc.GetGenesisCert(), []byte("block 31"))
 	block4 := ctx.bc.NewBlock(block31, ctx.bc.GetGenesisCert(), []byte("block 41"))
 	proposal := ctx.createProposal(block4, 4)
-	ctx.protocolChan <- proposal
+	ctx.hottuffChan <- proposal
 
 	ctx.blockChan <- block4
 	ctx.blockChan <- block31
@@ -475,33 +476,33 @@ func TestScenario6a(t *testing.T) {
 func TestScenario6b(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
-	ctx.protocolChan <- proposal1
+	ctx.hottuffChan <- proposal1
 	qcb1 := ctx.createQC(block1)
 	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
-	ctx.protocolChan <- proposal2
+	ctx.hottuffChan <- proposal2
 	block3 := ctx.bc.NewBlock(block2, ctx.createQC(block2), []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
-	ctx.protocolChan <- proposal3
+	ctx.hottuffChan <- proposal3
 	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	proposal4 := ctx.createProposal(block4, 4)
-	ctx.protocolChan <- proposal4
+	ctx.hottuffChan <- proposal4
 
 	block22 := ctx.bc.NewBlock(block1, qcb1, []byte("block 22"))
 	block32 := ctx.bc.NewBlock(block22, qcb1, []byte("block 32"))
 	block42 := ctx.bc.NewBlock(block32, qcb1, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb1, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
-	ctx.protocolChan <- proposal
+	ctx.hottuffChan <- proposal
 
 	ctx.blockChan <- block22
 	ctx.blockChan <- block32
@@ -523,33 +524,33 @@ func TestScenario6b(t *testing.T) {
 func TestScenario6c(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
-	ctx.protocolChan <- proposal1
+	ctx.hottuffChan <- proposal1
 	qcb1 := ctx.createQC(block1)
 	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
-	ctx.protocolChan <- proposal2
+	ctx.hottuffChan <- proposal2
 	qcb2 := ctx.createQC(block2)
 	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
-	ctx.protocolChan <- proposal3
+	ctx.hottuffChan <- proposal3
 	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	proposal4 := ctx.createProposal(block4, 4)
-	ctx.protocolChan <- proposal4
+	ctx.hottuffChan <- proposal4
 
 	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
-	ctx.protocolChan <- proposal
+	ctx.hottuffChan <- proposal
 
 	ctx.blockChan <- block2
 	ctx.blockChan <- block32
@@ -572,9 +573,9 @@ func TestScenario6c(t *testing.T) {
 func TestScenario6d(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, _ := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.protocolChan)
-	defer ctx.pacer.Stop()
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
@@ -613,7 +614,7 @@ func TestScenario6d(t *testing.T) {
 	block51 := ctx.bc.NewBlock(block4, qcb4, []byte("block 51"))
 	block6 := ctx.bc.NewBlock(block51, qcb4, []byte("block 6"))
 	proposal6 := ctx.createProposal(block6, 6)
-	ctx.protocolChan <- proposal6
+	ctx.hottuffChan <- proposal6
 
 	ctx.blockChan <- block2
 	ctx.blockChan <- block3
@@ -640,7 +641,8 @@ type TestContext struct {
 	startChan    chan *msg.Message
 	proposalCHan chan *msg.Message
 	me           *common.Peer
-	protocolChan chan *msg.Message
+	hottuffChan  chan *msg.Message
+	epochChan    chan *msg.Message
 	blockChan    chan *blockchain.Block
 }
 
@@ -682,7 +684,7 @@ func (ctx *TestContext) sendMoreStartEpochMessages(index int32, start int, amoun
 			epoch = hotstuff.CreateEpoch(peer, index, hqc, nil)
 		}
 		message, _ := epoch.GetMessage()
-		ctx.protocolChan <- message
+		ctx.epochChan <- message
 	}
 }
 func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blockchain.QuorumCertificate) {
@@ -806,7 +808,8 @@ func initContext(t *testing.T) *TestContext {
 	eventChan := make(chan hotstuff.Event)
 	pacer.SubscribeProtocolEvents(eventChan)
 
-	protocolChan := make(chan *msg.Message)
+	hottuffChan := make(chan *msg.Message)
+	epochChan := make(chan *msg.Message)
 	return &TestContext{
 		voteChan:     voteChan,
 		peers:        peers,
@@ -820,6 +823,7 @@ func initContext(t *testing.T) *TestContext {
 		eventChan:    eventChan,
 		me:           identity,
 		bsrv:         bsrv,
-		protocolChan: protocolChan,
+		hottuffChan:  hottuffChan,
+		epochChan:    epochChan,
 	}
 }

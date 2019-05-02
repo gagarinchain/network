@@ -19,6 +19,7 @@ type Context struct {
 	pacer             *hotstuff.StaticPacer
 	srv               network.Service
 	hotstuffChan      chan *message.Message
+	epochChan         chan *message.Message
 	blockProtocolChan chan *message.Message
 }
 
@@ -38,16 +39,18 @@ func (c *Context) Node() *network.Node {
 	return c.node
 }
 
-func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
+func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common.Peer) *Context {
 	validators := []poslibp2p.Validator{
-		hotstuff.NewEpochStartValidator(cfg.Committee),
-		hotstuff.NewProposalValidator(cfg.Committee),
-		hotstuff.NewVoteValidator(cfg.Committee),
+		hotstuff.NewEpochStartValidator(committee),
+		hotstuff.NewProposalValidator(committee),
+		hotstuff.NewVoteValidator(committee),
 	}
 	msgChan := make(chan *message.Message)
+	epochChan := make(chan *message.Message)
 	blockChan := make(chan *message.Message)
-	dispatcher := message.NewDispatcher(validators, msgChan, blockChan)
+	dispatcher := message.NewDispatcher(validators, msgChan, epochChan, blockChan)
 
+	cfg.Committee = filterSelf(cfg.Committee, me)
 	node, err := network.CreateNode(cfg)
 	if err != nil {
 		log.Fatal(err)
@@ -70,7 +73,7 @@ func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
 		Srv:        srv,
 		Storage:    storage,
 		Sync:       synchr,
-		Committee:  filterSelf(cfg.Committee, me),
+		Committee:  committee,
 	}
 
 	pacer := hotstuff.CreatePacer(config)
@@ -84,6 +87,7 @@ func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
 		pacer:             pacer,
 		srv:               srv,
 		hotstuffChan:      msgChan,
+		epochChan:         epochChan,
 		blockProtocolChan: blockChan,
 	}
 }
@@ -134,5 +138,5 @@ END:
 	}
 END_BP:
 	c.pacer.Bootstrap(rootCtx, c.hotStuff)
-	go c.pacer.Run(rootCtx, c.hotstuffChan)
+	go c.pacer.Run(rootCtx, c.hotstuffChan, c.epochChan)
 }

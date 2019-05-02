@@ -48,7 +48,7 @@ func main() {
 		Committee:  committee[0:4],
 	}
 
-	ctx := CreateContext(cfg, committee[*ind])
+	ctx := CreateContext(cfg, committee[0:4], committee[*ind])
 
 	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.

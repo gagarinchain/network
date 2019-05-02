@@ -14,7 +14,7 @@ func TestOnStartEpochWithBrokenSignature(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t, 1)
 	pacer := initPacer(t, cfg, p)
 	go func() {
-		pacer.Run(context.Background(), make(chan *msg.Message))
+		pacer.Run(context.Background(), make(chan *msg.Message), make(chan *msg.Message))
 	}()
 
 	msgChan := make(chan *msg.Message)
@@ -65,7 +65,7 @@ func initPacer(t *testing.T, cfg *hotstuff.ProtocolConfig, p *hotstuff.Protocol)
 //	})
 //
 //	go ctx.pacer.Run()
-//	go ctx.protocol.Run(ctx.protocolChan)
+//	go ctx.protocol.Run(ctx.hottuffChan)
 //	defer ctx.pacer.Stop()
 //	defer ctx.protocol.Stop()
 //

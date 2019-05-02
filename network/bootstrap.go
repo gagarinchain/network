@@ -10,7 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/common"
-	"math/rand"
 	"sync"
 	"time"
 )
@@ -113,7 +112,8 @@ func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) err
 
 	//manage bootstrap connections
 	connected := host.Network().Peers()
-	if len(connected) >= cfg.MinPeerThreshold {
+	mandatoryToConnect := cfg.MinPeerThreshold - len(connected)
+	if mandatoryToConnect <= 0 {
 		log.Debugf("Connected to %d (> %d) nodes", len(connected), cfg.MinPeerThreshold)
 	}
 	numToDial := len(cfg.InitialPeers) - len(connected)
@@ -128,7 +128,7 @@ func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) err
 		}
 	}
 
-	if len(notConnected) < 1 {
+	if len(notConnected)-mandatoryToConnect < 0 {
 		log.Debugf("%s no more bootstrap peers to create %d connections", id, numToDial)
 		return ErrNotEnoughPeers
 	}
@@ -139,7 +139,7 @@ func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) err
 
 func bootstrapConnect(ctx context.Context, ph host.Host, peers []peerstore.PeerInfo, threshold int) error {
 	if len(peers) < 1 {
-		return ErrNotEnoughPeers
+		return nil
 	}
 
 	errs := make(chan error, len(peers))
@@ -177,18 +177,6 @@ func bootstrapConnect(ctx context.Context, ph host.Host, peers []peerstore.PeerI
 		return fmt.Errorf("failed to bootstrap. %s", err)
 	}
 	return nil
-}
-
-func randomSubsetOfPeers(in []peerstore.PeerInfo, max int) []peerstore.PeerInfo {
-	n := IntMin(max, len(in))
-	var out []peerstore.PeerInfo
-	for _, val := range rand.Perm(len(in)) {
-		out = append(out, in[val])
-		if len(out) >= n {
-			break
-		}
-	}
-	return out
 }
 
 func IntMin(x, y int) int {

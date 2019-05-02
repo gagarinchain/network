@@ -52,7 +52,6 @@ type StaticPacer struct {
 	delta                 time.Duration
 	me                    *cmn.Peer
 	committee             []*cmn.Peer
-	stopChan              chan interface{}
 	protocol              *Protocol
 	storage               blockchain.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	protocolEventSubChans []chan Event
@@ -73,7 +72,6 @@ type StaticPacer struct {
 		ctx    context.Context
 		f      context.CancelFunc
 	}
-	delayed chan *msg.Message
 	stateId StateId
 }
 
@@ -105,7 +103,6 @@ func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
 		delta:     cfg.Delta,
 		me:        cfg.Me,
 		committee: cfg.Committee,
-		stopChan:  make(chan interface{}),
 		storage:   cfg.Storage,
 		view: struct {
 			current int32
@@ -136,13 +133,6 @@ func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
 	p.execution.parent = ctx
 }
 
-func (p *StaticPacer) Stop() {
-	go func() {
-		p.stopChan <- struct{}{}
-
-	}()
-}
-
 func (p *StaticPacer) Committee() []*cmn.Peer {
 	return p.committee
 }
@@ -155,7 +145,7 @@ func (p *StaticPacer) GetNext() *cmn.Peer {
 	return p.committee[int(p.GetCurrentView()+1)%len(p.committee)]
 }
 
-func (p *StaticPacer) Run(ctx context.Context, msgChan chan *msg.Message) {
+func (p *StaticPacer) Run(ctx context.Context, hotstuffChan chan *msg.Message, epochChan chan *msg.Message) {
 	log.Info("Starting pacer...")
 
 	if p.stateId != Bootstrapped {
@@ -165,34 +155,39 @@ func (p *StaticPacer) Run(ctx context.Context, msgChan chan *msg.Message) {
 	p.execution.ctx, p.execution.f = context.WithTimeout(ctx, 4*p.delta)
 	p.stateId = StartingEpoch
 	p.StartEpoch(p.execution.ctx)
+
+	msgChan := hotstuffChan
 	for {
+		if p.stateId == StartingEpoch {
+			msgChan = nil
+		} else {
+			msgChan = hotstuffChan
+		}
+
 		select {
 		case m := <-msgChan:
 			log.Debugf("Received %v message", m.Type.String())
-			//when we receive message during epoch start we delay this message processing until we start this epoch or cancel it otherwise
-			if p.stateId == StartingEpoch && m.Type != pb.Message_EPOCH_START {
-				log.Infof("Received message [%v] while starting new epoch, delaying it", m.Type)
-				trigger := make(chan interface{})
-				p.SubscribeEpochChange(ctx, trigger)
-				go p.resendDelayed(ctx, m, trigger, msgChan)
-				break
-			}
-
 			if m.Type == pb.Message_EPOCH_START {
-				if e := p.OnEpochStart(ctx, m); e != nil {
-					log.Error(e)
-				}
+				log.Error("Epoch start message is not expected on hotstuff channel")
 			} else if err := p.protocol.handleMessage(ctx, m); err != nil {
 				log.Error(err)
 				break
 			}
-
+		case m := <-epochChan:
+			log.Debugf("Received %v message", m.Type.String())
+			if m.Type == pb.Message_EPOCH_START {
+				if e := p.OnEpochStart(ctx, m); e != nil {
+					log.Error(e)
+				}
+			} else {
+				log.Error("Wrong message type sent to epoch start chan")
+			}
 		case <-p.execution.ctx.Done(): //case when we timed out
 			if p.execution.ctx.Err() == context.DeadlineExceeded {
 				p.FireEvent(TimedOut)
 			}
-		case <-p.stopChan:
-			p.execution.f()
+		case <-ctx.Done():
+			log.Info("Root context is cancelled, shutting down pacer")
 			return
 		}
 	}
@@ -428,22 +423,4 @@ func (p *StaticPacer) newEpoch(i int32) {
 	log.Infof("Started new epoch %v", i)
 	log.Infof("Current view number %v, proposer %v", p.view.current, p.GetCurrent().GetAddress().Hex())
 	p.FireEvent(EpochStarted)
-}
-
-func (p *StaticPacer) resendDelayed(ctx context.Context, m *msg.Message, trigger chan interface{}, msgChan chan *msg.Message) {
-	select {
-	case <-trigger:
-		log.Infof("Sending delayed message [%v]", m.Type)
-		select {
-		case msgChan <- m:
-		case <-ctx.Done():
-			log.Warning("Cancelled delayed message send")
-			log.Error(ctx.Err())
-			return
-		}
-	case <-ctx.Done():
-		log.Warning("Cancelled delayed message send")
-		log.Debug("resendDelayed", ctx.Err())
-		return
-	}
 }

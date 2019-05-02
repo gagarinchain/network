@@ -184,8 +184,6 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 
 	//todo add vote validation
 	if stored, ok := p.votes[addr]; ok {
-		log.Infof("Already got vote for block [%v] from [%v]", stored.Header.Hash().Hex(), addr.Hex())
-
 		//check whether peer voted previously for block with higher number
 		if stored.Header.Height() > vote.Header.Height() {
 			p.equivocate(vote.Sender)
