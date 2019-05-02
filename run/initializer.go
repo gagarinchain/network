@@ -70,7 +70,7 @@ func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
 		Srv:        srv,
 		Storage:    storage,
 		Sync:       synchr,
-		Committee:  cfg.Committee,
+		Committee:  filterSelf(cfg.Committee, me),
 	}
 
 	pacer := hotstuff.CreatePacer(config)
@@ -88,6 +88,16 @@ func CreateContext(cfg *network.NodeConfig, me *common.Peer) *Context {
 	}
 }
 
+func filterSelf(peers []*common.Peer, self *common.Peer) (res []*common.Peer) {
+	for _, p := range peers {
+		if !p.Equals(self) {
+			res = append(res, p)
+		}
+	}
+
+	return res
+}
+
 func (c *Context) Bootstrap() {
 	rootCtx := context.Background()
 	statusChan, errChan := c.node.Bootstrap(rootCtx)
@@ -101,10 +111,7 @@ func (c *Context) Bootstrap() {
 			log.Error(e)
 		}
 	}
-
 END:
-	go c.blockProtocol.Run(rootCtx, c.blockProtocolChan)
-
 	ints, errors := c.srv.Bootstrap(rootCtx)
 	select {
 	case <-ints:
@@ -112,6 +119,8 @@ END:
 	case e := <-errors:
 		log.Error(e)
 	}
+
+	go c.blockProtocol.Run(rootCtx, c.blockProtocolChan)
 
 	respChan, errChans := c.blockProtocol.Bootstrap(rootCtx)
 	for {

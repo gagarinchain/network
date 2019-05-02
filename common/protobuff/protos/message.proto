@@ -48,7 +48,6 @@ message VotePayload {
 }
 
 message BlockRequestPayload {
-    //TODO Think about using oneof here
     bytes hash = 1;
     int32 height = 2;
 }
@@ -94,4 +93,19 @@ message BlockHeader {
 
 message BlockData {
     bytes data = 1;
+}
+
+message Transaction {
+    Type  type = 1;
+    bytes to = 2;
+    int64 nonce = 3;
+    int64 value = 4;
+    int64 fee = 5;
+    bytes signature = 6;
+    bytes data = 7;
+
+    enum Type {
+        PAYMENT = 0;
+        PROOF   = 1;
+    }
 }

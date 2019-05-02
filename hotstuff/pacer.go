@@ -73,7 +73,7 @@ type StaticPacer struct {
 		ctx    context.Context
 		f      context.CancelFunc
 	}
-
+	delayed chan *msg.Message
 	stateId StateId
 }
 
@@ -163,6 +163,7 @@ func (p *StaticPacer) Run(ctx context.Context, msgChan chan *msg.Message) {
 		return
 	}
 	p.execution.ctx, p.execution.f = context.WithTimeout(ctx, 4*p.delta)
+	p.stateId = StartingEpoch
 	p.StartEpoch(p.execution.ctx)
 	for {
 		select {
@@ -275,7 +276,7 @@ func (p *StaticPacer) FireEvent(event Event) {
 
 }
 
-//if we will need unsubscribe we can refactor list to map and identify subscribers
+//if we need unsubscribe we will refactor list to map and identify subscribers
 func (p *StaticPacer) SubscribeProtocolEvents(sub chan Event) {
 	p.protocolEventSubChans = append(p.protocolEventSubChans, sub)
 }
@@ -351,7 +352,7 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 		return e
 	}
 
-	if epoch.number < p.epoch.current+1 {
+	if epoch.number < p.epoch.toStart {
 		log.Warning("received epoch message for previous epoch ", epoch.number)
 		return nil
 	}
@@ -422,6 +423,7 @@ func (p *StaticPacer) newEpoch(i int32) {
 	}
 
 	p.epoch.current = i
+	p.epoch.toStart = i + 1
 	p.epoch.messageStorage = make(map[common.Address]int32)
 	log.Infof("Started new epoch %v", i)
 	log.Infof("Current view number %v, proposer %v", p.view.current, p.GetCurrent().GetAddress().Hex())
@@ -429,21 +431,19 @@ func (p *StaticPacer) newEpoch(i int32) {
 }
 
 func (p *StaticPacer) resendDelayed(ctx context.Context, m *msg.Message, trigger chan interface{}, msgChan chan *msg.Message) {
-	for {
+	select {
+	case <-trigger:
+		log.Infof("Sending delayed message [%v]", m.Type)
 		select {
-		case <-trigger:
-			log.Infof("Sending delayed message [%v]", m.Type)
-			select {
-			case msgChan <- m:
-			case <-ctx.Done():
-				log.Warning("Cancelled delayed message send")
-				log.Error(ctx.Err())
-				return
-			}
+		case msgChan <- m:
 		case <-ctx.Done():
 			log.Warning("Cancelled delayed message send")
-			log.Debug("resendDelayed", ctx.Err())
+			log.Error(ctx.Err())
 			return
 		}
+	case <-ctx.Done():
+		log.Warning("Cancelled delayed message send")
+		log.Debug("resendDelayed", ctx.Err())
+		return
 	}
 }

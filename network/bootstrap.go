@@ -52,6 +52,8 @@ func bootstrapWithPeers(committee []*common.Peer) BootstrapConfig {
 }
 
 //Start network services here
+//Note that now we simply connect to every node in committee, and actually don't use peer discovery via DHT.
+//It is considered that sooner we will have small amount of bootstrapped nodes and bigger amount of committee which can be found using DHT routing tables and connected to
 func Bootstrap(ctx context.Context, routing *dht.IpfsDHT, peerHost host.Host, cfg BootstrapConfig) (statusChan chan int, errChan chan error) {
 	statusChan = make(chan int)
 	errChan = make(chan error)

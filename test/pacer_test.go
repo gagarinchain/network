@@ -16,9 +16,6 @@ func TestOnStartEpochWithBrokenSignature(t *testing.T) {
 	go func() {
 		pacer.Run(context.Background(), make(chan *msg.Message))
 	}()
-	go func() {
-		//cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.StartEpoch)
-	}()
 
 	msgChan := make(chan *msg.Message)
 	(cfg.Srv).(*mocks.Service).On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }),

@@ -156,10 +156,10 @@ func (bc *Blockchain) GetFork(height int32, headHash common.Hash) (res []*Block)
 	return res
 }
 
-func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded bool) {
+func (bc *Blockchain) GetBlockByHashOrLoad(ctx context.Context, hash common.Hash) (b *Block, loaded bool) {
 	loaded = !bc.Contains(hash)
 	if loaded {
-		b = bc.LoadBlock(hash)
+		b = bc.LoadBlock(ctx, hash)
 	} else {
 		b = bc.GetBlockByHash(hash)
 	}
@@ -168,9 +168,9 @@ func (bc *Blockchain) GetBlockByHashOrLoad(hash common.Hash) (b *Block, loaded b
 }
 
 //todo pass loading errors higher
-func (bc *Blockchain) LoadBlock(hash common.Hash) *Block {
+func (bc *Blockchain) LoadBlock(ctx context.Context, hash common.Hash) *Block {
 	log.Infof("Loading block with hash [%v]", hash.Hex())
-	blocks, err := ReadBlocksWithErrors(bc.blockService.RequestBlock(context.Background(), hash, nil))
+	blocks, err := ReadBlocksWithErrors(bc.blockService.RequestBlock(ctx, hash, nil))
 	if err != nil {
 		log.Error("Can't load block", err)
 		return nil
