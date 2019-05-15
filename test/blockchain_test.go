@@ -2,7 +2,9 @@ package test
 
 import (
 	bch "github.com/poslibp2p/blockchain"
+	"github.com/poslibp2p/blockchain/state"
 	"github.com/poslibp2p/common/eth/common"
+	"github.com/poslibp2p/common/eth/crypto"
 	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -10,7 +12,7 @@ import (
 )
 
 func TestIsSiblingParent(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -22,7 +24,7 @@ func TestIsSiblingParent(t *testing.T) {
 }
 
 func TestIsSiblingAncestor(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -43,7 +45,7 @@ func TestIsSiblingAncestor(t *testing.T) {
 }
 
 func TestIsSiblingReverseParentSibling(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -61,7 +63,7 @@ func TestIsSiblingReverseParentSibling(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentSameHeight(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -78,7 +80,7 @@ func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -99,7 +101,7 @@ func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -132,18 +134,117 @@ func TestWarmUpFromStorageWithGenesisBlockOnly(t *testing.T) {
 	storage.On("GetHeightIndexRecord", int32(0)).Return([]common.Hash{zero.Header().Hash()}, nil)
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(zero, nil)
 
-	bc := bch.CreateBlockchainFromStorage(storage, nil)
+	bc := bch.CreateBlockchainFromStorage(storage, nil, mockPool(), mockDB())
 
 	assert.Equal(t, zero, bc.GetGenesisBlock())
 
 }
 
-func TestWarmUpFromStorageWithRichChain(t *testing.T) {
+func TestOnCommit(t *testing.T) {
 	storage, _ := bch.NewStorage("", nil)
-	bc := bch.CreateBlockchainFromGenesisBlock(storage, nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(storage, nil, mockPool(), mockDB())
 	genesisBlock := bc.GetGenesisBlock()
 	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
+	_ = bc.AddBlock(genesisBlock)
 
+	block10 := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block11 := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-1"))
+
+	block20 := bc.NewBlock(block10, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block21 := bc.NewBlock(block11, bc.GetGenesisCert(), []byte("block 1<-1"))
+	block22 := bc.NewBlock(block11, bc.GetGenesisCert(), []byte("block 1<-2"))
+
+	block30 := bc.NewBlock(block20, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block31 := bc.NewBlock(block21, bc.GetGenesisCert(), []byte("block 1<-1"))
+	block32 := bc.NewBlock(block22, bc.GetGenesisCert(), []byte("block 2<-2"))
+
+	block40 := bc.NewBlock(block30, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block41 := bc.NewBlock(block31, bc.GetGenesisCert(), []byte("block 1<-1"))
+	block42 := bc.NewBlock(block31, bc.GetGenesisCert(), []byte("block 1<-2"))
+	block43 := bc.NewBlock(block32, bc.GetGenesisCert(), []byte("block 2<-3"))
+	block44 := bc.NewBlock(block32, bc.GetGenesisCert(), []byte("block 2<-4"))
+
+	block50 := bc.NewBlock(block41, bc.GetGenesisCert(), []byte("block 1<-0"))
+	block51 := bc.NewBlock(block42, bc.GetGenesisCert(), []byte("block 2<-1"))
+	block52 := bc.NewBlock(block43, bc.GetGenesisCert(), []byte("block 3<-2"))
+
+	block60 := bc.NewBlock(block50, bc.GetGenesisCert(), []byte("block 0<-0"))
+
+	_ = bc.AddBlock(block10)
+	_ = bc.AddBlock(block11)
+	_ = bc.AddBlock(block20)
+	_ = bc.AddBlock(block21)
+	_ = bc.AddBlock(block22)
+	_ = bc.AddBlock(block30)
+	_ = bc.AddBlock(block31)
+	_ = bc.AddBlock(block32)
+	_ = bc.AddBlock(block40)
+	_ = bc.AddBlock(block41)
+	_ = bc.AddBlock(block42)
+	_ = bc.AddBlock(block43)
+	_ = bc.AddBlock(block44)
+	_ = bc.AddBlock(block50)
+	_ = bc.AddBlock(block51)
+	_ = bc.AddBlock(block52)
+	_ = bc.AddBlock(block60)
+
+	toCommit, orphans, err := bc.OnCommit(block21)
+
+	assert.NoError(t, err)
+	assert.Equal(t, genesisBlock, toCommit[0])
+	assert.Equal(t, block11, toCommit[1])
+	assert.Equal(t, block21, toCommit[2])
+	assert.Equal(t, 3, len(toCommit))
+
+	o0, _ := orphans.Get(int32(0))
+	o1, _ := orphans.Get(int32(1))
+	o2, _ := orphans.Get(int32(2))
+	o3, _ := orphans.Get(int32(3))
+	o4, _ := orphans.Get(int32(4))
+	o5, _ := orphans.Get(int32(5))
+	o6, _ := orphans.Get(int32(6))
+	assert.Nil(t, o0)
+
+	assert.NotNil(t, o1)
+	b1 := o1.([]*bch.Block)
+	assert.Equal(t, 1, len(b1))
+	assert.Equal(t, block10, b1[0])
+
+	assert.NotNil(t, o2)
+	b2 := o2.([]*bch.Block)
+	assert.Equal(t, 2, len(b2))
+	assert.Equal(t, block20, b2[0])
+	assert.Equal(t, block22, b2[1])
+
+	assert.NotNil(t, o3)
+	b3 := o3.([]*bch.Block)
+	assert.Equal(t, 2, len(b3))
+	assert.Equal(t, block30, b3[0])
+	assert.Equal(t, block32, b3[1])
+
+	assert.NotNil(t, o4)
+	b4 := o4.([]*bch.Block)
+	assert.Equal(t, 3, len(b4))
+	assert.Equal(t, block40, b4[0])
+	assert.Equal(t, block43, b4[1])
+	assert.Equal(t, block44, b4[2])
+
+	assert.NotNil(t, o5)
+	b5 := o5.([]*bch.Block)
+	assert.Equal(t, 1, len(b5))
+	assert.Equal(t, block52, b5[0])
+
+	assert.Nil(t, o6)
+
+	val, _ := storage.GetTopCommittedHeight()
+	assert.Equal(t, block21.Height(), val)
+}
+
+func TestWarmUpFromStorageWithRichChain(t *testing.T) {
+	storage, _ := bch.NewStorage("", nil)
+	bc := bch.CreateBlockchainFromGenesisBlock(storage, nil, mockPool(), mockDB())
+	genesisBlock := bc.GetGenesisBlock()
+	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
 	_ = bc.AddBlock(genesisBlock)
 
 	block12 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 1<-2"))
@@ -160,7 +261,7 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	_ = bc.AddBlock(block47)
 	bc.OnCommit(block34)
 
-	bc2 := bch.CreateBlockchainFromStorage(storage, nil)
+	bc2 := bch.CreateBlockchainFromStorage(storage, nil, mockPool(), mockDB())
 
 	assert.Equal(t, genesisBlock, bc2.GetGenesisBlock())
 	assert.Equal(t, block34, bc2.GetTopCommittedBlock())
@@ -177,4 +278,23 @@ func mockStorage() *mocks.Storage {
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
 
 	return storage
+}
+
+func mockPool() bch.TransactionPool {
+	pool := &mocks.TransactionPool{}
+	iterator := &mocks.Iterator{}
+	iterator.On("Next").Return(nil)
+	pool.On("Iterator").Return(iterator)
+	return pool
+}
+
+func mockDB() state.DB {
+	db := &mocks.DB{}
+	db.On("Get", mock.AnythingOfType("common.Hash")).Return(nil, false)
+	db.On("Init", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("*state.Snapshot")).Return(nil)
+	db.On("Create", mock.AnythingOfType("common.Hash")).Return(state.NewSnapshot(crypto.Keccak256Hash()), nil)
+	db.On("Commit", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Hash")).Return(state.NewSnapshot(crypto.Keccak256Hash()), nil)
+	db.On("Release", mock.AnythingOfType("common.Hash")).Return(nil)
+
+	return db
 }

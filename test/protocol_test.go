@@ -292,7 +292,7 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 	//synchr := &mocks.Synchronizer{}
 	loader := &mocks.CommitteeLoader{}
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), bsrv)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(mockStorage(), bsrv, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	peers := make([]*common.Peer, 10)

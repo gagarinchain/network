@@ -8,23 +8,59 @@ import (
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
 	"github.com/poslibp2p/common/protobuff"
+	"github.com/poslibp2p/common/trie"
+	"github.com/poslibp2p/common/tx"
 	"time"
 )
 
 type Block struct {
 	header *Header
 	qc     *QuorumCertificate
+	txs    *trie.FixedLengthHexKeyMerkleTrie
 	data   []byte
 }
 
-//TODO fix hash - datahash mess
+func (b *Block) Txs() tx.Iterator {
+	var transactions []*tx.Transaction
+	for _, bytes := range b.txs.Values() {
+		pbt := &pb.Transaction{}
+		if err := proto.Unmarshal(bytes, pbt); err != nil {
+			log.Error(err)
+			return nil
+		}
+		//todo be careful we unmarshal and recover key here, think about storing deserialized entities in the trie
+		t, e := tx.CreateTransactionFromMessage(pbt)
+		if e != nil {
+			return nil
+		}
+		transactions = append(transactions, t)
+	}
+
+	return newIterator(transactions)
+}
+
+func (b *Block) AddTransaction(t *tx.Transaction) {
+	key := []byte(t.Hash().Hex())
+	b.txs.InsertOrUpdate(key, t.Serialized())
+}
+
 type Header struct {
 	height    int32
 	hash      common.Hash
+	txHash    common.Hash
+	stateHash common.Hash
 	dataHash  common.Hash
 	qcHash    common.Hash
 	parent    common.Hash
 	timestamp time.Time
+}
+
+func (h *Header) DataHash() common.Hash {
+	return h.dataHash
+}
+
+func (h *Header) StateHash() common.Hash {
+	return h.stateHash
 }
 
 type ByHeight []*Block
@@ -49,8 +85,8 @@ func (b *Block) Height() int32 {
 func (h *Header) Hash() common.Hash {
 	return h.hash
 }
-func (h *Header) DataHash() common.Hash {
-	return h.dataHash
+func (h *Header) TxHash() common.Hash {
+	return h.txHash
 }
 func (h *Header) QCHash() common.Hash {
 	return h.qcHash
@@ -77,20 +113,23 @@ func (b *Block) QRef() *Header {
 func CreateGenesisBlock() (zero *Block) {
 	data := []byte("Zero")
 	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)),
+		common.BytesToHash(make([]byte, common.HashLength)), crypto.Keccak256Hash(),
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)),
 		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
-	//We need block to calculate it's hash
-	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(make([]byte, 256), zeroHeader)}
+	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(make([]byte, 256), zeroHeader), txs: trie.New()}
 
 	return zero
 }
 
-func createHeader(height int32, hash common.Hash, qcHash common.Hash, dataHash common.Hash, parent common.Hash, timestamp time.Time) *Header {
+func createHeader(height int32, hash common.Hash, qcHash common.Hash, txHash common.Hash,
+	stateHash common.Hash, dataHash common.Hash, parent common.Hash, timestamp time.Time) *Header {
 	return &Header{
 		height:    height,
 		hash:      hash,
 		qcHash:    qcHash,
+		stateHash: stateHash,
+		txHash:    txHash,
 		dataHash:  dataHash,
 		parent:    parent,
 		timestamp: timestamp,
@@ -104,7 +143,17 @@ func (h *Header) IsGenesisBlock() bool {
 func CreateBlockFromMessage(block *pb.Block) *Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
 	cert := CreateQuorumCertificate(block.Cert.GetSignatureAggregate(), CreateBlockHeaderFromMessage(block.Cert.Header))
-	return &Block{header: header, qc: cert, data: block.Data.Data}
+	var txs []*tx.Transaction
+	for _, tpb := range block.Txs {
+		t, e := tx.CreateTransactionFromMessage(tpb)
+		if e != nil {
+			log.Errorf("Bad transaction %v, %v", t.Hash().Hex(), e)
+			return nil
+		}
+		txs = append(txs, t)
+	}
+
+	return &Block{header: header, qc: cert, data: block.Data.Data, txs: trie.New()}
 }
 
 func (b *Block) GetMessage() *pb.Block {
@@ -116,15 +165,24 @@ func (b *Block) GetMessage() *pb.Block {
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
-	return createHeader(header.Height, common.BytesToHash(header.Hash), common.BytesToHash(header.QcHash),
-		common.BytesToHash(header.DataHash), common.BytesToHash(header.ParentHash),
-		time.Unix(0, header.Timestamp).UTC())
+	return createHeader(
+		header.Height,
+		common.BytesToHash(header.Hash),
+		common.BytesToHash(header.QcHash),
+		common.BytesToHash(header.TxHash),
+		common.BytesToHash(header.StateHash),
+		common.BytesToHash(header.DataHash),
+		common.BytesToHash(header.ParentHash),
+		time.Unix(0, header.Timestamp).UTC(),
+	)
 }
 
 func (h *Header) GetMessage() *pb.BlockHeader {
 	return &pb.BlockHeader{
 		Hash:       h.Hash().Bytes(),
 		ParentHash: h.Parent().Bytes(),
+		TxHash:     h.TxHash().Bytes(),
+		StateHash:  h.StateHash().Bytes(),
 		DataHash:   h.DataHash().Bytes(),
 		QcHash:     h.QCHash().Bytes(),
 		Height:     h.Height(),
@@ -175,12 +233,12 @@ func IsValid(block *Block) (bool, error) {
 
 	dataHash := crypto.Keccak256(block.Data())
 	if common.BytesToHash(dataHash) != block.Header().DataHash() {
-		log.Debugf("calculated %v, received %v", dataHash, block.Header().DataHash())
+		log.Debugf("calculated %v, received %v", dataHash, block.Header().TxHash())
 		return false, errors.New("data hash is not valid")
 	}
 
 	qcHash := block.QC().GetHash()
-	//TODO updated genesis block now will fail this validation, it is an error probably, we can't load genesis blok
+	//TODO updated genesis block now will fail this validation, it is an error probably, we can't load genesis block
 	if qcHash != block.Header().QCHash() {
 		spew.Dump(block)
 		return false, errors.New("QC hash is not valid")

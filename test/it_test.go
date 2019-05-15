@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p"
 	"github.com/poslibp2p/blockchain"
+	"github.com/poslibp2p/blockchain/state"
 	"github.com/poslibp2p/common"
 	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
@@ -629,6 +630,26 @@ func TestScenario6d(t *testing.T) {
 	assert.Equal(t, block6, ctx.bc.GetBlockByHeight(6)[0])
 }
 
+//Scenario 7a: Propose block with transactions
+func TestScenario7a(t *testing.T) {
+
+}
+
+//Scenario 7b: Vote for block with transactions
+func TestScenario7b(t *testing.T) {
+
+}
+
+//Scenario 7c: Commit block with transactions
+func TestScenario7c(t *testing.T) {
+
+}
+
+//Scenario 7d: Forks and blocks with transactions (release states etc)
+func TestScenario7d(t *testing.T) {
+
+}
+
 type TestContext struct {
 	peers        []*common.Peer
 	pacer        *hotstuff.StaticPacer
@@ -758,7 +779,8 @@ func initContext(t *testing.T) *TestContext {
 		hotstuff.NewVoteValidator(peers),
 	}
 
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, blockchain.NewTransactionPool(), state.NewStateDB())
+
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
 	config := &hotstuff.ProtocolConfig{
 		F:          10,

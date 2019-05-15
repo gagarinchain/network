@@ -201,12 +201,6 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 	if p.CheckConsensus() {
 		p.blockchain.GetBlockByHashOrLoad(ctx, vote.Header.Hash())
 		p.FinishQC(vote.Header)
-		//rare case when we missed proposal, but we are next proposer and received all votes, in this case we go to next view and propose
-		//this situation is the same as when we received proposal
-		//TODO think about it again, mb it is safer to ignore votes and simply push next view after 2 deltas
-		//if loaded && p.me == p.pacer.GetNext(p.GetCurrentView()) {
-		//	p.OnNextView()
-		//}
 		p.pacer.FireEvent(VotesCollected)
 	}
 	return nil

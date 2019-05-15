@@ -45,7 +45,6 @@ const Topic string = "/hotstuff"
 type ServiceImpl struct {
 	node       *Node
 	dispatcher *msg.Dispatcher
-	//streams map[peer.ID]net.Stream
 }
 
 func CreateService(ctx context.Context, node *Node, dispatcher *msg.Dispatcher) Service {

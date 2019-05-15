@@ -1,32 +1,42 @@
 package blockchain
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/emirpasic/gods/utils"
 	"github.com/op/go-logging"
+	"github.com/poslibp2p/blockchain/state"
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/poslibp2p/common/trie"
 	"sync"
 	"time"
 )
 import "github.com/emirpasic/gods/maps/treemap"
 
+const TxLimit = 50
+
+var (
+	InvalidStateHashError = errors.New("invalid block state hash")
+)
+
 type Blockchain struct {
 	indexGuard *sync.RWMutex
 	//index for storing blocks by their hash
 	blocksByHash map[common.Hash]*Block
-
 	//indexes for storing blocks according to their height,
 	// <int32, *Block>
-	committedTailByHeight *treemap.Map
+	committedChainByHeight *treemap.Map
 	//indexes for storing block arrays according to their height, while not committed head may contain forks,
 	//<int32, []*Block>
-	uncommittedHeadByHeight *treemap.Map
+	uncommittedTreeByHeight *treemap.Map
 	storage                 Storage
 	blockService            BlockService
+	txPool                  TransactionPool
+	stateDB                 state.DB
 }
 
 func (bc *Blockchain) BlockService(blockService BlockService) {
@@ -39,37 +49,46 @@ func (bc *Blockchain) SetStorage(storage Storage) {
 
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService) *Blockchain {
+func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
 	zero := CreateGenesisBlock()
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
-		committedTailByHeight:   treemap.NewWith(utils.Int32Comparator),
-		uncommittedHeadByHeight: treemap.NewWith(utils.Int32Comparator),
+		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
+		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
 		storage:                 storage,
 		blockService:            blockService,
+		txPool:                  pool,
+		stateDB:                 db,
+	}
+
+	//TODO add seed to genesis block
+	if e := db.Init(zero.Header().Hash(), nil); e != nil {
+		panic("can't init state DB")
 	}
 
 	if err := blockchain.AddBlock(zero); err != nil {
+		log.Error(err)
 		panic("can't add genesis block")
 	}
-
 	return blockchain
 }
 
-func CreateBlockchainFromStorage(storage Storage, blockService BlockService) *Blockchain {
+func CreateBlockchainFromStorage(storage Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
 	topHeight, err := storage.GetCurrentTopHeight()
 	if err != nil || topHeight < 0 {
-		return CreateBlockchainFromGenesisBlock(storage, blockService)
+		return CreateBlockchainFromGenesisBlock(storage, blockService, pool, db)
 	}
 
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
-		committedTailByHeight:   treemap.NewWith(utils.Int32Comparator),
-		uncommittedHeadByHeight: treemap.NewWith(utils.Int32Comparator),
+		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
+		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
 		storage:                 storage,
 		blockService:            blockService,
+		txPool:                  pool,
+		stateDB:                 db,
 	}
 
 	topCommittedHeight, err := storage.GetTopCommittedHeight()
@@ -94,7 +113,7 @@ func CreateBlockchainFromStorage(storage Storage, blockService BlockService) *Bl
 					log.Fatal(err)
 				}
 			} else {
-				blockchain.committedTailByHeight.Put(b.Height(), b)
+				blockchain.committedChainByHeight.Put(b.Height(), b)
 			}
 
 		}
@@ -121,9 +140,9 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
 }
 
 func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
-	block, ok := bc.committedTailByHeight.Get(height)
+	block, ok := bc.committedChainByHeight.Get(height)
 	if !ok {
-		blocks, ok := bc.uncommittedHeadByHeight.Get(height)
+		blocks, ok := bc.uncommittedTreeByHeight.Get(height)
 		if ok {
 			res = append(res, blocks.([]*Block)...)
 		} else { //TODO it seems like a hack, we should preload blockchain structure from index to memory
@@ -156,6 +175,7 @@ func (bc *Blockchain) GetFork(height int32, headHash common.Hash) (res []*Block)
 	return res
 }
 
+//todo remove this method
 func (bc *Blockchain) GetBlockByHashOrLoad(ctx context.Context, hash common.Hash) (b *Block, loaded bool) {
 	loaded = !bc.Contains(hash)
 	if loaded {
@@ -167,7 +187,6 @@ func (bc *Blockchain) GetBlockByHashOrLoad(ctx context.Context, hash common.Hash
 	return b, loaded
 }
 
-//todo pass loading errors higher
 func (bc *Blockchain) LoadBlock(ctx context.Context, hash common.Hash) *Block {
 	log.Infof("Loading block with hash [%v]", hash.Hex())
 	blocks, err := ReadBlocksWithErrors(bc.blockService.RequestBlock(ctx, hash, nil))
@@ -208,32 +227,78 @@ func (bc *Blockchain) GetThreeChain(twoHash common.Hash) (zero *Block, one *Bloc
 }
 
 //move uncommitted chain with b as head to committed and analyze rejected forks
-func (bc *Blockchain) OnCommit(b *Block) {
-	bc.indexGuard.RLock()
-	uncommittedTail := bc.uncommittedHeadByHeight.Select(func(key interface{}, value interface{}) bool {
-		return key.(int32) <= b.Header().height
-	})
-	bc.indexGuard.RUnlock()
+func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error) {
+	orphans = treemap.NewWith(utils.Int32Comparator)
 
-	for i := 0; i < uncommittedTail.Size(); i++ {
+	low, _ := bc.uncommittedTreeByHeight.Min()
+	if low == nil {
+		return nil, nil, errors.New("empty commit index")
+	}
+
+	//lets collect all predecessors of block to commit, and make orphans map
+	phash := b.header.hash
+	for height := b.Height(); height >= low.(int32); height-- {
+		val, found := bc.uncommittedTreeByHeight.Get(height)
+		currentBag := val.([]*Block)
+		if !found {
+			return nil, nil, errors.New("bad index structure")
+		}
+		for i, el := range currentBag {
+			if el.Header().Hash() == phash {
+				toCommit = append(toCommit, el)
+				orph := append(currentBag[:i], currentBag[i+1:]...)
+				if len(orph) != 0 {
+					orphans.Put(height, orph)
+				}
+				bc.uncommittedTreeByHeight.Remove(height)
+				phash = el.Header().Parent()
+				break
+			}
+		}
+	}
+
+	//lets filter orphan blocks
+	hashes := map[common.Hash]bool{b.header.hash: true}
+	max, _ := bc.uncommittedTreeByHeight.Max()
+	for height := b.Height() + 1; height <= max.(int32); height++ {
+		val, found := bc.uncommittedTreeByHeight.Get(height)
+		currentBag := val.([]*Block)
+		if !found {
+			return nil, nil, errors.New("bad index structure")
+		}
+		var o []*Block
+		var c []*Block
+		for _, el := range currentBag {
+			_, ok := hashes[el.Header().Parent()]
+			if ok {
+				c = append(c, el)
+				hashes[el.Header().Hash()] = true
+			} else {
+				o = append(o, el)
+			}
+		}
+		orphans.Put(height, o)
+		bc.uncommittedTreeByHeight.Put(height, c)
+	}
+
+	//reverse toCommit
+	for left, right := 0, len(toCommit)-1; left < right; left, right = left+1, right-1 {
+		toCommit[left], toCommit[right] = toCommit[right], toCommit[left]
+	}
+
+	//add blocks marked to commit to committed index
+	for _, k := range toCommit {
 		bc.indexGuard.Lock()
-		bc.committedTailByHeight.Put(b.Header().Height(), b)
-		bc.uncommittedHeadByHeight.Remove(b.Header().Height())
+		bc.committedChainByHeight.Put(k.Header().Height(), k)
 		bc.indexGuard.Unlock()
 
-		err := bc.storage.PutTopCommittedHeight(b.Height())
+		err := bc.storage.PutTopCommittedHeight(k.Height())
 		if err != nil {
 			log.Error(err)
 		}
-		b = bc.GetBlockByHash(b.Header().Hash())
 	}
 
-	analyze(uncommittedTail)
-}
-
-//TODO analyze forks and find where peers equivocated, than possibly slash them
-func analyze(uncommittedTail *treemap.Map) {
-	log.Infof("Analyzing")
+	return toCommit, orphans, nil
 }
 
 func (bc *Blockchain) Execute(b *Block) error {
@@ -247,7 +312,7 @@ func (bc *Blockchain) GetHead() *Block {
 	defer bc.indexGuard.RUnlock()
 
 	//TODO probably it is not correct^ have to return head of PREF block branch here
-	_, blocks := bc.uncommittedHeadByHeight.Max()
+	_, blocks := bc.uncommittedTreeByHeight.Max()
 	var b = blocks.([]*Block)
 	return b[0]
 }
@@ -272,7 +337,14 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 		return errors.New(fmt.Sprintf("block with hash [%v] don't have parent loaded to blockchain", block.Header().Hash().Hex()))
 	}
 
-	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
+	//todo remove this hack by handling genesis in special way
+	if block.Height() != 0 {
+		if err := bc.applyTransactionsAndValidateProof(block); err != nil {
+			return err
+		}
+	}
+
+	value, _ := bc.uncommittedTreeByHeight.Get(block.Header().Height())
 	if value == nil {
 		if err := bc.storage.PutCurrentTopHeight(block.Header().Height()); err != nil {
 			return err
@@ -291,14 +363,14 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 }
 
 func (bc *Blockchain) addUncommittedBlock(block *Block) error {
-	value, _ := bc.uncommittedHeadByHeight.Get(block.Header().Height())
+	value, _ := bc.uncommittedTreeByHeight.Get(block.Header().Height())
 	if value == nil {
 		value = make([]*Block, 0)
 	}
 
 	value = append(value.([]*Block), block)
 	bc.blocksByHash[block.Header().Hash()] = block
-	bc.uncommittedHeadByHeight.Put(block.Header().Height(), value)
+	bc.uncommittedTreeByHeight.Put(block.Header().Height(), value)
 
 	return nil
 }
@@ -315,8 +387,8 @@ func (bc *Blockchain) RemoveBlock(block *Block) error {
 		return nil
 	}
 
-	//we can delete only leafs, so check whether this block is parent of any
-	value, found := bc.uncommittedHeadByHeight.Get(block.Height() + 1)
+	//we can delete only leafs, so check whether this block is not parent of any
+	value, found := bc.uncommittedTreeByHeight.Get(block.Height() + 1)
 	if found {
 		nextHeight := value.([]*Block)
 		for _, next := range nextHeight {
@@ -327,7 +399,7 @@ func (bc *Blockchain) RemoveBlock(block *Block) error {
 	}
 
 	delete(bc.blocksByHash, block.Header().Hash())
-	bc.uncommittedHeadByHeight.Remove(block.Header().Hash())
+	bc.uncommittedTreeByHeight.Remove(block.Header().Hash())
 
 	return nil
 }
@@ -336,9 +408,13 @@ func (bc *Blockchain) GetGenesisBlock() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
-	value, ok := bc.committedTailByHeight.Get(int32(0))
+	return bc.getGenesisBlock()
+}
+
+func (bc *Blockchain) getGenesisBlock() *Block {
+	value, ok := bc.committedChainByHeight.Get(int32(0))
 	if !ok {
-		if h, okk := bc.uncommittedHeadByHeight.Get(int32(0)); okk {
+		if h, okk := bc.uncommittedTreeByHeight.Get(int32(0)); okk {
 			value = h.([]*Block)[0]
 		}
 	}
@@ -371,10 +447,49 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 }
 
 func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
-	header := createHeader(parent.Header().Height()+1, common.Hash{}, qc.GetHash(), crypto.Keccak256Hash(data),
-		parent.Header().Hash(), time.Now().UTC().Round(time.Second))
+	s, e := bc.stateDB.Create(parent.Header().Hash())
+	if e != nil {
+		log.Error("Can't create new block", e)
+		return nil
+	}
+
+	it := bc.txPool.Iterator()
+	txs := trie.New()
+	for next, count := it.Next(), 0; next != nil && count < TxLimit; count++ {
+		err := s.ApplyTransaction(next)
+		switch err {
+		case state.FutureTransactionError:
+			//ignore this transaction
+			continue
+		case state.InsufficientFundsError:
+			//ignore this transaction
+			continue
+		case state.ExpiredTransactionError: //possibly put to another pool, or analyze whether it is malicious tx
+			bc.txPool.Remove(next)
+			continue
+		}
+
+		txs.InsertOrUpdate([]byte(next.Hash().Hex()), next.Serialized())
+	}
+
+	header := createHeader(
+		parent.Header().Height()+1,
+		common.Hash{},
+		qc.GetHash(),
+		txs.Proof(),
+		s.Proof(),
+		crypto.Keccak256Hash(data),
+		parent.Header().Hash(),
+		time.Now().UTC().Round(time.Second))
 	header.SetHash()
-	block := &Block{header: header, data: data, qc: qc}
+
+	_, err := bc.stateDB.Commit(parent.Header().Hash(), header.Hash())
+	if err != nil {
+		log.Error("Can't create new block", err)
+		return nil
+	}
+
+	block := &Block{header: header, data: data, qc: qc, txs: txs}
 
 	return block
 }
@@ -414,7 +529,7 @@ func (bc *Blockchain) ValidateGenesisBlockSignature(signature []byte, address co
 func (bc *Blockchain) GetTopCommittedBlock() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
-	_, block := bc.committedTailByHeight.Max()
+	_, block := bc.committedChainByHeight.Max()
 	//todo think about committing genesis at making QC
 	if block == nil {
 		return bc.GetGenesisBlock()
@@ -430,4 +545,28 @@ func (bc *Blockchain) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
 		return
 	}
 
+}
+
+func (bc *Blockchain) applyTransactionsAndValidateProof(block *Block) error {
+	s, e := bc.stateDB.Create(block.Header().Parent())
+	if e != nil {
+		return e
+	}
+
+	for next := block.Txs().Next(); next != nil; next = block.Txs().Next() {
+		if err := s.ApplyTransaction(next); err != nil {
+			return err
+		}
+	}
+
+	if !bytes.Equal(s.Proof().Bytes(), block.Header().stateHash.Bytes()) {
+		log.Debugf("Not equal state hash: expected %v, calculated %v", s.Proof().Hex(), block.Header().stateHash.Hex())
+		return InvalidStateHashError
+	}
+	_, err := bc.stateDB.Commit(block.Header().Parent(), block.Header().Hash())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

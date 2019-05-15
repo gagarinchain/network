@@ -18,7 +18,7 @@ func TestIsValidGenesisBlock(t *testing.T) {
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	b, e := blockchain.IsValid(bc.GetGenesisBlock())
 	assert.NoError(t, e)
@@ -33,7 +33,7 @@ func TestIsValidBlock(t *testing.T) {
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
@@ -48,7 +48,7 @@ func TestIsNotValidWithBrokenHash(t *testing.T) {
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
@@ -68,7 +68,7 @@ func TestIsNotValidWithBrokenDataHash(t *testing.T) {
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
@@ -87,7 +87,7 @@ func TestIsNotValidWithBrokenQCHash(t *testing.T) {
 	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
 	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
 	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))

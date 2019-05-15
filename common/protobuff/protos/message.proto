@@ -15,6 +15,7 @@ message Message {
         PROPOSAL = 4;
         BLOCK_REQUEST = 5;
         BLOCK_RESPONSE = 6;
+        TRANSACTION = 7;
     }
 }
 
@@ -77,6 +78,7 @@ message Block {
     BlockHeader header = 1;
     QuorumCertificate cert = 2;
     BlockData data = 3;
+    repeated Transaction txs = 4;
 }
 message Blocks {
     repeated Block blocks = 1;
@@ -87,8 +89,10 @@ message BlockHeader {
     bytes parentHash = 2;
     bytes qcHash = 3;
     bytes dataHash = 4;
-    int32 height = 5;
-    int64 timestamp = 6;
+    bytes txHash = 5;
+    bytes stateHash = 6;
+    int32 height = 7;
+    int64 timestamp = 8;
 }
 
 message BlockData {
@@ -98,7 +102,7 @@ message BlockData {
 message Transaction {
     Type  type = 1;
     bytes to = 2;
-    int64 nonce = 3;
+    uint64 nonce = 3;
     int64 value = 4;
     int64 fee = 5;
     bytes signature = 6;
@@ -106,6 +110,11 @@ message Transaction {
 
     enum Type {
         PAYMENT = 0;
-        PROOF   = 1;
+        SLASHING   = 1;
     }
+}
+
+message Account {
+    uint64 nonce = 1;
+    bytes value = 2;
 }
