@@ -30,12 +30,14 @@ func (r *routingNode) Hash() common.Hash {
 }
 
 func (r *routingNode) Copy() Node {
-	var keyCopy []byte
+	keyCopy := make([]byte, len(r.key))
 	copy(keyCopy, r.key)
 	cpy := &routingNode{hash: r.hash, key: keyCopy}
 
 	for i, n := range r.Children {
-		cpy.Children[i] = n.Copy()
+		if n != nil {
+			cpy.Children[i] = n.Copy()
+		}
 	}
 
 	return cpy
@@ -69,11 +71,11 @@ func (v *valueNode) Hash() common.Hash {
 }
 
 func (v *valueNode) Copy() Node {
-	var keyCopy []byte
+	keyCopy := make([]byte, len(v.key))
 	copy(keyCopy, v.key)
 
-	var valueCopy []byte
-	copy(valueCopy, v.key)
+	valueCopy := make([]byte, len(v.value))
+	copy(valueCopy, v.value)
 
 	return &valueNode{key: keyCopy, value: valueCopy, hash: v.hash}
 }

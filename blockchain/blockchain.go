@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/emirpasic/gods/utils"
 	"github.com/op/go-logging"
 	"github.com/poslibp2p/blockchain/state"
@@ -49,24 +50,26 @@ func (bc *Blockchain) SetStorage(storage Storage) {
 
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
+func CreateBlockchainFromGenesisBlock(cfg *Config) *Blockchain {
 	zero := CreateGenesisBlock()
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
-		storage:                 storage,
-		blockService:            blockService,
-		txPool:                  pool,
-		stateDB:                 db,
+		storage:                 cfg.Storage,
+		blockService:            cfg.BlockService,
+		txPool:                  cfg.Pool,
+		stateDB:                 cfg.Db,
 	}
 
-	//TODO add seed to genesis block
-	if e := db.Init(zero.Header().Hash(), nil); e != nil {
+	var s *state.Snapshot
+	if cfg.Seed != nil {
+		s = state.NewSnapshotWithAccounts(zero.Header().Hash(), cfg.Seed)
+	}
+	if e := cfg.Db.Init(zero.Header().Hash(), s); e != nil {
 		panic("can't init state DB")
 	}
-
 	if err := blockchain.AddBlock(zero); err != nil {
 		log.Error(err)
 		panic("can't add genesis block")
@@ -77,7 +80,7 @@ func CreateBlockchainFromGenesisBlock(storage Storage, blockService BlockService
 func CreateBlockchainFromStorage(storage Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
 	topHeight, err := storage.GetCurrentTopHeight()
 	if err != nil || topHeight < 0 {
-		return CreateBlockchainFromGenesisBlock(storage, blockService, pool, db)
+		return CreateBlockchainFromGenesisBlock(&Config{Seed: nil, Storage: storage, BlockService: blockService, Pool: pool, Db: db})
 	}
 
 	blockchain := &Blockchain{
@@ -432,7 +435,7 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 		return true
 	}
 
-	//todo should load blocks earlier
+	//todo should load blocks earlier, remove this call
 	parent := bc.GetBlockByHash(sibling.parent)
 
 	if parent.Header().IsGenesisBlock() || parent.header.height < ancestor.height {
@@ -455,21 +458,25 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 
 	it := bc.txPool.Iterator()
 	txs := trie.New()
-	for next, count := it.Next(), 0; next != nil && count < TxLimit; count++ {
+	//todo make backpack like optimizer, to collect transactions due to fee, size, single account, etc
+	for next, count := it.Next(), 0; next != nil && count < TxLimit; next, count = it.Next(), count+1 {
 		err := s.ApplyTransaction(next)
 		switch err {
 		case state.FutureTransactionError:
+			log.Error(err)
 			//ignore this transaction
 			continue
 		case state.InsufficientFundsError:
+			log.Error(err)
 			//ignore this transaction
 			continue
 		case state.ExpiredTransactionError: //possibly put to another pool, or analyze whether it is malicious tx
+			log.Error(err)
 			bc.txPool.Remove(next)
 			continue
 		}
-
-		txs.InsertOrUpdate([]byte(next.Hash().Hex()), next.Serialized())
+		txs.InsertOrUpdate([]byte(next.HashKey().Hex()), next.Serialized())
+		spew.Dump(next)
 	}
 
 	header := createHeader(

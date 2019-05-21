@@ -3,7 +3,6 @@ package blockchain
 import (
 	"crypto/ecdsa"
 	"errors"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
@@ -20,17 +19,17 @@ type Block struct {
 	data   []byte
 }
 
+func (b *Block) TxsCount() int {
+	return len(b.txs.Values())
+}
+
 func (b *Block) Txs() tx.Iterator {
 	var transactions []*tx.Transaction
 	for _, bytes := range b.txs.Values() {
-		pbt := &pb.Transaction{}
-		if err := proto.Unmarshal(bytes, pbt); err != nil {
-			log.Error(err)
-			return nil
-		}
 		//todo be careful we unmarshal and recover key here, think about storing deserialized entities in the trie
-		t, e := tx.CreateTransactionFromMessage(pbt)
+		t, e := tx.Deserialize(bytes)
 		if e != nil {
+			log.Error(e)
 			return nil
 		}
 		transactions = append(transactions, t)
@@ -40,7 +39,7 @@ func (b *Block) Txs() tx.Iterator {
 }
 
 func (b *Block) AddTransaction(t *tx.Transaction) {
-	key := []byte(t.Hash().Hex())
+	key := []byte(t.HashKey().Hex())
 	b.txs.InsertOrUpdate(key, t.Serialized())
 }
 
@@ -143,17 +142,16 @@ func (h *Header) IsGenesisBlock() bool {
 func CreateBlockFromMessage(block *pb.Block) *Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
 	cert := CreateQuorumCertificate(block.Cert.GetSignatureAggregate(), CreateBlockHeaderFromMessage(block.Cert.Header))
-	var txs []*tx.Transaction
+	var txs = trie.New()
 	for _, tpb := range block.Txs {
 		t, e := tx.CreateTransactionFromMessage(tpb)
 		if e != nil {
-			log.Errorf("Bad transaction %v, %v", t.Hash().Hex(), e)
+			log.Errorf("Bad transaction, %v", e)
 			return nil
 		}
-		txs = append(txs, t)
+		txs.InsertOrUpdate([]byte(t.HashKey().Hex()), t.Serialized())
 	}
-
-	return &Block{header: header, qc: cert, data: block.Data.Data, txs: trie.New()}
+	return &Block{header: header, qc: cert, data: block.Data.Data, txs: txs}
 }
 
 func (b *Block) GetMessage() *pb.Block {
@@ -161,7 +159,16 @@ func (b *Block) GetMessage() *pb.Block {
 	if b.qc != nil {
 		qc = b.QC().GetMessage()
 	}
-	return &pb.Block{Header: b.Header().GetMessage(), Cert: qc, Data: &pb.BlockData{Data: b.Data()}}
+
+	var txs []*pb.Transaction
+	if b.TxsCount() > 0 {
+		it := b.Txs()
+		for t := it.Next(); t != nil; t = it.Next() {
+			txs = append(txs, t.GetMessage())
+		}
+	}
+
+	return &pb.Block{Header: b.Header().GetMessage(), Cert: qc, Data: &pb.BlockData{Data: b.Data()}, Txs: txs}
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
@@ -194,7 +201,7 @@ func (h *Header) SetHash() {
 	h.hash = HashHeader(*h)
 }
 
-//We intentionally use this method on value not on pointer, because we need a blockHeader here
+//We intentionally use this method on value not on pointer receiver, because we need a blockHeader here
 func HashHeader(h Header) common.Hash {
 	h.hash = common.BytesToHash(make([]byte, common.HashLength))
 	if h.IsGenesisBlock() {
@@ -240,7 +247,6 @@ func IsValid(block *Block) (bool, error) {
 	qcHash := block.QC().GetHash()
 	//TODO updated genesis block now will fail this validation, it is an error probably, we can't load genesis block
 	if qcHash != block.Header().QCHash() {
-		spew.Dump(block)
 		return false, errors.New("QC hash is not valid")
 	}
 

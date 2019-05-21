@@ -1,7 +1,6 @@
 package trie
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"github.com/poslibp2p/common/eth/crypto"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -44,8 +43,6 @@ func TestMerklelize(t *testing.T) {
 	hash_hello := crypto.Keccak256Hash([]byte("hello"))
 	hex00200_00220 := crypto.Keccak256(append(hash_hi.Bytes(), hash_hello.Bytes()...))
 	h := crypto.Keccak256Hash(append(append(hash_hi.Bytes(), hex00200_00220...), hash_hello.Bytes()...))
-
-	spew.Dump()
 
 	assert.Equal(t, h.Hex(), trie.root.Hash().Hex())
 }

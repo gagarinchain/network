@@ -31,6 +31,18 @@ func NewSnapshot(hash common.Hash) *Snapshot {
 	}
 }
 
+func NewSnapshotWithAccounts(hash common.Hash, acc map[common.Address]*Account) *Snapshot {
+	s := &Snapshot{
+		trie: trie.New(),
+		hash: hash,
+	}
+
+	for k, v := range acc {
+		s.Put(k, v)
+	}
+	return s
+}
+
 func (snap *Snapshot) NewSnapshot(hash common.Hash) *Snapshot {
 	s := NewSnapshot(hash)
 	snap.siblings = append(snap.siblings, s)

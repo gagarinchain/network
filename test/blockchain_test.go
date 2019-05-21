@@ -12,7 +12,7 @@ import (
 )
 
 func TestIsSiblingParent(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -24,7 +24,7 @@ func TestIsSiblingParent(t *testing.T) {
 }
 
 func TestIsSiblingAncestor(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -45,7 +45,7 @@ func TestIsSiblingAncestor(t *testing.T) {
 }
 
 func TestIsSiblingReverseParentSibling(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -63,7 +63,7 @@ func TestIsSiblingReverseParentSibling(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentSameHeight(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -80,7 +80,7 @@ func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -101,7 +101,7 @@ func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(mockStorage(), nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -142,7 +142,7 @@ func TestWarmUpFromStorageWithGenesisBlockOnly(t *testing.T) {
 
 func TestOnCommit(t *testing.T) {
 	storage, _ := bch.NewStorage("", nil)
-	bc := bch.CreateBlockchainFromGenesisBlock(storage, nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: storage, Pool: mockPool(), Db: mockDB()})
 	genesisBlock := bc.GetGenesisBlock()
 	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
 	_ = bc.AddBlock(genesisBlock)
@@ -242,7 +242,7 @@ func TestOnCommit(t *testing.T) {
 
 func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	storage, _ := bch.NewStorage("", nil)
-	bc := bch.CreateBlockchainFromGenesisBlock(storage, nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: storage, Pool: mockPool(), Db: mockDB()})
 	genesisBlock := bc.GetGenesisBlock()
 	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
 	_ = bc.AddBlock(genesisBlock)

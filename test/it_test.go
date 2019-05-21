@@ -1,18 +1,22 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/poslibp2p"
 	"github.com/poslibp2p/blockchain"
 	"github.com/poslibp2p/blockchain/state"
 	"github.com/poslibp2p/common"
+	common2 "github.com/poslibp2p/common/eth/common"
 	msg "github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/common/protobuff"
+	"github.com/poslibp2p/common/tx"
 	"github.com/poslibp2p/hotstuff"
 	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"math/big"
 	"testing"
 	"time"
 )
@@ -630,8 +634,45 @@ func TestScenario6d(t *testing.T) {
 	assert.Equal(t, block6, ctx.bc.GetBlockByHeight(6)[0])
 }
 
-//Scenario 7a: Propose block with transactions
+//Scenario 7a: Propose block with transaction
 func TestScenario7a(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
+
+	ctx.setMe(1)
+	ctx.StartFirstEpoch()
+	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[2].GetAddress(), big.NewInt(100), big.NewInt(1))
+
+	message := <-ctx.proposalCHan
+	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
+	proposal, _ := hotstuff.CreateProposalFromMessage(message)
+	assert.Equal(t, "0x7304f75a7c5e55bd0a6a5bc09f273fb56b080a89561a9a73e0c5d6e8dd2453b6", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0xd494fdaa2e07ae7779a9de9ccc0f1ac8be8cfaca0e92a8639469881a2569e065", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
+
+} //Scenario 7aa: Propose block with transactions
+func TestScenario7aa(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	defer f()
+
+	ctx.setMe(1)
+	ctx.StartFirstEpoch()
+
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+
+	message := <-ctx.proposalCHan
+	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
+	proposal, _ := hotstuff.CreateProposalFromMessage(message)
+	assert.Equal(t, "0xbe85ed143375fb46f381c04332e3fe3bb50cec1a56fb69651e81d2e1d46e3c93", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0xb4cbc1b6e4fdf47c3934fbd404fe3a99e9fc5d1ce04aae1c68b0eceb6d287945", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, 2, proposal.NewBlock.TxsCount())
 
 }
 
@@ -650,6 +691,16 @@ func TestScenario7d(t *testing.T) {
 
 }
 
+func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int) {
+	trans := tx.CreateTransaction(tx.Payment, to, from, 1, amount, fee, []byte(""))
+	for _, peer := range ctx.peers {
+		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
+			trans.Sign(peer.GetPrivateKey())
+		}
+	}
+	ctx.pool.Add(trans)
+}
+
 type TestContext struct {
 	peers        []*common.Peer
 	pacer        *hotstuff.StaticPacer
@@ -657,6 +708,7 @@ type TestContext struct {
 	cfg          *hotstuff.ProtocolConfig
 	bc           *blockchain.Blockchain
 	bsrv         blockchain.BlockService
+	pool         blockchain.TransactionPool
 	eventChan    chan hotstuff.Event
 	voteChan     chan *msg.Message
 	startChan    chan *msg.Message
@@ -665,6 +717,7 @@ type TestContext struct {
 	hottuffChan  chan *msg.Message
 	epochChan    chan *msg.Message
 	blockChan    chan *blockchain.Block
+	seed         map[common2.Address]*state.Account
 }
 
 func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.Message {
@@ -779,7 +832,15 @@ func initContext(t *testing.T) *TestContext {
 		hotstuff.NewVoteValidator(peers),
 	}
 
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, blockchain.NewTransactionPool(), state.NewStateDB())
+	pool := blockchain.NewTransactionPool()
+	seed := blockchain.SeedFromFile("../static/seed.json")
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{
+		Seed:         seed,
+		Storage:      storage,
+		BlockService: bsrv,
+		Pool:         pool,
+		Db:           state.NewStateDB(),
+	})
 
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
 	config := &hotstuff.ProtocolConfig{
@@ -839,12 +900,14 @@ func initContext(t *testing.T) *TestContext {
 		protocol:     p,
 		bc:           bc,
 		cfg:          config,
+		seed:         seed,
 		proposalCHan: proposalChan,
 		blockChan:    blockChan,
 		startChan:    startChan,
 		eventChan:    eventChan,
 		me:           identity,
 		bsrv:         bsrv,
+		pool:         pool,
 		hottuffChan:  hottuffChan,
 		epochChan:    epochChan,
 	}

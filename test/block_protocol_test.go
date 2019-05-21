@@ -20,7 +20,7 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 	synchr := &mocks.Synchronizer{}
 	storage := initStorage()
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
@@ -62,7 +62,7 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 	synchr := &mocks.Synchronizer{}
 	storage := initStorage()
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
@@ -133,7 +133,7 @@ func TestBlockProtocolOnForkRequest(t *testing.T) {
 	synchr := &mocks.Synchronizer{}
 	storage := initStorage()
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
@@ -216,7 +216,7 @@ func TestBlockProtocolOnHello(t *testing.T) {
 	bsrv := &mocks.BlockService{}
 	storage := initStorage()
 
-	bc := blockchain.CreateBlockchainFromGenesisBlock(storage, bsrv, mockPool(), mockDB())
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 

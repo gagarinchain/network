@@ -272,7 +272,7 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 	if e != nil {
 		log.Error(e)
 	}
-	m := msg.CreateMessage(pb.Message_PROPOSAL, any, nil)
+	m := msg.CreateMessage(pb.Message_PROPOSAL, any, p.me)
 	go p.srv.Broadcast(ctx, m)
 
 	p.pacer.FireEvent(Proposed)

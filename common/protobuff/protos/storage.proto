@@ -1,0 +1,19 @@
+syntax = "proto3";
+option go_package = "pb";
+
+message Tx {
+    int32 type = 1;
+    bytes to = 2;
+    bytes from = 3;
+    uint64 nonce = 4;
+    bytes value = 5;
+    bytes fee = 6;
+    bytes signature = 7;
+    bytes hashKey = 8;
+    bytes data = 9;
+}
+
+message Account {
+    uint64 nonce = 1;
+    bytes value = 2;
+}

@@ -1,6 +1,8 @@
 package tx
 
 import (
+	"bytes"
+	"crypto/ecdsa"
 	"errors"
 	"github.com/gogo/protobuf/proto"
 	"github.com/op/go-logging"
@@ -29,20 +31,23 @@ type Transaction struct {
 	fee       *big.Int
 	signature []byte
 	data      []byte
-	hash      common.Hash
+	hashKey   common.Hash
 
 	serialized []byte
 }
 
 func (tx *Transaction) Serialized() []byte {
 	if tx.serialized == nil { //self issued transaction
-		tx.serialize()
+		tx.serialized = tx.serialize()
 	}
 	return tx.serialized
 }
 
-func (tx *Transaction) Hash() common.Hash {
-	return tx.hash
+func (tx *Transaction) HashKey() common.Hash {
+	if bytes.Equal(tx.hashKey.Bytes(), common.Hash{}.Bytes()) { //noy initialized
+		tx.hashKey = tx.CalculateHashKey()
+	}
+	return tx.hashKey
 }
 
 func (tx *Transaction) Data() []byte {
@@ -97,8 +102,8 @@ func (t ByFeeAndValue) Swap(i, j int) {
 	t[i], t[j] = t[j], t[i]
 }
 
-func CreateTransaction(txType Type, to common.Address, from common.Address, nonce uint64, value *big.Int, fee *big.Int, data []byte, hash common.Hash) *Transaction {
-	return &Transaction{txType: txType, to: to, from: from, nonce: nonce, value: value, fee: fee, data: data, hash: hash}
+func CreateTransaction(txType Type, to common.Address, from common.Address, nonce uint64, value *big.Int, fee *big.Int, data []byte) *Transaction {
+	return &Transaction{txType: txType, to: to, from: from, nonce: nonce, value: value, fee: fee, data: data}
 }
 
 func (tx *Transaction) GetMessage() *pb.Transaction {
@@ -117,8 +122,20 @@ func (tx *Transaction) GetMessage() *pb.Transaction {
 	}
 }
 
+//internal transaction
 func (tx *Transaction) serialize() []byte {
-	pbtx := tx.GetMessage()
+	pbtx := &pb.Tx{
+		Type:      int32(tx.txType),
+		From:      tx.from.Bytes(),
+		To:        tx.to.Bytes(),
+		Nonce:     tx.nonce,
+		Value:     tx.value.Bytes(),
+		Fee:       tx.fee.Bytes(),
+		Signature: tx.signature,
+		Data:      tx.data,
+		HashKey:   tx.hashKey.Bytes(),
+	}
+
 	bytes, e := proto.Marshal(pbtx)
 	if e != nil {
 		log.Error("can't marshal tx", e)
@@ -127,9 +144,28 @@ func (tx *Transaction) serialize() []byte {
 	return bytes
 }
 
-func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
+func Deserialize(tran []byte) (*Transaction, error) {
+	pbt := &pb.Tx{}
+	if err := proto.Unmarshal(tran, pbt); err != nil {
+		return nil, err
+	}
 
-	pub, e := crypto.SigToPub(Hash(msg).Bytes(), msg.GetSignature())
+	return &Transaction{
+		from:      common.BytesToAddress(pbt.From),
+		txType:    Type(pbt.Type),
+		hashKey:   common.BytesToHash(pbt.HashKey),
+		value:     big.NewInt(0).SetBytes(pbt.Value),
+		fee:       big.NewInt(0).SetBytes(pbt.Fee),
+		signature: pbt.Signature,
+		nonce:     pbt.Nonce,
+		to:        common.BytesToAddress(pbt.To),
+		data:      pbt.Data,
+	}, nil
+}
+
+func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
+	hash := Hash(*msg)
+	pub, e := crypto.SigToPub(hash.Bytes(), msg.GetSignature())
 	if e != nil {
 		return nil, errors.New("bad signature")
 	}
@@ -141,18 +177,39 @@ func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
 		big.NewInt(msg.GetValue()),
 		big.NewInt(msg.GetFee()),
 		msg.GetData(),
-		common.Hash{},
 	)
 
 	return tx, nil
 }
 
-func Hash(msg *pb.Transaction) common.Hash {
+//For test purposes
+func (tx *Transaction) Sign(key *ecdsa.PrivateKey) {
+	pbtx := tx.GetMessage()
+	hash := Hash(*pbtx)
+	sig, err := crypto.Sign(hash.Bytes(), key)
+
+	if err != nil {
+		log.Error("Can't sign message", err)
+	}
+
+	tx.signature = sig
+}
+
+func Hash(msg pb.Transaction) common.Hash {
 	msg.Signature = nil
-	bytes, e := proto.Marshal(msg)
+	bytes, e := proto.Marshal(&msg)
 	if e != nil {
 		log.Error("Can't calculate hash")
 	}
 
 	return crypto.Keccak256Hash(bytes)
+}
+
+//we actually can't simply use hash of pb.Transaction as a key, because we can have the same message with signature excluded
+//that mean that we have to use hash of message with signature for key and hash of message without signature for signing, what seems like mess
+func (tx *Transaction) CalculateHashKey() common.Hash {
+	tx.hashKey = common.Hash{}
+	m := tx.serialize()
+
+	return crypto.Keccak256Hash(m)
 }

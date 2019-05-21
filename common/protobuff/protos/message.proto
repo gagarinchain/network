@@ -113,8 +113,3 @@ message Transaction {
         SLASHING   = 1;
     }
 }
-
-message Account {
-    uint64 nonce = 1;
-    bytes value = 2;
-}
