@@ -13,6 +13,7 @@ import (
 	"github.com/poslibp2p/common/eth/common"
 	"github.com/poslibp2p/common/eth/crypto"
 	"github.com/poslibp2p/common/trie"
+	"github.com/poslibp2p/common/tx"
 	"sync"
 	"time"
 )
@@ -301,6 +302,23 @@ func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Ma
 		}
 	}
 
+	//remove committed transactions from the pool
+	for _, b := range toCommit {
+		it := b.Txs()
+		for next := it.Next(); next != nil; next = it.Next() {
+			bc.txPool.Remove(next)
+		}
+	}
+
+	//release orphan states
+	_, v := orphans.Min()
+	lowestHeightOrphans := v.([]*Block)
+	for _, o := range lowestHeightOrphans {
+		if e := bc.stateDB.Release(o.Header().hash); e != nil {
+			log.Error(e)
+		}
+	}
+
 	return toCommit, orphans, nil
 }
 
@@ -458,7 +476,8 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 
 	it := bc.txPool.Iterator()
 	txs := trie.New()
-	//todo make backpack like optimizer, to collect transactions due to fee, size, single account, etc
+	var txs_arr []*tx.Transaction
+	//todo make optimizer, to collect transactions due to fee, size, single account, etc
 	for next, count := it.Next(), 0; next != nil && count < TxLimit; next, count = it.Next(), count+1 {
 		err := s.ApplyTransaction(next)
 		switch err {
@@ -470,12 +489,12 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 			log.Error(err)
 			//ignore this transaction
 			continue
-		case state.ExpiredTransactionError: //possibly put to another pool, or analyze whether it is malicious tx
-			log.Error(err)
-			bc.txPool.Remove(next)
+		case state.ExpiredTransactionError: //this is pretty normal to see stale transactions in the pool, possibly blocks containing this txs were not yet committed
+			log.Debug(err)
 			continue
 		}
 		txs.InsertOrUpdate([]byte(next.HashKey().Hex()), next.Serialized())
+		txs_arr = append(txs_arr, next)
 		spew.Dump(next)
 	}
 
@@ -491,6 +510,8 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 	header.SetHash()
 
 	_, err := bc.stateDB.Commit(parent.Header().Hash(), header.Hash())
+	//bc.txPool.RemoveAll(txs_arr...)
+
 	if err != nil {
 		log.Error("Can't create new block", err)
 		return nil
@@ -560,7 +581,8 @@ func (bc *Blockchain) applyTransactionsAndValidateProof(block *Block) error {
 		return e
 	}
 
-	for next := block.Txs().Next(); next != nil; next = block.Txs().Next() {
+	iterator := block.Txs()
+	for next := iterator.Next(); next != nil; next = iterator.Next() {
 		if err := s.ApplyTransaction(next); err != nil {
 			return err
 		}

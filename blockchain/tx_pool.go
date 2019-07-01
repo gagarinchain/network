@@ -13,7 +13,7 @@ type TransactionPoolImpl struct {
 }
 
 func NewTransactionPool() TransactionPool {
-	return &TransactionPoolImpl{}
+	return &TransactionPoolImpl{lock: sync.RWMutex{}}
 }
 
 func (tp *TransactionPoolImpl) Add(tx *tx.Transaction) {
@@ -38,10 +38,23 @@ func (tp *TransactionPoolImpl) Iterator() tx.Iterator {
 func (tp *TransactionPoolImpl) Remove(transaction *tx.Transaction) {
 	tp.lock.Lock()
 	defer tp.lock.Unlock()
+	tp.remove(transaction)
+}
+
+func (tp *TransactionPoolImpl) remove(transaction *tx.Transaction) {
 	for i, k := range tp.pending {
 		if bytes.Equal(k.HashKey().Bytes(), transaction.HashKey().Bytes()) {
 			tp.pending = append(tp.pending[:i], tp.pending[i+1:]...)
 		}
+	}
+}
+
+func (tp *TransactionPoolImpl) RemoveAll(transactions ...*tx.Transaction) {
+	tp.lock.Lock()
+	defer tp.lock.Unlock()
+
+	for _, t := range transactions {
+		tp.remove(t)
 	}
 }
 

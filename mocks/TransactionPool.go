@@ -35,3 +35,14 @@ func (_m *TransactionPool) Iterator() tx.Iterator {
 func (_m *TransactionPool) Remove(transaction *tx.Transaction) {
 	_m.Called(transaction)
 }
+
+// RemoveAll provides a mock function with given fields: transactions
+func (_m *TransactionPool) RemoveAll(transactions ...*tx.Transaction) {
+	_va := make([]interface{}, len(transactions))
+	for _i := range transactions {
+		_va[_i] = transactions[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _va...)
+	_m.Called(_ca...)
+}

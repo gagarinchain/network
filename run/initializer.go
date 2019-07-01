@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/poslibp2p"
 	"github.com/poslibp2p/blockchain"
+	"github.com/poslibp2p/blockchain/state"
 	"github.com/poslibp2p/common"
 	"github.com/poslibp2p/common/message"
 	"github.com/poslibp2p/hotstuff"
@@ -61,7 +62,9 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	srv := network.CreateService(context.Background(), node, dispatcher)
 	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(srv)
-	bc := blockchain.CreateBlockchainFromStorage(storage, bsrv)
+	pool := blockchain.NewTransactionPool()
+	db := state.NewStateDB()
+	bc := blockchain.CreateBlockchainFromStorage(storage, bsrv, pool, db)
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr)
 

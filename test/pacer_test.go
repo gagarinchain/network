@@ -65,7 +65,7 @@ func initPacer(t *testing.T, cfg *hotstuff.ProtocolConfig, p *hotstuff.Protocol)
 //	})
 //
 //	go ctx.pacer.Run()
-//	go ctx.protocol.Run(ctx.hottuffChan)
+//	go ctx.protocol.Run(ctx.hotstuffChan)
 //	defer ctx.pacer.Stop()
 //	defer ctx.protocol.Stop()
 //

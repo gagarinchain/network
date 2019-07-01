@@ -31,7 +31,7 @@ import (
 func TestScenario1a(t *testing.T) {
 	ctx := initContext(t)
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -40,14 +40,14 @@ func TestScenario1a(t *testing.T) {
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
 	p := ctx.createProposal(newBlock, 1)
-	ctx.hottuffChan <- p
+	ctx.hotstuffChan <- p
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes {
-		ctx.hottuffChan <- v
+		ctx.hotstuffChan <- v
 	}
 
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -70,7 +70,7 @@ func TestScenario1a(t *testing.T) {
 func TestScenario1b(t *testing.T) {
 	ctx := initContext(t)
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -80,17 +80,17 @@ func TestScenario1b(t *testing.T) {
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes[:2*ctx.cfg.F/3-2] {
-		ctx.hottuffChan <- v
+		ctx.hotstuffChan <- v
 	}
 
 	p := ctx.createProposal(newBlock, 1)
-	ctx.hottuffChan <- p
+	ctx.hotstuffChan <- p
 
 	for _, v := range votes[2*ctx.cfg.F/3-2:] {
-		ctx.hottuffChan <- v
+		ctx.hotstuffChan <- v
 	}
 
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -113,7 +113,7 @@ func TestScenario1c(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	defer f()
@@ -126,7 +126,7 @@ func TestScenario1c(t *testing.T) {
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes {
-		ctx.hottuffChan <- v
+		ctx.hotstuffChan <- v
 	}
 
 	go func() {
@@ -136,9 +136,9 @@ func TestScenario1c(t *testing.T) {
 	}()
 
 	p := ctx.createProposal(newBlock, 1)
-	ctx.hottuffChan <- p
+	ctx.hotstuffChan <- p
 
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -159,7 +159,7 @@ func TestScenario1c(t *testing.T) {
 func TestScenario2(t *testing.T) {
 	ctx := initContext(t)
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -167,7 +167,7 @@ func TestScenario2(t *testing.T) {
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
-	ctx.hottuffChan <- p
+	ctx.hotstuffChan <- p
 
 	vote := <-ctx.voteChan
 
@@ -183,7 +183,7 @@ func TestScenario2b(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	trigger := make(chan interface{})
@@ -203,7 +203,7 @@ func TestScenario3(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -211,10 +211,10 @@ func TestScenario3(t *testing.T) {
 
 	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
-	ctx.hottuffChan <- p
+	ctx.hotstuffChan <- p
 	<-ctx.voteChan
 
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -234,13 +234,13 @@ func TestScenario4(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
 
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -261,7 +261,7 @@ func TestScenario5a(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 12*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -270,12 +270,12 @@ func TestScenario5a(t *testing.T) {
 
 	log.Infof("me %v", ctx.pacer.Committee()[0].GetAddress().Hex())
 
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 	time.Sleep(8 * ctx.cfg.Delta)
 	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
 	<-ctx.startChan //mine start message
 
-	proposal = <-ctx.proposalCHan
+	proposal = <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -295,7 +295,7 @@ func TestScenario5b(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -306,7 +306,7 @@ func TestScenario5b(t *testing.T) {
 	<-ctx.startChan
 	ctx.sendStartEpochMessages(1, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
 
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -328,20 +328,20 @@ func TestScenario5c(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 40*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
 	ctx.setMe(1)
 
 	log.Infof("me %v", ctx.pacer.Committee()[0].GetAddress().Hex())
-	proposal := <-ctx.proposalCHan
+	proposal := <-ctx.proposalChan
 
 	time.Sleep(26 * ctx.cfg.Delta)
 	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
 	<-ctx.startChan //mine start message
 
-	proposal = <-ctx.proposalCHan
+	proposal = <-ctx.proposalChan
 
 	payload := &pb.ProposalPayload{}
 	if err := ptypes.UnmarshalAny(proposal.Payload, payload); err != nil {
@@ -363,7 +363,7 @@ func TestScenario5d(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -395,7 +395,7 @@ func TestScenario5e(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -414,7 +414,7 @@ func TestScenario5e(t *testing.T) {
 	p := ctx.createProposal(newBlock, 1)
 
 	go func() {
-		ctx.hottuffChan <- p
+		ctx.hotstuffChan <- p
 	}()
 
 	ctx.sendMoreStartEpochMessages(2, ctx.cfg.F/3+1, 2*ctx.cfg.F/3+1, ctx.protocol.HQC())
@@ -441,7 +441,7 @@ func TestScenario6a(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -449,19 +449,19 @@ func TestScenario6a(t *testing.T) {
 
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
-	ctx.hottuffChan <- proposal1
+	ctx.hotstuffChan <- proposal1
 	block2 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
-	ctx.hottuffChan <- proposal2
+	ctx.hotstuffChan <- proposal2
 	block3 := ctx.bc.NewBlock(block2, ctx.bc.GetGenesisCert(), []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
-	ctx.hottuffChan <- proposal3
+	ctx.hotstuffChan <- proposal3
 
 	block21 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 21"))
 	block31 := ctx.bc.NewBlock(block21, ctx.bc.GetGenesisCert(), []byte("block 31"))
 	block4 := ctx.bc.NewBlock(block31, ctx.bc.GetGenesisCert(), []byte("block 41"))
 	proposal := ctx.createProposal(block4, 4)
-	ctx.hottuffChan <- proposal
+	ctx.hotstuffChan <- proposal
 
 	ctx.blockChan <- block4
 	ctx.blockChan <- block31
@@ -482,7 +482,7 @@ func TestScenario6b(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -490,24 +490,24 @@ func TestScenario6b(t *testing.T) {
 
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
-	ctx.hottuffChan <- proposal1
+	ctx.hotstuffChan <- proposal1
 	qcb1 := ctx.createQC(block1)
 	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
-	ctx.hottuffChan <- proposal2
+	ctx.hotstuffChan <- proposal2
 	block3 := ctx.bc.NewBlock(block2, ctx.createQC(block2), []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
-	ctx.hottuffChan <- proposal3
+	ctx.hotstuffChan <- proposal3
 	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	proposal4 := ctx.createProposal(block4, 4)
-	ctx.hottuffChan <- proposal4
+	ctx.hotstuffChan <- proposal4
 
 	block22 := ctx.bc.NewBlock(block1, qcb1, []byte("block 22"))
 	block32 := ctx.bc.NewBlock(block22, qcb1, []byte("block 32"))
 	block42 := ctx.bc.NewBlock(block32, qcb1, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb1, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
-	ctx.hottuffChan <- proposal
+	ctx.hotstuffChan <- proposal
 
 	ctx.blockChan <- block22
 	ctx.blockChan <- block32
@@ -530,7 +530,7 @@ func TestScenario6c(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -538,24 +538,24 @@ func TestScenario6c(t *testing.T) {
 
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
-	ctx.hottuffChan <- proposal1
+	ctx.hotstuffChan <- proposal1
 	qcb1 := ctx.createQC(block1)
 	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
-	ctx.hottuffChan <- proposal2
+	ctx.hotstuffChan <- proposal2
 	qcb2 := ctx.createQC(block2)
 	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
-	ctx.hottuffChan <- proposal3
+	ctx.hotstuffChan <- proposal3
 	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	proposal4 := ctx.createProposal(block4, 4)
-	ctx.hottuffChan <- proposal4
+	ctx.hotstuffChan <- proposal4
 
 	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
-	ctx.hottuffChan <- proposal
+	ctx.hotstuffChan <- proposal
 
 	ctx.blockChan <- block2
 	ctx.blockChan <- block32
@@ -579,7 +579,7 @@ func TestScenario6d(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.StartFirstEpoch()
@@ -619,7 +619,7 @@ func TestScenario6d(t *testing.T) {
 	block51 := ctx.bc.NewBlock(block4, qcb4, []byte("block 51"))
 	block6 := ctx.bc.NewBlock(block51, qcb4, []byte("block 6"))
 	proposal6 := ctx.createProposal(block6, 6)
-	ctx.hottuffChan <- proposal6
+	ctx.hotstuffChan <- proposal6
 
 	ctx.blockChan <- block2
 	ctx.blockChan <- block3
@@ -639,14 +639,14 @@ func TestScenario7a(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.setMe(1)
 	ctx.StartFirstEpoch()
 	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[2].GetAddress(), big.NewInt(100), big.NewInt(1))
 
-	message := <-ctx.proposalCHan
+	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
 	assert.Equal(t, "0x7304f75a7c5e55bd0a6a5bc09f273fb56b080a89561a9a73e0c5d6e8dd2453b6", proposal.NewBlock.Header().TxHash().Hex())
@@ -658,7 +658,7 @@ func TestScenario7aa(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hottuffChan, ctx.epochChan)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
 	ctx.setMe(1)
@@ -667,7 +667,7 @@ func TestScenario7aa(t *testing.T) {
 	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
 	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
 
-	message := <-ctx.proposalCHan
+	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
 	assert.Equal(t, "0xbe85ed143375fb46f381c04332e3fe3bb50cec1a56fb69651e81d2e1d46e3c93", proposal.NewBlock.Header().TxHash().Hex())
@@ -678,20 +678,130 @@ func TestScenario7aa(t *testing.T) {
 
 //Scenario 7b: Vote for block with transactions
 func TestScenario7b(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
+	defer f()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(0)
+
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
+
+	block := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("Wunder blok"))
+	if e := ctx.stateDB.Release(block.Header().Hash()); e != nil {
+		t.Error(e)
+	}
+
+	p := ctx.createProposal(block, 1)
+	ctx.hotstuffChan <- p
+
+	vote := <-ctx.voteChan
+
+	assert.Equal(t, pb.Message_VOTE, vote.Type)
 
 }
 
 //Scenario 7c: Commit block with transactions
 func TestScenario7c(t *testing.T) {
+	ctx := initContext(t)
 
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
+	defer f()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(8)
+
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	qcb1 := ctx.createQC(block1)
+
+	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	qcb2 := ctx.createQC(block2)
+
+	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+
+	_ = ctx.bc.AddBlock(block1)
+	_ = ctx.bc.AddBlock(block2)
+	_ = ctx.bc.AddBlock(block3)
+	_ = ctx.bc.AddBlock(block4)
+	_ = ctx.bc.AddBlock(block32)
+	_ = ctx.bc.AddBlock(block42)
+	_ = ctx.bc.AddBlock(block52)
+	_, _, err := ctx.bc.OnCommit(block1)
+
+	assert.NoError(t, err)
 }
 
-//Scenario 7d: Forks and blocks with transactions (release states etc)
+//Scenario 7d: Forks switching and blocks with transactions (release states etc)
+//Test state db cleaning and fork transaction release
 func TestScenario7d(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
+	defer f()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(8)
+
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(10), big.NewInt(1))
+	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	qcb1 := ctx.createQC(block1)
+	_ = ctx.bc.AddBlock(block1)
+
+	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	qcb2 := ctx.createQC(block2)
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(1), big.NewInt(1))
+	_ = ctx.bc.AddBlock(block2)
+
+	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(2), big.NewInt(1))
+	_ = ctx.bc.AddBlock(block3)
+
+	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(3), big.NewInt(1))
+	_ = ctx.bc.AddBlock(block4)
+
+	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(4), big.NewInt(1))
+	_ = ctx.bc.AddBlock(block32)
+
+	block33 := ctx.bc.NewBlock(block2, qcb2, []byte("block 33"))
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(5), big.NewInt(1))
+	_ = ctx.bc.AddBlock(block33)
+
+	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(6), big.NewInt(1))
+	_ = ctx.bc.AddBlock(block42)
+
+	_, ok := ctx.stateDB.Get(block42.Header().Hash())
+	assert.True(t, ok)
+
+	_, ok = ctx.stateDB.Get(block3.Header().Hash())
+	assert.True(t, ok)
+
+	_, _, err := ctx.bc.OnCommit(block3)
+	assert.NoError(t, err)
+
+	_, ok = ctx.stateDB.Get(block42.Header().Hash())
+	assert.False(t, ok)
+
+	_, ok = ctx.stateDB.Get(block3.Header().Hash())
+	assert.True(t, ok)
 
 }
 
-func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int) {
+func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int) *tx.Transaction {
 	trans := tx.CreateTransaction(tx.Payment, to, from, 1, amount, fee, []byte(""))
 	for _, peer := range ctx.peers {
 		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
@@ -699,6 +809,8 @@ func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fe
 		}
 	}
 	ctx.pool.Add(trans)
+
+	return trans
 }
 
 type TestContext struct {
@@ -712,12 +824,13 @@ type TestContext struct {
 	eventChan    chan hotstuff.Event
 	voteChan     chan *msg.Message
 	startChan    chan *msg.Message
-	proposalCHan chan *msg.Message
+	proposalChan chan *msg.Message
 	me           *common.Peer
-	hottuffChan  chan *msg.Message
+	hotstuffChan chan *msg.Message
 	epochChan    chan *msg.Message
 	blockChan    chan *blockchain.Block
 	seed         map[common2.Address]*state.Account
+	stateDB      state.DB
 }
 
 func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.Message {
@@ -834,12 +947,13 @@ func initContext(t *testing.T) *TestContext {
 
 	pool := blockchain.NewTransactionPool()
 	seed := blockchain.SeedFromFile("../static/seed.json")
+	stateDb := state.NewStateDB()
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{
 		Seed:         seed,
 		Storage:      storage,
 		BlockService: bsrv,
 		Pool:         pool,
-		Db:           state.NewStateDB(),
+		Db:           stateDb,
 	})
 
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
@@ -901,14 +1015,15 @@ func initContext(t *testing.T) *TestContext {
 		bc:           bc,
 		cfg:          config,
 		seed:         seed,
-		proposalCHan: proposalChan,
+		proposalChan: proposalChan,
 		blockChan:    blockChan,
 		startChan:    startChan,
 		eventChan:    eventChan,
 		me:           identity,
 		bsrv:         bsrv,
 		pool:         pool,
-		hottuffChan:  hottuffChan,
+		hotstuffChan: hottuffChan,
 		epochChan:    epochChan,
+		stateDB:      stateDb,
 	}
 }

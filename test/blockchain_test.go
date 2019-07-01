@@ -282,6 +282,7 @@ func mockStorage() *mocks.Storage {
 
 func mockPool() bch.TransactionPool {
 	pool := &mocks.TransactionPool{}
+	pool.On("RemoveAll")
 	iterator := &mocks.Iterator{}
 	iterator.On("Next").Return(nil)
 	pool.On("Iterator").Return(iterator)

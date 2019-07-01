@@ -6,4 +6,5 @@ type TransactionPool interface {
 	Add(tx *tx.Transaction)
 	Iterator() tx.Iterator
 	Remove(transaction *tx.Transaction)
+	RemoveAll(transactions ...*tx.Transaction)
 }
