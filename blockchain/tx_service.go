@@ -9,16 +9,16 @@ import (
 	"github.com/poslibp2p/common/tx"
 )
 
-type Service struct {
+type TxService struct {
 	validator poslibp2p.Validator
-	txPool    *TransactionPool
+	txPool    TransactionPool
 }
 
-func NewService() *Service {
-	return &Service{}
+func NewService(validator poslibp2p.Validator, txPool TransactionPool) *TxService {
+	return &TxService{validator: validator, txPool: txPool}
 }
 
-func (s *Service) Run(ctx context.Context, tchan chan *message.Message) {
+func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 	for {
 		select {
 		case m := <-tchan:
@@ -35,9 +35,10 @@ func (s *Service) Run(ctx context.Context, tchan chan *message.Message) {
 			b, e := s.validator.IsValid(t)
 			if !b {
 				log.Error("Transaction is not valid", e)
+				continue
 			}
-			//1. Nonce of transaction should be higher then known by one
-			//2. Amount + fee should be less or equal to current amount
+
+			s.txPool.Add(t)
 
 		case <-ctx.Done():
 			log.Info("Stopping transaction service")

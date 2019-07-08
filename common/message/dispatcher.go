@@ -2,25 +2,33 @@ package message
 
 import (
 	"github.com/op/go-logging"
-	"github.com/poslibp2p"
 	"github.com/poslibp2p/common/protobuff"
 )
 
 var log = logging.MustGetLogger("cmd")
 
-type Dispatcher struct {
-	validators        []poslibp2p.Validator
+type Dispatcher interface {
+	Dispatch(msg *Message)
+}
+
+type HotstuffDispatcher struct {
 	hotstuffChan      chan *Message
 	epochChan         chan *Message
 	blockProtocolChan chan *Message
 }
+type TxDispatcher struct {
+	txChan chan *Message
+}
 
-func NewDispatcher(validators []poslibp2p.Validator, hotstuffChan chan *Message, epochChan chan *Message, blockProtocolChan chan *Message) *Dispatcher {
-	return &Dispatcher{validators: validators, hotstuffChan: hotstuffChan, epochChan: epochChan, blockProtocolChan: blockProtocolChan}
+func NewHotstuffDispatcher(hotstuffChan chan *Message, epochChan chan *Message, blockProtocolChan chan *Message) Dispatcher {
+	return &HotstuffDispatcher{hotstuffChan: hotstuffChan, epochChan: epochChan, blockProtocolChan: blockProtocolChan}
+}
+func NewTxDispatcher(txChan chan *Message) Dispatcher {
+	return &TxDispatcher{txChan: txChan}
 }
 
 //Dispatch makes simple message validations and choose channel to send message
-func (d *Dispatcher) Dispatch(msg *Message) {
+func (d *HotstuffDispatcher) Dispatch(msg *Message) {
 	go func() {
 		switch msg.Type {
 		case pb.Message_EPOCH_START:
@@ -37,6 +45,14 @@ func (d *Dispatcher) Dispatch(msg *Message) {
 			fallthrough
 		case pb.Message_BLOCK_RESPONSE:
 			log.Warningf("Received message %d, without request, ignoring", msg.Type.String())
+		}
+	}()
+}
+
+func (d *TxDispatcher) Dispatch(msg *Message) {
+	go func() {
+		if msg.Type == pb.Message_TRANSACTION {
+			d.txChan <- msg
 		}
 	}()
 }

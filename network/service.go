@@ -37,20 +37,43 @@ type Service interface {
 	Bootstrap(ctx context.Context) (chan int, chan error)
 }
 
+type TopicListener interface {
+	Listen(ctx context.Context, sub *pubsub.Subscription)
+	Subscribe(ctx context.Context) (*pubsub.Subscription, error)
+}
+
 const Libp2pProtocol protocol.ID = "/Libp2pProtocol/1.0.0"
-const Topic string = "/hotstuff"
+const HotstuffTopic string = "/hotstuff"
+const TransactionTopic string = "/tx"
 
 //TODO find out whether we have to cache streams and synchronize access to them
 //TODO handle contexts correctly
 type ServiceImpl struct {
-	node       *Node
-	dispatcher *msg.Dispatcher
+	node             *Node
+	dispatcher       msg.Dispatcher
+	hotstuffListener TopicListener
+	txListener       TopicListener
 }
 
-func CreateService(ctx context.Context, node *Node, dispatcher *msg.Dispatcher) Service {
+type TopicListenerImpl struct {
+	node       *Node
+	topicName  string
+	dispatcher msg.Dispatcher
+}
+
+func NewTopicListenerImpl(node *Node, topicName string, dispatcher msg.Dispatcher) TopicListener {
+	return &TopicListenerImpl{node: node, topicName: topicName, dispatcher: dispatcher}
+}
+
+func CreateService(ctx context.Context, node *Node, dispatcher msg.Dispatcher, txDispatcher msg.Dispatcher) Service {
+	listener := NewTopicListenerImpl(node, HotstuffTopic, dispatcher)
+	txListener := NewTopicListenerImpl(node, TransactionTopic, txDispatcher)
+
 	impl := &ServiceImpl{
-		node:       node,
-		dispatcher: dispatcher,
+		node:             node,
+		hotstuffListener: listener,
+		txListener:       txListener,
+		dispatcher:       dispatcher,
 	}
 
 	impl.node.Host.SetStreamHandler(Libp2pProtocol, impl.handleNewStreamWithContext(ctx))
@@ -148,7 +171,7 @@ func (s *ServiceImpl) Broadcast(ctx context.Context, msg *msg.Message) {
 			log.Error("Can't marshall message", e)
 		}
 
-		e = s.node.PubSub.Publish(ctx, Topic, bytes)
+		e = s.node.PubSub.Publish(ctx, HotstuffTopic, bytes)
 		if e != nil {
 			log.Error("Can't broadcast message", e)
 		}
@@ -190,15 +213,51 @@ func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context) net.Stream
 	}
 }
 
-func (s *ServiceImpl) Subscribe(ctx context.Context) (*pubsub.Subscription, error) {
-	// Subscribe to the topic
-	return s.node.PubSub.SubscribeAndProvide(ctx, Topic)
+func (s *ServiceImpl) Bootstrap(ctx context.Context) (chan int, chan error) {
+	statusChan := make(chan int)
+	errChan := make(chan error)
+	go func() {
+		sub, e := s.hotstuffListener.Subscribe(ctx)
+		if e != nil {
+			errChan <- e
+			return
+		}
+		s.hotstuffListener.Listen(ctx, sub)
+
+		sub, e = s.txListener.Subscribe(ctx)
+		if e != nil {
+			errChan <- e
+			return
+		}
+		s.txListener.Listen(ctx, sub)
+
+		statusChan <- 1
+	}()
+
+	return statusChan, errChan
 }
 
-func (s *ServiceImpl) Listen(ctx context.Context, sub *pubsub.Subscription) {
+func randomSubsetOfIds(ids []peer.ID, max int) (out []peer.ID) {
+	n := IntMin(max, len(ids))
+	log.Info(n)
+	for _, val := range rand.Perm(len(ids)) {
+		out = append(out, ids[val])
+		if len(out) >= n {
+			break
+		}
+	}
+	return out
+}
+
+func (l *TopicListenerImpl) Subscribe(ctx context.Context) (*pubsub.Subscription, error) {
+	// Subscribe to the topic
+	return l.node.PubSub.SubscribeAndProvide(ctx, l.topicName)
+}
+
+func (l *TopicListenerImpl) Listen(ctx context.Context, sub *pubsub.Subscription) {
 	log.Info("Listening topic...")
 	for {
-		e := s.handleTopicMessage(ctx, sub)
+		e := l.handleTopicMessage(ctx, sub)
 		if e == context.Canceled {
 			break
 		}
@@ -209,7 +268,7 @@ func (s *ServiceImpl) Listen(ctx context.Context, sub *pubsub.Subscription) {
 
 }
 
-func (s *ServiceImpl) handleTopicMessage(ctx context.Context, sub *pubsub.Subscription) error {
+func (l *TopicListenerImpl) handleTopicMessage(ctx context.Context, sub *pubsub.Subscription) error {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Error("panic occurred: ", r)
@@ -228,37 +287,9 @@ func (s *ServiceImpl) handleTopicMessage(ctx context.Context, sub *pubsub.Subscr
 	log.Infof("Received Pubsub message from %s\n", pid.Pretty())
 
 	//We do several very easy checks here and give control to dispatcher
-	info := s.node.Host.Peerstore().PeerInfo(pid)
+	info := l.node.Host.Peerstore().PeerInfo(pid)
 	message := msg.CreateFromSerialized(m.Data, common.CreatePeer(nil, nil, &info))
-	s.dispatcher.Dispatch(message)
+	l.dispatcher.Dispatch(message)
 
 	return nil
-}
-
-func (s *ServiceImpl) Bootstrap(ctx context.Context) (chan int, chan error) {
-	statusChan := make(chan int)
-	errChan := make(chan error)
-	go func() {
-		sub, e := s.Subscribe(ctx)
-		if e != nil {
-			errChan <- e
-			return
-		}
-		statusChan <- 1
-		s.Listen(ctx, sub)
-	}()
-
-	return statusChan, errChan
-}
-
-func randomSubsetOfIds(ids []peer.ID, max int) (out []peer.ID) {
-	n := IntMin(max, len(ids))
-	log.Info(n)
-	for _, val := range rand.Perm(len(ids)) {
-		out = append(out, ids[val])
-		if len(out) >= n {
-			break
-		}
-	}
-	return out
 }

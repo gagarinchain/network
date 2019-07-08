@@ -19,9 +19,11 @@ type Context struct {
 	hotStuff          *hotstuff.Protocol
 	pacer             *hotstuff.StaticPacer
 	srv               network.Service
+	txService         *blockchain.TxService
 	hotstuffChan      chan *message.Message
 	epochChan         chan *message.Message
 	blockProtocolChan chan *message.Message
+	txChan            chan *message.Message
 }
 
 func (c *Context) Pacer() *hotstuff.StaticPacer {
@@ -49,7 +51,9 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	msgChan := make(chan *message.Message)
 	epochChan := make(chan *message.Message)
 	blockChan := make(chan *message.Message)
-	dispatcher := message.NewDispatcher(validators, msgChan, epochChan, blockChan)
+	txChan := make(chan *message.Message)
+	dispatcher := message.NewHotstuffDispatcher(msgChan, epochChan, blockChan)
+	txDispatcher := message.NewTxDispatcher(txChan)
 
 	cfg.Committee = filterSelf(cfg.Committee, me)
 	node, err := network.CreateNode(cfg)
@@ -58,24 +62,26 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	}
 
 	log.Infof("This is my id %v", node.Host.ID().Pretty())
-
-	srv := network.CreateService(context.Background(), node, dispatcher)
-	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
-	bsrv := blockchain.NewBlockService(srv)
 	pool := blockchain.NewTransactionPool()
+
+	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher)
+	txService := blockchain.NewService(nil, pool)
+	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
+	bsrv := blockchain.NewBlockService(hotstuffSrv)
 	db := state.NewStateDB()
 	bc := blockchain.CreateBlockchainFromStorage(storage, bsrv, pool, db)
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
-	protocol := blockchain.CreateBlockProtocol(srv, bc, synchr)
+	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
 	config := &hotstuff.ProtocolConfig{
 		F:          4,
 		Delta:      10 * time.Second,
 		Blockchain: bc,
 		Me:         me,
-		Srv:        srv,
+		Srv:        hotstuffSrv,
 		Storage:    storage,
 		Sync:       synchr,
+		Validators: validators,
 		Committee:  committee,
 	}
 
@@ -88,10 +94,12 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		blockProtocol:     protocol,
 		hotStuff:          p,
 		pacer:             pacer,
-		srv:               srv,
+		srv:               hotstuffSrv,
 		hotstuffChan:      msgChan,
 		epochChan:         epochChan,
 		blockProtocolChan: blockChan,
+		txService:         txService,
+		txChan:            txChan,
 	}
 }
 
@@ -127,6 +135,7 @@ END:
 		log.Error(e)
 	}
 
+	go c.txService.Run(rootCtx, c.txChan)
 	go c.blockProtocol.Run(rootCtx, c.blockProtocolChan)
 
 	respChan, errChans := c.blockProtocol.Bootstrap(rootCtx)
