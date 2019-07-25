@@ -649,8 +649,8 @@ func TestScenario7a(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0x7304f75a7c5e55bd0a6a5bc09f273fb56b080a89561a9a73e0c5d6e8dd2453b6", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0xd494fdaa2e07ae7779a9de9ccc0f1ac8be8cfaca0e92a8639469881a2569e065", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, "0x7407f14945fe7e3d88677df2ac02c6c908efb26678dc6b2fa5dfae1559561263", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0xaec20c02722ed0d295b5a7ca74d02c388bc6e06b19c570c07c53240c75a5735d", proposal.NewBlock.Header().StateHash().Hex())
 	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
 
 } //Scenario 7aa: Propose block with transactions
@@ -670,8 +670,8 @@ func TestScenario7aa(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0xbe85ed143375fb46f381c04332e3fe3bb50cec1a56fb69651e81d2e1d46e3c93", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0xb4cbc1b6e4fdf47c3934fbd404fe3a99e9fc5d1ce04aae1c68b0eceb6d287945", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, "0xb535391dde7189e9ab7945d78dcf38538444950b4d4ee816a26bfed47e73d330", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x0dd55211fe1d094d25cbcb799c68297d9e5e59ececba85b37a015437046e9ca3", proposal.NewBlock.Header().StateHash().Hex())
 	assert.Equal(t, 2, proposal.NewBlock.TxsCount())
 
 }

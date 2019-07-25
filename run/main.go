@@ -13,7 +13,7 @@ import (
 )
 
 var stdoutLogFormat = logging.MustStringFormatter(
-	`%{color:reset}%{color}%{time:15:04:05.000} [%{shortfunc}] [%{level}] %{message}`,
+	`%{time:15:04:05.000} [%{shortfile}] [%{level}] %{message}`,
 )
 
 var log = logging.MustGetLogger("main")
@@ -23,6 +23,13 @@ func main() {
 	// string IDs (i.e. "swarm"). We can control the verbosity level for
 	// all loggers with:
 	golog.SetAllLoggers(gologging.INFO)
+
+	backend := logging.NewLogBackend(os.Stderr, "", 0)
+	backendFormatter := logging.NewBackendFormatter(backend, stdoutLogFormat)
+	backendLeveled := logging.AddModuleLevel(backend)
+	backendLeveled.SetLevel(logging.INFO, "")
+
+	logging.SetBackend(backendLeveled, backendFormatter)
 
 	// Parse options from the command line
 	ind := flag.Int("l", -1, "peer index")

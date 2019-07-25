@@ -49,9 +49,11 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	opts := []libp2p.Option{
 		// Listen on all interface on both IPv4 and IPv6.
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.Port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/ws", config.Port+100)),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip6/::/tcp/%d", config.Port)),
 		libp2p.Identity(config.PrivateKey),
 		libp2p.DisableRelay(),
+		libp2p.DefaultSecurity,
 	}
 
 	// This function will initialize a new libp2p Host with our options plus a bunch of default options
@@ -60,10 +62,10 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("I am %v", peerHost.Addrs()[0])
+	log.Infof("I am %v", peerHost.Addrs())
 
 	// Create a leveldb datastore
-	dstore, err := leveldb.NewDatastore(path.Join(config.DataDir, "poslibp2p"), nil)
+	dstore, err := leveldb.NewDatastore(path.Join(config.DataDir, "gagarin"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +74,7 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	rt, err := dht.New(
 		context.Background(), peerHost,
 		dhtopts.Datastore(dstore),
-		dhtopts.Protocols("/poslibp2p/hotstuff/1.0.0"),
+		dhtopts.Protocols("/gagarin/hotstuff/1.0.0"),
 		dhtopts.Validator(record.NamespacedValidator{
 			"pk": record.PublicKeyValidator{},
 		}),

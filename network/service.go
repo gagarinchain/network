@@ -217,19 +217,24 @@ func (s *ServiceImpl) Bootstrap(ctx context.Context) (chan int, chan error) {
 	statusChan := make(chan int)
 	errChan := make(chan error)
 	go func() {
-		sub, e := s.hotstuffListener.Subscribe(ctx)
+		p, e := s.hotstuffListener.Subscribe(ctx)
 		if e != nil {
 			errChan <- e
 			return
 		}
-		s.hotstuffListener.Listen(ctx, sub)
 
-		sub, e = s.txListener.Subscribe(ctx)
+		tx, e := s.txListener.Subscribe(ctx)
 		if e != nil {
 			errChan <- e
 			return
 		}
-		s.txListener.Listen(ctx, sub)
+
+		go func() {
+			s.hotstuffListener.Listen(ctx, p)
+		}()
+		go func() {
+			s.txListener.Listen(ctx, tx)
+		}()
 
 		statusChan <- 1
 	}()
@@ -255,7 +260,7 @@ func (l *TopicListenerImpl) Subscribe(ctx context.Context) (*pubsub.Subscription
 }
 
 func (l *TopicListenerImpl) Listen(ctx context.Context, sub *pubsub.Subscription) {
-	log.Info("Listening topic...")
+	log.Infof("Listening topic %v", l.topicName)
 	for {
 		e := l.handleTopicMessage(ctx, sub)
 		if e == context.Canceled {

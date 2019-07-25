@@ -26,7 +26,7 @@ func GenerateIdentities() {
 		pkstring := hex.EncodeToString(pkbytes)
 		address := crypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey)).Hex()
 
-		privKey, _, _ := p2pcrypto.GenerateECDSAKeyPair(rand.Reader)
+		privKey, _, _ := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 		id, _ := peer.IDFromPrivateKey(privKey)
 		b, _ := p2pcrypto.MarshalPrivateKey(privKey)
 

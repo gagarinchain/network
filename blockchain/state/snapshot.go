@@ -79,6 +79,7 @@ func (snap *Snapshot) Put(address common.Address, account *Account) {
 func (snap *Snapshot) ApplyTransaction(tx *tx.Transaction) (err error) {
 	sender, found := snap.Get(tx.From())
 	if !found {
+		log.Info(tx.From().Hex())
 		return FutureTransactionError
 	}
 
