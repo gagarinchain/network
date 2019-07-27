@@ -65,7 +65,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	pool := blockchain.NewTransactionPool()
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher)
-	txService := blockchain.NewService(nil, pool)
+	txService := blockchain.NewService(blockchain.NewTransactionValidator(), pool)
 	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(hotstuffSrv)
 	db := state.NewStateDB()
