@@ -3,13 +3,13 @@ package hotstuff
 import (
 	"crypto/ecdsa"
 	"fmt"
+	bc "github.com/gagarinchain/network/blockchain"
+	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
+	msg "github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
-	bc "github.com/poslibp2p/blockchain"
-	comm "github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/eth/crypto"
-	msg "github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
 )
 
 type Vote struct {

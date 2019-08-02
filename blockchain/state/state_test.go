@@ -2,9 +2,9 @@ package state
 
 import (
 	"crypto/ecdsa"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
-	"github.com/poslibp2p/common/tx"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/common/tx"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"

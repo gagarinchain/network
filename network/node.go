@@ -3,19 +3,19 @@ package network
 import (
 	"context"
 	"fmt"
+	"github.com/gagarinchain/network/common"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-crypto"
-	"github.com/libp2p/go-libp2p-host"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/routing"
 	"github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/opts"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-record"
-	"github.com/libp2p/go-libp2p-routing"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/poslibp2p/common"
 	"path"
 )
 
@@ -28,7 +28,7 @@ type Node struct {
 	// Routing is a Routing implementation which implements the PeerRouting,
 	// ContentRouting, and ValueStore interfaces. In practice this will be
 	// a Kademlia DHT.
-	Routing routing.IpfsRouting
+	Routing routing.Routing
 
 	// PubSub is an instance of gossipsub which uses the DHT save lists of
 	// subscribers to topics which publishers can find via a DHT query and

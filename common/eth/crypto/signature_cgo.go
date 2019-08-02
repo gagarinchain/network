@@ -22,8 +22,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"fmt"
-	"github.com/poslibp2p/common/eth/common/math"
-	"github.com/poslibp2p/common/eth/crypto/secp256k1"
+	"github.com/gagarinchain/network/common/eth/common/math"
+	"github.com/gagarinchain/network/common/eth/crypto/secp256k1"
 )
 
 // Ecrecover returns the uncompressed public key that created the given signature.

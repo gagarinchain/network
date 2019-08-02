@@ -3,6 +3,9 @@ package network
 import (
 	"context"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/network/common"
+	msg "github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
 	protoio "github.com/gogo/protobuf/io"
 	"github.com/gogo/protobuf/proto"
 	"github.com/jbenet/go-context/io"
@@ -10,9 +13,6 @@ import (
 	"github.com/libp2p/go-libp2p-peer"
 	"github.com/libp2p/go-libp2p-protocol"
 	"github.com/libp2p/go-libp2p-pubsub"
-	"github.com/poslibp2p/common"
-	msg "github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
 	"io"
 	"math/rand"
 )

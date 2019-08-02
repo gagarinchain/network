@@ -1,8 +1,8 @@
 package trie
 
 import (
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	"strings"
 )
 

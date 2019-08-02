@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gagarinchain/network/common"
 	"github.com/libp2p/go-libp2p-host"
 	"github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-net"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/op/go-logging"
-	"github.com/poslibp2p/common"
 	"sync"
 	"time"
 )
@@ -65,7 +65,7 @@ func Bootstrap(ctx context.Context, routing *dht.IpfsDHT, peerHost host.Host, cf
 	}
 	go watchdog.watch(ctx)
 	//Start DHT
-	_, err := routing.BootstrapWithConfig(dht.DefaultBootstrapConfig)
+	err := routing.BootstrapWithConfig(ctx, dht.DefaultBootstrapConfig)
 	if err != nil {
 		go func() {
 			errChan <- err

@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/poslibp2p.iml" filepath="$PROJECT_DIR$/poslibp2p.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/network.iml" filepath="$PROJECT_DIR$/.idea/network.iml" />
     </modules>
   </component>
 </project>

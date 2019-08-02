@@ -1,9 +1,9 @@
 package trie
 
 import (
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/op/go-logging"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
 )
 
 var (

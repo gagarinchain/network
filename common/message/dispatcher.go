@@ -1,8 +1,8 @@
 package message
 
 import (
+	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/op/go-logging"
-	"github.com/poslibp2p/common/protobuff"
 )
 
 var log = logging.MustGetLogger("cmd")

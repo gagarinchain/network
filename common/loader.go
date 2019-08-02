@@ -3,11 +3,11 @@ package common
 import (
 	"encoding/hex"
 	"encoding/json"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
 	"github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
 	"io/ioutil"
 	"os"
 )

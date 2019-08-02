@@ -2,9 +2,9 @@ package test
 
 import (
 	"context"
-	msg "github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/hotstuff"
-	"github.com/poslibp2p/mocks"
+	msg "github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/hotstuff"
+	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"

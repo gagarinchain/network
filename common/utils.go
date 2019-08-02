@@ -7,10 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
 	"github.com/libp2p/go-libp2p-peer"
 	"github.com/op/go-logging"
-	"github.com/poslibp2p/common/eth/crypto"
 	"io/ioutil"
 	"strconv"
 )

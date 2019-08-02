@@ -1,8 +1,8 @@
 package network
 
 import (
+	"github.com/gagarinchain/network/common"
 	"github.com/libp2p/go-libp2p-crypto"
-	"github.com/poslibp2p/common"
 )
 
 // NodeConfig contains basic configuration information that we'll need to

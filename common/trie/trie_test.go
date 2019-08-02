@@ -1,7 +1,7 @@
 package trie
 
 import (
-	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

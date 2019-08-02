@@ -2,12 +2,12 @@ package test
 
 import (
 	"context"
+	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/mocks"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"

@@ -2,7 +2,7 @@
 
 package mocks
 
-import blockchain "github.com/poslibp2p/blockchain"
+import blockchain "github.com/gagarinchain/network/blockchain"
 
 import mock "github.com/stretchr/testify/mock"
 

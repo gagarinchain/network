@@ -2,16 +2,16 @@ package common
 
 import (
 	"crypto/ecdsa"
-	"github.com/libp2p/go-libp2p-peerstore"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 type Peer struct {
 	address    common.Address
 	publicKey  *ecdsa.PublicKey
 	privateKey *ecdsa.PrivateKey
-	peerInfo   *peerstore.PeerInfo
+	peerInfo   *peer.AddrInfo
 }
 
 func (p *Peer) SetPrivateKey(privateKey *ecdsa.PrivateKey) {
@@ -30,7 +30,7 @@ func (p *Peer) GetPrivateKey() *ecdsa.PrivateKey {
 	return p.privateKey
 }
 
-func CreatePeer(publicKey *ecdsa.PublicKey, privateKey *ecdsa.PrivateKey, peerInfo *peerstore.PeerInfo) *Peer {
+func CreatePeer(publicKey *ecdsa.PublicKey, privateKey *ecdsa.PrivateKey, peerInfo *peer.AddrInfo) *Peer {
 	peer := &Peer{
 		publicKey:  publicKey,
 		privateKey: privateKey,
@@ -45,6 +45,6 @@ func (p *Peer) Equals(toCompare *Peer) bool {
 	return p.address == toCompare.address
 }
 
-func (p *Peer) GetPeerInfo() *peerstore.PeerInfo {
+func (p *Peer) GetPeerInfo() *peer.AddrInfo {
 	return p.peerInfo
 }

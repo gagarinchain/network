@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/pkg/errors"
-	comm "github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/eth/common"
 	"sort"
 	"sync"
 )

@@ -2,19 +2,19 @@ package blockchain
 
 import (
 	"context"
+	net "github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/common/tx"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/poslibp2p"
-	"github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/common/tx"
 )
 
 type TxService struct {
-	validator poslibp2p.Validator
+	validator net.Validator
 	txPool    TransactionPool
 }
 
-func NewService(validator poslibp2p.Validator, txPool TransactionPool) *TxService {
+func NewService(validator net.Validator, txPool TransactionPool) *TxService {
 	return &TxService{validator: validator, txPool: txPool}
 }
 

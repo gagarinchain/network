@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
+	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/network"
 	golog "github.com/ipfs/go-log"
 	"github.com/op/go-logging"
-	cmn "github.com/poslibp2p/common"
-	"github.com/poslibp2p/network"
 	gologging "github.com/whyrusleeping/go-logging"
 	"os"
 	"path"

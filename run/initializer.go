@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"github.com/poslibp2p"
-	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/blockchain/state"
-	"github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/hotstuff"
-	"github.com/poslibp2p/network"
+	net "github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/hotstuff"
+	"github.com/gagarinchain/network/network"
 
 	"time"
 )
@@ -43,7 +43,7 @@ func (c *Context) Node() *network.Node {
 }
 
 func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common.Peer) *Context {
-	validators := []poslibp2p.Validator{
+	validators := []net.Validator{
 		hotstuff.NewEpochStartValidator(committee),
 		hotstuff.NewProposalValidator(committee),
 		hotstuff.NewVoteValidator(committee),

@@ -4,7 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"github.com/poslibp2p/common/eth/crypto"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

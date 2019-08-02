@@ -1,9 +1,9 @@
 package state
 
 import (
+	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/op/go-logging"
 	"github.com/pkg/errors"
-	"github.com/poslibp2p/common/eth/common"
 	"math/big"
 	"sync"
 )

@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"errors"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 	"github.com/op/go-logging"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
-	"github.com/poslibp2p/common/protobuff"
 	"math/big"
 )
 

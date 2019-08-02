@@ -1,10 +1,10 @@
 package test
 
 import (
-	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/common/eth/crypto"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/mocks"
+	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"

@@ -2,9 +2,9 @@ package hotstuff
 
 import (
 	"errors"
-	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/protobuff"
+	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/protobuff"
 )
 
 type EpochStartValidator struct {

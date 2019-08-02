@@ -1,6 +1,6 @@
 package blockchain
 
-import "github.com/poslibp2p/common/tx"
+import "github.com/gagarinchain/network/common/tx"
 
 type TransactionPool interface {
 	Add(tx *tx.Transaction)

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/poslibp2p/common"
+import "github.com/gagarinchain/network/common"
 
 func main1() {
 	common.GenerateIdentities()

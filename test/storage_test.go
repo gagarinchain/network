@@ -2,8 +2,8 @@ package test
 
 import (
 	"github.com/davecgh/go-spew/spew"
-	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/mocks"
+	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"

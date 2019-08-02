@@ -3,17 +3,17 @@ package test
 import (
 	"bytes"
 	"context"
+	net "github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/common"
+	common2 "github.com/gagarinchain/network/common/eth/common"
+	msg "github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/common/tx"
+	"github.com/gagarinchain/network/hotstuff"
+	"github.com/gagarinchain/network/mocks"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/poslibp2p"
-	"github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/blockchain/state"
-	"github.com/poslibp2p/common"
-	common2 "github.com/poslibp2p/common/eth/common"
-	msg "github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/common/tx"
-	"github.com/poslibp2p/hotstuff"
-	"github.com/poslibp2p/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"math/big"
@@ -939,7 +939,7 @@ func initContext(t *testing.T) *TestContext {
 		peers[i] = generateIdentity(t, i)
 	}
 
-	validators := []poslibp2p.Validator{
+	validators := []net.Validator{
 		hotstuff.NewEpochStartValidator(peers),
 		hotstuff.NewProposalValidator(peers),
 		hotstuff.NewVoteValidator(peers),

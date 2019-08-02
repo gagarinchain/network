@@ -2,12 +2,12 @@ package blockchain
 
 import (
 	"encoding/json"
-	"github.com/poslibp2p/blockchain/state"
+	"github.com/gagarinchain/network/blockchain/state"
 	"io/ioutil"
 	"math/big"
 	"os"
 )
-import "github.com/poslibp2p/common/eth/common"
+import "github.com/gagarinchain/network/common/eth/common"
 
 type Config struct {
 	Seed         map[common.Address]*state.Account

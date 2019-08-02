@@ -3,12 +3,12 @@ package blockchain
 import (
 	"crypto/ecdsa"
 	"errors"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/common/trie"
+	"github.com/gagarinchain/network/common/tx"
 	"github.com/gogo/protobuf/proto"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/common/trie"
-	"github.com/poslibp2p/common/tx"
 	"time"
 )
 

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gagarinchain/network/common/eth/common"
+	msg "github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/poslibp2p/common/eth/common"
-	msg "github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/network"
 	"time"
 )
 

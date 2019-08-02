@@ -2,7 +2,7 @@ package blockchain
 
 import (
 	"bytes"
-	"github.com/poslibp2p/common/tx"
+	"github.com/gagarinchain/network/common/tx"
 	"sort"
 	"sync"
 )

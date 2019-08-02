@@ -2,8 +2,8 @@ package main
 
 import (
 	"crypto/rand"
+	"github.com/gagarinchain/network/network"
 	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
-	"github.com/poslibp2p/network"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path"

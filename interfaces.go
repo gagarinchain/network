@@ -1,8 +1,6 @@
-package poslibp2p
+package gagarinchain
 
-import (
-	"github.com/poslibp2p/common/protobuff"
-)
+import "github.com/gagarinchain/network/common/protobuff"
 
 //Known validations
 //1. Address of signer is among committee

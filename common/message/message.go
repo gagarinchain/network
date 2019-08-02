@@ -1,11 +1,11 @@
 package message
 
 import (
+	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/libp2p/go-libp2p-net"
-	"github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/protobuff"
 )
 
 type Message struct {

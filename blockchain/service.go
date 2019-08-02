@@ -3,13 +3,13 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	com "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
-	com "github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/network"
 )
 
 type BlockService interface {

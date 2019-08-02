@@ -1,11 +1,11 @@
 package test
 
 import (
-	bch "github.com/poslibp2p/blockchain"
-	"github.com/poslibp2p/blockchain/state"
-	"github.com/poslibp2p/common/eth/common"
-	"github.com/poslibp2p/common/eth/crypto"
-	"github.com/poslibp2p/mocks"
+	bch "github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"

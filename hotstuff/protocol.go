@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	main "github.com/gagarinchain/network"
+	bc "github.com/gagarinchain/network/blockchain"
+	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/eth/common"
+	msg "github.com/gagarinchain/network/common/message"
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
-	"github.com/poslibp2p"
-	bc "github.com/poslibp2p/blockchain"
-	comm "github.com/poslibp2p/common"
-	"github.com/poslibp2p/common/eth/common"
-	msg "github.com/poslibp2p/common/message"
-	"github.com/poslibp2p/common/protobuff"
-	"github.com/poslibp2p/network"
 	"math/rand"
 	"strconv"
 	"time"
@@ -49,7 +49,7 @@ type ProtocolConfig struct {
 	Srv        network.Service
 	Sync       bc.Synchronizer
 	Pacer      Pacer
-	Validators []poslibp2p.Validator
+	Validators []main.Validator
 	Storage    bc.Storage
 	Committee  []*comm.Peer
 }
@@ -63,7 +63,7 @@ type Protocol struct {
 	hqc               *bc.QuorumCertificate
 	me                *comm.Peer
 	pacer             Pacer
-	validators        []poslibp2p.Validator
+	validators        []main.Validator
 	storage           bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	srv               network.Service
 	sync              bc.Synchronizer
