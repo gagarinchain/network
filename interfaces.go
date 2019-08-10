@@ -1,6 +1,9 @@
 package gagarinchain
 
-import "github.com/gagarinchain/network/common/protobuff"
+import (
+	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/syndtr/goleveldb/leveldb"
+)
 
 //Known validations
 //1. Address of signer is among committee
@@ -22,4 +25,27 @@ type Validator interface {
 	IsValid(entity interface{}) (bool, error)
 	Supported(mType pb.Message_MessageType) bool
 	GetId() interface{}
+}
+
+type Persistable interface {
+	Persist(storage Storage) error
+}
+
+type ResourceType byte
+
+const Block = ResourceType(0x0)
+const HeightIndex = ResourceType(0x1)
+const CurrentEpoch = ResourceType(0x2)
+const CurrentView = ResourceType(0x3)
+const TopCommittedHeight = ResourceType(0x4)
+const CurrentTopHeight = ResourceType(0x5)
+const Snapshot = ResourceType(0x6)
+
+type Storage interface {
+	Put(rtype ResourceType, key []byte, value []byte) error
+	Get(rtype ResourceType, key []byte) (value []byte, err error)
+	Contains(rtype ResourceType, key []byte) bool
+	Delete(rtype ResourceType, key []byte) error
+	Keys(rtype ResourceType, keyPrefix []byte) (keys [][]byte)
+	Stats() *leveldb.DBStats
 }

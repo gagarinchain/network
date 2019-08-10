@@ -74,7 +74,7 @@ func CalculateHash(ep *pb.EpochStartPayload) (common.Hash, error) {
 	payload := &pb.EpochStartPayload{EpochNumber: ep.EpochNumber, Body: &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.Signature}}
 	any, e := ptypes.MarshalAny(payload)
 	if e != nil {
-		return common.Hash{}, errors.Errorf("error while marshalling payload", e)
+		return common.Hash{}, errors.Errorf("error while marshalling Payload", e)
 	}
 	hashbytes := common.BytesToHash(crypto.Keccak256(any.GetValue()))
 
@@ -90,13 +90,13 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 
 	sig, err := crypto.Sign(hash.Bytes(), ep.sender.GetPrivateKey())
 	if err != nil {
-		return nil, errors.Errorf("can't sign sync message", err)
+		return nil, errors.Errorf("can'T sign sync message", err)
 	}
 
 	payload.Signature = sig
 	any2, e := ptypes.MarshalAny(payload)
 	if e != nil {
-		return nil, errors.Errorf("error while marshalling payload", e)
+		return nil, errors.Errorf("error while marshalling Payload", e)
 	}
 
 	return msg.CreateMessage(pb.Message_EPOCH_START, any2, ep.sender), nil

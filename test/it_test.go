@@ -187,7 +187,9 @@ func TestScenario2b(t *testing.T) {
 	defer f()
 
 	trigger := make(chan interface{})
-	ctx.pacer.SubscribeEpochChange(timeout, trigger)
+	ctx.pacer.SubscribeEpochChange(timeout, func(event hotstuff.Event) {
+		trigger <- event
+	})
 	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, nil)
 	<-trigger
 
@@ -853,7 +855,9 @@ func makeVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, peer *commo
 
 func (ctx *TestContext) StartFirstEpoch() {
 	trigger := make(chan interface{})
-	ctx.pacer.SubscribeEpochChange(context.Background(), trigger)
+	ctx.pacer.SubscribeEpochChange(context.Background(), func(event hotstuff.Event) {
+		trigger <- event
+	})
 	ctx.sendStartEpochMessages(0, 2*ctx.cfg.F/3+1, nil)
 	<-trigger
 }
@@ -890,7 +894,7 @@ func (ctx *TestContext) waitRounds(c context.Context, count int) {
 	for {
 		select {
 		case event := <-ctx.eventChan:
-			if event == hotstuff.ChangedView {
+			if event.T == hotstuff.ChangedView {
 				i++
 				if i == count {
 					return
@@ -923,16 +927,10 @@ func initContext(t *testing.T) *TestContext {
 	log.Debugf("Current me %v", identity.GetAddress().Hex())
 	srv := &mocks.Service{}
 	bsrv := &mocks.BlockService{}
-	storage := &mocks.Storage{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
-	storage.On("GetCurrentEpoch").Return(int32(-1), nil)
-	storage.On("GetTopCommittedHeight").Return(0)
-	storage.On("GetCurrentTopHeight").Return(int32(0), nil)
-	storage.On("PutTopCommittedHeight", mock.AnythingOfType("int32")).Return(nil)
+	storage := SoftStorageMock()
+
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
 
 	peers := make([]*common.Peer, 10)
 	for i := 0; i < 10; i++ {
@@ -947,13 +945,14 @@ func initContext(t *testing.T) *TestContext {
 
 	pool := blockchain.NewTransactionPool()
 	seed := blockchain.SeedFromFile("../static/seed.json")
-	stateDb := state.NewStateDB()
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{
-		Seed:         seed,
-		Storage:      storage,
-		BlockService: bsrv,
-		Pool:         pool,
-		Db:           stateDb,
+	stateDb := state.NewStateDB(storage)
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		Seed:           seed,
+		BlockPerister:  bpersister,
+		ChainPersister: cpersister,
+		BlockService:   bsrv,
+		Pool:           pool,
+		Db:             stateDb,
 	})
 
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
@@ -963,10 +962,10 @@ func initContext(t *testing.T) *TestContext {
 		Blockchain: bc,
 		Me:         identity,
 		Srv:        srv,
-		Storage:    storage,
 		Sync:       sync,
 		Validators: validators,
 		Committee:  peers,
+		Storage:    storage,
 	}
 
 	matcher := func(msgType pb.Message_MessageType) func(m *msg.Message) bool {

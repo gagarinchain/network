@@ -18,9 +18,13 @@ import (
 func TestBlockProtocolBootstrap(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
-	storage := initStorage()
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
@@ -60,9 +64,13 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 func TestBlockProtocolOnBlockRequest(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
-	storage := initStorage()
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
@@ -131,9 +139,13 @@ func TestBlockProtocolOnBlockRequest(t *testing.T) {
 func TestBlockProtocolOnForkRequest(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
-	storage := initStorage()
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
@@ -214,9 +226,12 @@ func TestBlockProtocolOnHello(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
 	bsrv := &mocks.BlockService{}
-	storage := initStorage()
-
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
 
@@ -253,15 +268,4 @@ func TestBlockProtocolOnHello(t *testing.T) {
 
 	p.OnHello(context.Background(), m)
 
-}
-
-func initStorage() *mocks.Storage {
-	storage := &mocks.Storage{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	storage.On("GetTopCommittedHeight").Return(0)
-	storage.On("PutTopCommittedHeight", mock.AnythingOfType("int32")).Return(nil)
-	return storage
 }

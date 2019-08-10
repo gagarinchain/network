@@ -9,12 +9,13 @@ import (
 )
 import "github.com/gagarinchain/network/common/eth/common"
 
-type Config struct {
-	Seed         map[common.Address]*state.Account
-	Storage      Storage
-	BlockService BlockService
-	Pool         TransactionPool
-	Db           state.DB
+type BlockchainConfig struct {
+	Seed           map[common.Address]*state.Account
+	BlockPerister  *BlockPersister
+	ChainPersister *BlockchainPersister
+	BlockService   BlockService
+	Pool           TransactionPool
+	Db             state.DB
 }
 
 type SeedData struct {

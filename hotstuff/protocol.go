@@ -42,16 +42,22 @@ type HQCHandler interface {
 }
 
 type ProtocolConfig struct {
-	F          int
-	Delta      time.Duration
-	Blockchain *bc.Blockchain
-	Me         *comm.Peer
-	Srv        network.Service
-	Sync       bc.Synchronizer
-	Pacer      Pacer
-	Validators []main.Validator
-	Storage    bc.Storage
-	Committee  []*comm.Peer
+	F            int
+	Delta        time.Duration
+	Blockchain   *bc.Blockchain
+	Me           *comm.Peer
+	Srv          network.Service
+	Sync         bc.Synchronizer
+	Pacer        Pacer
+	Validators   []main.Validator
+	Storage      main.Storage
+	Committee    []*comm.Peer
+	InitialState *InitialState
+}
+
+type InitialState struct {
+	View  int32
+	Epoch int32
 }
 
 type Protocol struct {
@@ -64,7 +70,6 @@ type Protocol struct {
 	me                *comm.Peer
 	pacer             Pacer
 	validators        []main.Validator
-	storage           bc.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	srv               network.Service
 	sync              bc.Synchronizer
 }
@@ -88,7 +93,6 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		me:                cfg.Me,
 		pacer:             cfg.Pacer,
 		validators:        cfg.Validators,
-		storage:           cfg.Storage,
 		srv:               cfg.Srv,
 		sync:              cfg.Sync,
 	}
@@ -168,7 +172,9 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 		go p.srv.SendMessage(ctx, p.pacer.GetNext(), m)
 	}
 
-	p.pacer.FireEvent(Voted)
+	p.pacer.FireEvent(Event{
+		T: Voted,
+	})
 	return nil
 }
 
@@ -201,7 +207,9 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 	if p.CheckConsensus() {
 		p.blockchain.GetBlockByHashOrLoad(ctx, vote.Header.Hash())
 		p.FinishQC(vote.Header)
-		p.pacer.FireEvent(VotesCollected)
+		p.pacer.FireEvent(Event{
+			T: VotesCollected,
+		})
 	}
 	return nil
 }
@@ -275,7 +283,9 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 	m := msg.CreateMessage(pb.Message_PROPOSAL, any, p.me)
 	go p.srv.Broadcast(ctx, m)
 
-	p.pacer.FireEvent(Proposed)
+	p.pacer.FireEvent(Event{
+		T: Proposed,
+	})
 }
 
 func (*Protocol) equivocate(peer *comm.Peer) {
@@ -318,7 +328,7 @@ func (p *Protocol) validateMessage(entity interface{}, messageType pb.Message_Me
 }
 func (p *Protocol) validate(proposal *Proposal) error {
 	if proposal.NewBlock == nil {
-		return errors.New("proposed block can't be empty")
+		return errors.New("proposed block can'T be empty")
 	}
 
 	return nil

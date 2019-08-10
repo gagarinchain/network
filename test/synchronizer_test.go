@@ -16,7 +16,12 @@ import (
 
 func TestSynchRequestBlock(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	toTest := blockchain.NewBlockService(srv)
@@ -40,7 +45,12 @@ func TestSynchRequestBlock(t *testing.T) {
 
 func TestSynchRequestBlocksForHeight(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	bsrv := blockchain.NewBlockService(srv)
@@ -73,7 +83,12 @@ func TestSynchRequestBlocksForHeight(t *testing.T) {
 
 func TestSynchRequestBlocksForWrongHeight(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	bsrv := blockchain.NewBlockService(srv)
@@ -99,7 +114,12 @@ func TestSynchRequestBlocksForWrongHeight(t *testing.T) {
 
 func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
@@ -147,7 +167,12 @@ func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 
 func TestSynchRequestBlocksForHeightRangePartiallyWithTimeout(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
@@ -203,7 +228,12 @@ func TestSynchRequestBlocksForHeightRangePartiallyWithTimeout(t *testing.T) {
 
 func TestSynchRequestBlocksForHeightRangeBreakingBlockchain(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
@@ -243,7 +273,12 @@ func TestSynchRequestBlocksForHeightRangeBreakingBlockchain(t *testing.T) {
 
 func TestSyncFork(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
@@ -278,7 +313,12 @@ func TestSyncFork(t *testing.T) {
 
 func TestSyncForkIntegrityViolation(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
@@ -308,7 +348,12 @@ func TestSyncForkIntegrityViolation(t *testing.T) {
 }
 func TestSyncForkPartial(t *testing.T) {
 	srv := &mocks.Service{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)

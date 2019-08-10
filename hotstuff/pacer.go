@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	msg "github.com/gagarinchain/network/common/message"
@@ -15,14 +15,14 @@ import (
 
 type Pacer interface {
 	EventNotifier
-	FireEvent(event Event)
 	GetCurrentView() int32
 	GetCurrent() *cmn.Peer
 	GetNext() *cmn.Peer
 }
 
 type EventNotifier interface {
-	SubscribeProtocolEvents(chan Event)
+	SubscribeProtocolEvents(sub chan Event)
+	FireEvent(event Event)
 }
 
 type StateId int
@@ -34,17 +34,54 @@ const (
 	Proposing     StateId = iota
 )
 
-type Event int
+type EventPayload interface{}
+type EventType int
 
 const (
-	TimedOut            Event = iota
-	EpochStarted        Event = iota
-	EpochStartTriggered Event = iota
-	Voted               Event = iota
-	VotesCollected      Event = iota
-	Proposed            Event = iota
-	ChangedView         Event = iota
+	TimedOut            EventType = iota
+	EpochStarted        EventType = iota
+	EpochStartTriggered EventType = iota
+	Voted               EventType = iota
+	VotesCollected      EventType = iota
+	Proposed            EventType = iota
+	ChangedView         EventType = iota
 )
+
+type Event struct {
+	Payload EventPayload
+	T       EventType
+}
+
+type EventHandler = func(event Event)
+
+type PacerPersister struct {
+	Storage gagarinchain.Storage
+}
+
+func (pp *PacerPersister) PutCurrentEpoch(currentEpoch int32) error {
+	epoch := cmn.Int32ToByte(currentEpoch)
+	return pp.Storage.Put(gagarinchain.CurrentEpoch, nil, epoch)
+}
+
+func (pp *PacerPersister) GetCurrentEpoch() (int32, error) {
+	value, err := pp.Storage.Get(gagarinchain.CurrentEpoch, nil)
+	if err != nil {
+		return cmn.DefaultIntValue, err
+	}
+	return cmn.ByteToInt32(value)
+}
+func (pp *PacerPersister) PutCurrentView(currentView int32) error {
+	epoch := cmn.Int32ToByte(currentView)
+	return pp.Storage.Put(gagarinchain.CurrentView, nil, epoch)
+}
+
+func (pp *PacerPersister) GetCurrentView(currentView int32) (int32, error) {
+	value, err := pp.Storage.Get(gagarinchain.CurrentView, nil)
+	if err != nil {
+		return cmn.DefaultIntValue, err
+	}
+	return cmn.ByteToInt32(value)
+}
 
 //Static pacer that store validator set in file and round-robin elect proposer each 2 Delta-periods
 type StaticPacer struct {
@@ -53,8 +90,8 @@ type StaticPacer struct {
 	me                    *cmn.Peer
 	committee             []*cmn.Peer
 	protocol              *Protocol
-	storage               blockchain.Storage //we can eliminate this dependency, setting value via epochStartSubChan and setting via conf, mb refactor in the future
 	protocolEventSubChans []chan Event
+	persister             *PacerPersister
 	view                  struct {
 		current int32
 		guard   *sync.RWMutex
@@ -80,16 +117,14 @@ func (p *StaticPacer) StateId() StateId {
 }
 
 func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
-	storedEpoch, err := cfg.Storage.GetCurrentEpoch()
-	if err != nil {
-		log.Info("Starting node from scratch, storage is empty")
-	}
-	storedView, err := cfg.Storage.GetCurrentTopHeight()
-	if err != nil {
-		log.Info("Starting node from scratch, storage is empty")
-	}
-	if storedView == blockchain.DefaultIntValue {
-		storedView = 0
+	var initialEpoch int32 = -1
+	var initialView int32 = 0
+	if cfg.InitialState == nil ||
+		cfg.InitialState.Epoch == cmn.DefaultIntValue && cfg.InitialState.View == cmn.DefaultIntValue {
+		log.Info("Starting node from scratch, Storage is empty")
+	} else {
+		initialEpoch = cfg.InitialState.Epoch
+		initialView = cfg.InitialState.View
 	}
 
 	for i, c := range cfg.Committee {
@@ -103,12 +138,12 @@ func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
 		delta:     cfg.Delta,
 		me:        cfg.Me,
 		committee: cfg.Committee,
-		storage:   cfg.Storage,
+		persister: &PacerPersister{Storage: cfg.Storage},
 		view: struct {
 			current int32
 			guard   *sync.RWMutex
 		}{
-			current: storedView,
+			current: initialView,
 			guard:   &sync.RWMutex{},
 		},
 		epoch: struct {
@@ -117,8 +152,8 @@ func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
 			messageStorage map[common.Address]int32
 			voteStorage    map[common.Address][]byte
 		}{
-			current:        storedEpoch,
-			toStart:        0,
+			current:        initialEpoch,
+			toStart:        initialEpoch + 1,
 			messageStorage: make(map[common.Address]int32),
 			voteStorage:    make(map[common.Address][]byte),
 		},
@@ -131,6 +166,14 @@ func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
 	p.protocol = protocol
 	p.stateId = Bootstrapped
 	p.execution.parent = ctx
+
+	p.SubscribeEpochChange(ctx, func(event Event) {
+		epoch := event.Payload.(int32)
+		e := p.persister.PutCurrentEpoch(epoch)
+		if e != nil {
+			log.Error("Can'T persist new epoch")
+		}
+	})
 }
 
 func (p *StaticPacer) Committee() []*cmn.Peer {
@@ -184,7 +227,9 @@ func (p *StaticPacer) Run(ctx context.Context, hotstuffChan chan *msg.Message, e
 			}
 		case <-p.execution.ctx.Done(): //case when we timed out
 			if p.execution.ctx.Err() == context.DeadlineExceeded {
-				p.FireEvent(TimedOut)
+				p.FireEvent(Event{
+					T: TimedOut,
+				})
 			}
 		case <-ctx.Done():
 			log.Info("Root context is cancelled, shutting down pacer")
@@ -196,11 +241,11 @@ func (p *StaticPacer) Run(ctx context.Context, hotstuffChan chan *msg.Message, e
 func (p *StaticPacer) FireEvent(event Event) {
 	p.notifyProtocolEvent(event)
 
-	switch event {
+	switch event.T {
 	case TimedOut:
 		switch p.stateId {
 		case StartingEpoch: //we are timed out during epoch starting, should retry
-			log.Info("Can't start epoch in 4*delta, retry...")
+			log.Info("Can'T start epoch in 4*delta, retry...")
 			p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, 4*p.delta)
 			p.stateId = StartingEpoch
 			p.StartEpoch(p.execution.ctx)
@@ -275,6 +320,8 @@ func (p *StaticPacer) FireEvent(event Event) {
 func (p *StaticPacer) SubscribeProtocolEvents(sub chan Event) {
 	p.protocolEventSubChans = append(p.protocolEventSubChans, sub)
 }
+
+//warning: we generate a lot of goroutines here, that can block forever
 func (p *StaticPacer) notifyProtocolEvent(event Event) {
 	for _, ch := range p.protocolEventSubChans {
 		go func(c chan Event) {
@@ -283,22 +330,30 @@ func (p *StaticPacer) notifyProtocolEvent(event Event) {
 	}
 }
 
-func (p *StaticPacer) SubscribeEpochChange(ctx context.Context, trigger chan interface{}) {
+func (p *StaticPacer) subscribeEvent(ctx context.Context, eventType EventType, handler EventHandler) {
 	events := make(chan Event)
 	p.SubscribeProtocolEvents(events)
 	go func() {
 		for {
 			select {
-			case event, ok := <-events:
-				if ok && event == EpochStarted {
-					trigger <- struct{}{}
+			case e, ok := <-events:
+				if ok && e.T == eventType {
+					handler(e)
 				}
 			case <-ctx.Done():
-				log.Debug("SubscribeEpochChange", ctx.Err())
+				log.Debug("SubscribeEvent is done", ctx.Err())
 				return
 			}
 		}
 	}()
+}
+
+func (p *StaticPacer) SubscribeEpochChange(ctx context.Context, handler EventHandler) {
+	p.subscribeEvent(ctx, EpochStarted, handler)
+}
+
+func (p *StaticPacer) SubscribeViewChange(ctx context.Context, handler EventHandler) {
+	p.subscribeEvent(ctx, ChangedView, handler)
 }
 
 func (p *StaticPacer) GetCurrentView() int32 {
@@ -308,8 +363,12 @@ func (p *StaticPacer) GetCurrentView() int32 {
 }
 
 func (p *StaticPacer) OnNextView() {
-	p.changeView(p.GetCurrentView() + 1)
-	p.FireEvent(ChangedView)
+	nextView := p.GetCurrentView() + 1
+	p.changeView(nextView)
+	p.FireEvent(Event{
+		T:       ChangedView,
+		Payload: nextView,
+	})
 }
 
 func (p *StaticPacer) changeView(view int32) {
@@ -332,7 +391,7 @@ func (p *StaticPacer) StartEpoch(ctx context.Context) {
 
 	m, e := epoch.GetMessage()
 	if e != nil {
-		log.Error("Can't create Epoch message", e)
+		log.Error("Can'T create Epoch message", e)
 	}
 	go p.protocol.srv.Broadcast(ctx, m)
 }
@@ -387,7 +446,9 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 		if p.stateId == StartingEpoch && p.epoch.current < max.n-1 || p.stateId != StartingEpoch {
 			log.Debugf("Received F/3 + 1 start epoch messages, force starting new epoch")
 			p.epoch.toStart = max.n
-			p.FireEvent(EpochStartTriggered)
+			p.FireEvent(Event{
+				T: EpochStartTriggered,
+			})
 		}
 	}
 
@@ -412,15 +473,14 @@ func (p *StaticPacer) newEpoch(i int32) {
 	if i > 0 {
 		p.changeView((i) * int32(p.f))
 	}
-	e := p.storage.PutCurrentEpoch(i)
-	if e != nil {
-		log.Error(e)
-	}
 
 	p.epoch.current = i
 	p.epoch.toStart = i + 1
 	p.epoch.messageStorage = make(map[common.Address]int32)
 	log.Infof("Started new epoch %v", i)
 	log.Infof("Current view number %v, proposer %v", p.view.current, p.GetCurrent().GetAddress().Hex())
-	p.FireEvent(EpochStarted)
+	p.FireEvent(Event{
+		T:       EpochStarted,
+		Payload: p.epoch.current,
+	})
 }

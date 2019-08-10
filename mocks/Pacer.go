@@ -62,7 +62,7 @@ func (_m *Pacer) GetNext() *common.Peer {
 	return r0
 }
 
-// SubscribeProtocolEvents provides a mock function with given fields: _a0
-func (_m *Pacer) SubscribeProtocolEvents(_a0 chan hotstuff.Event) {
-	_m.Called(_a0)
+// SubscribeProtocolEvents provides a mock function with given fields: sub
+func (_m *Pacer) SubscribeProtocolEvents(sub chan hotstuff.Event) {
+	_m.Called(sub)
 }

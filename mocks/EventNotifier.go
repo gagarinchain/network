@@ -10,7 +10,12 @@ type EventNotifier struct {
 	mock.Mock
 }
 
-// SubscribeProtocolEvents provides a mock function with given fields: _a0
-func (_m *EventNotifier) SubscribeProtocolEvents(_a0 chan hotstuff.Event) {
-	_m.Called(_a0)
+// FireEvent provides a mock function with given fields: event
+func (_m *EventNotifier) FireEvent(event hotstuff.Event) {
+	_m.Called(event)
+}
+
+// SubscribeProtocolEvents provides a mock function with given fields: sub
+func (_m *EventNotifier) SubscribeProtocolEvents(sub chan hotstuff.Event) {
+	_m.Called(sub)
 }

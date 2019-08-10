@@ -1,18 +1,23 @@
 package test
 
 import (
+	"github.com/gagarinchain/network"
 	bch "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
-	"github.com/gagarinchain/network/common/eth/common"
+	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/mocks"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"
 )
 
 func TestIsSiblingParent(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -24,7 +29,10 @@ func TestIsSiblingParent(t *testing.T) {
 }
 
 func TestIsSiblingAncestor(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -45,7 +53,10 @@ func TestIsSiblingAncestor(t *testing.T) {
 }
 
 func TestIsSiblingReverseParentSibling(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -63,7 +74,10 @@ func TestIsSiblingReverseParentSibling(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentSameHeight(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -80,7 +94,10 @@ func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -101,7 +118,10 @@ func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 }
 
 func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: mockStorage(), Pool: mockPool(), Db: mockDB()})
+	storage := SoftStorageMock()
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -123,16 +143,34 @@ func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
 
 func TestWarmUpFromStorageWithGenesisBlockOnly(t *testing.T) {
 
-	storage := &mocks.Storage{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	storage.On("GetCurrentTopHeight").Return(int32(0), nil)
-	storage.On("GetTopCommittedHeight").Return(int32(-1), nil)
 	zero := bch.CreateGenesisBlock()
 	zero.SetQC(bch.CreateQuorumCertificate([]byte("valid"), zero.Header()))
-	storage.On("GetHeightIndexRecord", int32(0)).Return([]common.Hash{zero.Header().Hash()}, nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(zero, nil)
+
+	storage := &mocks.Storage{}
+	storage.On("Put", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8"), mock.AnythingOfType("[]uint8")).Return(nil)
+	storage.On("Contains", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8")).Return(false)
+
+	storage.On("Get",
+		mock.MatchedBy(func(t gagarinchain.ResourceType) bool {
+			return t == gagarinchain.HeightIndex
+		}),
+		mock.AnythingOfType("[]uint8")).Return(zero.Header().Hash().Bytes(), nil)
+	zeroBBytes, _ := proto.Marshal(zero.GetMessage())
+	storage.On("Get",
+		mock.MatchedBy(func(t gagarinchain.ResourceType) bool {
+			return t == gagarinchain.Block
+		}),
+		mock.AnythingOfType("[]uint8")).Return(zeroBBytes, nil)
+	storage.On("Get",
+		mock.MatchedBy(func(t gagarinchain.ResourceType) bool {
+			return t == gagarinchain.CurrentTopHeight
+		}),
+		mock.AnythingOfType("[]uint8")).Return(cmn.Int32ToByte(0), nil)
+	storage.On("Get",
+		mock.MatchedBy(func(t gagarinchain.ResourceType) bool {
+			return t == gagarinchain.TopCommittedHeight
+		}),
+		mock.AnythingOfType("[]uint8")).Return(cmn.Int32ToByte(-1), nil)
 
 	bc := bch.CreateBlockchainFromStorage(storage, nil, mockPool(), mockDB())
 
@@ -141,8 +179,10 @@ func TestWarmUpFromStorageWithGenesisBlockOnly(t *testing.T) {
 }
 
 func TestOnCommit(t *testing.T) {
-	storage, _ := bch.NewStorage("", nil)
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: storage, Pool: mockPool(), Db: mockDB()})
+	storage, _ := cmn.NewStorage("", nil)
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	genesisBlock := bc.GetGenesisBlock()
 	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
 	_ = bc.AddBlock(genesisBlock)
@@ -236,13 +276,16 @@ func TestOnCommit(t *testing.T) {
 
 	assert.Nil(t, o6)
 
-	val, _ := storage.GetTopCommittedHeight()
+	val, _ := cpersister.GetTopCommittedHeight()
 	assert.Equal(t, block21.Height(), val)
 }
 
 func TestWarmUpFromStorageWithRichChain(t *testing.T) {
-	storage, _ := bch.NewStorage("", nil)
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.Config{Storage: storage, Pool: mockPool(), Db: mockDB()})
+	storage, _ := cmn.NewStorage("", nil)
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
 	genesisBlock := bc.GetGenesisBlock()
 	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
 	_ = bc.AddBlock(genesisBlock)
@@ -268,16 +311,6 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	assert.Equal(t, []*bch.Block{block45, block47}, bc2.GetBlockByHeight(4))
 	assert.Equal(t, block56, bc2.GetHead())
 
-}
-
-func mockStorage() *mocks.Storage {
-	storage := &mocks.Storage{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-
-	return storage
 }
 
 func mockPool() bch.TransactionPool {

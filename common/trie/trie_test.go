@@ -1,8 +1,10 @@
 package trie
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/stretchr/testify/assert"
+	strings2 "strings"
 	"testing"
 )
 
@@ -60,4 +62,25 @@ func TestFixedLengthHexKeyMerkleTrie_Values(t *testing.T) {
 	for _, v := range values {
 		log.Debug(string(v))
 	}
+}
+func TestFixedLengthHexKeyMerkleTrie_Values2(t *testing.T) {
+	trie := New()
+
+	strings := []string{
+		strings2.ToLower("0xA8de0B33D7b815aC5c5B2524626A241bAf0FBA1f"),
+		strings2.ToLower("0xA7bAf0EA7c4a76e33070231464841B206198467D"),
+		strings2.ToLower("0x7C4bA1e923dEcDcC8C88beE16bBAB7fb305B0901"),
+		strings2.ToLower("0xd9750628EbC61828649601FEBbAa71567C21635B"),
+	}
+
+	trie.InsertOrUpdate([]byte(strings[0]), []byte("1"))
+	trie.InsertOrUpdate([]byte(strings[1]), []byte("2"))
+	trie.InsertOrUpdate([]byte(strings[2]), []byte("3"))
+	trie.InsertOrUpdate([]byte(strings[3]), []byte("4"))
+
+	e := trie.Entries()
+	spew.Dump(e)
+
+	assert.Equal(t, trie.root.Key(), []byte("0x"))
+
 }

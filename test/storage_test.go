@@ -3,6 +3,8 @@ package test
 import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -10,7 +12,7 @@ import (
 )
 
 func TestStorageCreation(t *testing.T) {
-	_, e := blockchain.NewStorage("test.db", nil)
+	_, e := common.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}
@@ -20,14 +22,18 @@ func TestStorageCreation(t *testing.T) {
 }
 
 func TestStorageBlockAddition(t *testing.T) {
-	storage, e := blockchain.NewStorage("test.db", nil)
+	storage, e := common.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}
 	defer cleanUpDb(t)
 
 	service := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: service, Pool: mockPool(), Db: mockDB()})
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: service, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	b := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("random data"))
@@ -36,24 +42,25 @@ func TestStorageBlockAddition(t *testing.T) {
 		t.Error(e)
 	}
 
-	fromStorage, e := storage.GetBlock(b.Header().Hash())
+	fromStorage, e := bpersister.Load(b.Header().Hash())
 
 	assert.Equal(t, b, fromStorage)
 	spew.Dump(storage.Stats())
 }
 
 func TestPutGetCurrentEpoch(t *testing.T) {
-	s, e := blockchain.NewStorage("test.db", nil)
+	s, e := common.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}
 	defer cleanUpDb(t)
+	persister := &hotstuff.PacerPersister{s}
 
-	if err := s.PutCurrentEpoch(int32(15)); err != nil {
+	if err := persister.PutCurrentEpoch(int32(15)); err != nil {
 		t.Error(e)
 	}
 
-	val, e := s.GetCurrentEpoch()
+	val, e := persister.GetCurrentEpoch()
 	if e != nil {
 		t.Error(e)
 	}
@@ -62,17 +69,18 @@ func TestPutGetCurrentEpoch(t *testing.T) {
 }
 
 func TestPutGetCurrentTopHeight(t *testing.T) {
-	s, e := blockchain.NewStorage("test.db", nil)
+	s, e := common.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}
 	defer cleanUpDb(t)
+	cpersister := &blockchain.BlockchainPersister{s}
 
-	if err := s.PutCurrentTopHeight(int32(11231235)); err != nil {
+	if err := cpersister.PutCurrentTopHeight(int32(11231235)); err != nil {
 		t.Error(e)
 	}
 
-	val, e := s.GetCurrentTopHeight()
+	val, e := cpersister.GetCurrentTopHeight()
 	if e != nil {
 		t.Error(e)
 	}

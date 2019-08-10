@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/emirpasic/gods/utils"
+	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
+	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/trie"
@@ -25,6 +28,71 @@ var (
 	InvalidStateHashError = errors.New("invalid block state hash")
 )
 
+type BlockchainPersister struct {
+	Storage net.Storage
+}
+
+func (bp *BlockchainPersister) PutCurrentTopHeight(currentTopHeight int32) error {
+	return bp.Storage.Put(net.CurrentTopHeight, nil, cmn.Int32ToByte(currentTopHeight))
+}
+
+func (bp *BlockchainPersister) GetCurrentTopHeight() (val int32, err error) {
+	value, err := bp.Storage.Get(net.CurrentTopHeight, nil)
+	if err != nil {
+		return cmn.DefaultIntValue, nil
+	}
+	return cmn.ByteToInt32(value)
+}
+
+func (bp *BlockchainPersister) PutTopCommittedHeight(currentTopHeight int32) error {
+	return bp.Storage.Put(net.TopCommittedHeight, nil, cmn.Int32ToByte(currentTopHeight))
+}
+
+func (bp *BlockchainPersister) GetTopCommittedHeight() (val int32, err error) {
+	value, err := bp.Storage.Get(net.TopCommittedHeight, nil)
+	if err != nil {
+		return cmn.DefaultIntValue, nil
+	}
+	return cmn.ByteToInt32(value)
+}
+
+func (bp *BlockchainPersister) PutHeightIndexRecord(b *Block) error {
+	key := make([]byte, binary.MaxVarintLen64)
+	binary.PutVarint(key, int64(b.Height()))
+
+	found := bp.Storage.Contains(net.HeightIndex, key)
+	var indexValue []byte
+
+	if found {
+		value, err := bp.Storage.Get(net.HeightIndex, key)
+		if err != nil {
+			return err
+		}
+		indexValue = value
+	}
+
+	indexValue = append(indexValue, b.Header().Hash().Bytes()...)
+	return bp.Storage.Put(net.HeightIndex, key, indexValue)
+}
+
+func (bp *BlockchainPersister) GetHeightIndexRecord(height int32) (hashes []common.Hash, err error) {
+	key := make([]byte, binary.MaxVarintLen64)
+	binary.PutVarint(key, int64(height))
+
+	val, err := bp.Storage.Get(net.HeightIndex, key)
+	if err != nil {
+		return nil, err
+	}
+
+	hashes = make([]common.Hash, len(val)/common.HashLength)
+
+	for i := 0; i < len(val)/common.HashLength; i++ {
+		hashes[i] = common.BytesToHash(val[i*common.HashLength : (i+1)*common.HashLength])
+	}
+
+	return hashes, nil
+}
+
 type Blockchain struct {
 	indexGuard *sync.RWMutex
 	//index for storing blocks by their hash
@@ -35,33 +103,31 @@ type Blockchain struct {
 	//indexes for storing block arrays according to their height, while not committed head may contain forks,
 	//<int32, []*Block>
 	uncommittedTreeByHeight *treemap.Map
-	storage                 Storage
 	blockService            BlockService
 	txPool                  TransactionPool
 	stateDB                 state.DB
+	blockPersister          *BlockPersister
+	chainPersister          *BlockchainPersister
 }
 
 func (bc *Blockchain) BlockService(blockService BlockService) {
 	bc.blockService = blockService
 }
 
-func (bc *Blockchain) SetStorage(storage Storage) {
-	bc.storage = storage
-}
-
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock(cfg *Config) *Blockchain {
+func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 	zero := CreateGenesisBlock()
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
-		storage:                 cfg.Storage,
 		blockService:            cfg.BlockService,
 		txPool:                  cfg.Pool,
 		stateDB:                 cfg.Db,
+		blockPersister:          cfg.BlockPerister,
+		chainPersister:          cfg.ChainPersister,
 	}
 
 	var s *state.Snapshot
@@ -78,10 +144,22 @@ func CreateBlockchainFromGenesisBlock(cfg *Config) *Blockchain {
 	return blockchain
 }
 
-func CreateBlockchainFromStorage(storage Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
-	topHeight, err := storage.GetCurrentTopHeight()
+func CreateBlockchainFromStorage(storage net.Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
+	pblock := &BlockPersister{Storage: storage}
+	pchain := &BlockchainPersister{Storage: storage}
+
+	topHeight, err := pchain.GetCurrentTopHeight()
+	log.Debugf("loaded topheight %v", topHeight)
+
 	if err != nil || topHeight < 0 {
-		return CreateBlockchainFromGenesisBlock(&Config{Seed: nil, Storage: storage, BlockService: blockService, Pool: pool, Db: db})
+		return CreateBlockchainFromGenesisBlock(&BlockchainConfig{
+			Seed:           nil,
+			ChainPersister: pchain,
+			BlockPerister:  pblock,
+			BlockService:   blockService,
+			Pool:           pool,
+			Db:             db,
+		})
 	}
 
 	blockchain := &Blockchain{
@@ -89,24 +167,28 @@ func CreateBlockchainFromStorage(storage Storage, blockService BlockService, poo
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
-		storage:                 storage,
 		blockService:            blockService,
 		txPool:                  pool,
 		stateDB:                 db,
+		blockPersister:          pblock,
+		chainPersister:          pchain,
 	}
 
-	topCommittedHeight, err := storage.GetTopCommittedHeight()
+	topCommittedHeight, err := pchain.GetTopCommittedHeight()
 	blockchain.indexGuard.RLock()
 	defer blockchain.indexGuard.RUnlock()
 
 	//TODO this place should be heavily optimized, i think we should preload everything except transactions for committed part of bc, headers and signatures will take 1k per block amortised
 	for i := topHeight; i >= 0; i-- {
-		hashes, err := storage.GetHeightIndexRecord(i)
+		hashes, err := pchain.GetHeightIndexRecord(i)
 		if err != nil {
 			log.Fatal(err)
 		}
 		for _, h := range hashes {
-			b, err := storage.GetBlock(h)
+			b, err := pblock.Load(h)
+			if b == nil {
+				log.Warningf("Block with hash %v is found in index, but is not stored in DB itself", h.Hex())
+			}
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -119,7 +201,6 @@ func CreateBlockchainFromStorage(storage Storage, blockService BlockService, poo
 			} else {
 				blockchain.committedChainByHeight.Put(b.Height(), b)
 			}
-
 		}
 	}
 
@@ -133,7 +214,7 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
 	block = bc.blocksByHash[hash]
 
 	if block == nil {
-		block, er := bc.storage.GetBlock(hash)
+		block, er := bc.blockPersister.Load(hash)
 		if er != nil {
 			log.Error(er)
 		}
@@ -150,10 +231,10 @@ func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
 		if ok {
 			res = append(res, blocks.([]*Block)...)
 		} else { //TODO it seems like a hack, we should preload blockchain structure from index to memory
-			hashes, err := bc.storage.GetHeightIndexRecord(height)
+			hashes, err := bc.chainPersister.GetHeightIndexRecord(height)
 			if err == nil {
 				for _, hash := range hashes {
-					block, err := bc.storage.GetBlock(hash)
+					block, err := bc.blockPersister.Load(hash)
 					if err == nil {
 						res = append(res, block)
 					}
@@ -296,7 +377,7 @@ func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Ma
 		bc.committedChainByHeight.Put(k.Header().Height(), k)
 		bc.indexGuard.Unlock()
 
-		err := bc.storage.PutTopCommittedHeight(k.Height())
+		err := bc.chainPersister.PutTopCommittedHeight(k.Height())
 		if err != nil {
 			log.Error(err)
 		}
@@ -349,12 +430,12 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	bc.indexGuard.Lock()
 	defer bc.indexGuard.Unlock()
 
-	if bc.blocksByHash[block.Header().Hash()] != nil || bc.storage.Contains(block.Header().Hash()) {
+	if bc.blocksByHash[block.Header().Hash()] != nil || bc.blockPersister.Contains(block.Header().Hash()) {
 		log.Debugf("Block with hash [%v] already exists, updating", block.header.Hash().Hex())
-		return bc.storage.PutBlock(block)
+		return bc.blockPersister.Persist(block)
 	}
 
-	if bc.blocksByHash[block.Header().Parent()] == nil && !bc.storage.Contains(block.Header().Parent()) && block.Height() != 0 {
+	if bc.blocksByHash[block.Header().Parent()] == nil && !bc.blockPersister.Contains(block.Header().Parent()) && block.Height() != 0 {
 		return errors.New(fmt.Sprintf("block with hash [%v] don't have parent loaded to blockchain", block.Header().Hash().Hex()))
 	}
 
@@ -367,7 +448,7 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 	value, _ := bc.uncommittedTreeByHeight.Get(block.Header().Height())
 	if value == nil {
-		if err := bc.storage.PutCurrentTopHeight(block.Header().Height()); err != nil {
+		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
 			return err
 		}
 	}
@@ -376,7 +457,10 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 		return err
 	}
 
-	if err := bc.storage.PutBlock(block); err != nil {
+	if err := bc.blockPersister.Persist(block); err != nil {
+		return err
+	}
+	if err := bc.chainPersister.PutHeightIndexRecord(block); err != nil {
 		return err
 	}
 
@@ -403,7 +487,7 @@ func (bc *Blockchain) RemoveBlock(block *Block) error {
 	bc.indexGuard.Lock()
 	defer bc.indexGuard.Unlock()
 
-	if bc.blocksByHash[block.Header().Hash()] == nil && !bc.storage.Contains(block.Header().Hash()) {
+	if bc.blocksByHash[block.Header().Hash()] == nil && !bc.blockPersister.Contains(block.Header().Hash()) {
 		log.Warningf("Block with hash [%v] is absent", block.header.Hash().Hex())
 		return nil
 	}
@@ -568,11 +652,10 @@ func (bc *Blockchain) GetTopCommittedBlock() *Block {
 func (bc *Blockchain) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
 	bc.GetGenesisBlock().qc = certificate
 	//we can simply put new block and replace existing. in fact ignoring height index is not a problem for us since Genesis is hashed without it's QC
-	if err := bc.storage.PutBlock(bc.GetGenesisBlock()); err != nil {
+	if err := bc.blockPersister.Persist(bc.GetGenesisBlock()); err != nil {
 		log.Error(err)
 		return
 	}
-
 }
 
 func (bc *Blockchain) applyTransactionsAndValidateProof(block *Block) error {

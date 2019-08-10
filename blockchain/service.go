@@ -40,7 +40,7 @@ func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, h
 	var payload *pb.BlockRequestPayload
 
 	if height < 0 {
-		payload = &pb.BlockRequestPayload{Hash: hash.Bytes(), Height: DefaultIntValue}
+		payload = &pb.BlockRequestPayload{Hash: hash.Bytes(), Height: com.DefaultIntValue}
 	} else if len(hash.Bytes()) == 0 {
 		payload = &pb.BlockRequestPayload{Height: height}
 	} else {

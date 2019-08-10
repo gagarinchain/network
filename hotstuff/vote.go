@@ -35,7 +35,7 @@ func CreateVoteFromMessage(msg *msg.Message) (*Vote, error) {
 
 	vp := &pb.VotePayload{}
 	if err := ptypes.UnmarshalAny(msg.Payload, vp); err != nil {
-		log.Error("Couldn't unmarshal response", err)
+		log.Error("Couldn'T unmarshal response", err)
 	}
 	qc := bc.CreateQuorumCertificateFromMessage(vp.Cert)
 	header := bc.CreateBlockHeaderFromMessage(vp.Header)

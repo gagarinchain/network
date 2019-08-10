@@ -108,23 +108,42 @@ func insert(n Node, key []byte, value []byte) (newNode Node) {
 	prefix := CommonPrefix(n.Key(), key)
 	postfix := key[len(prefix):]
 
+	split := len(prefix) < len(n.Key())
+
 	switch n.(type) {
 	case *nilNode:
 		vNode := &valueNode{key: key, value: value}
 		vNode.CalcHash()
 		return vNode
 	case *routingNode:
-		curNode := n.(*routingNode)
-		ind := findIndex(postfix[0])
-		nextNode := curNode.Children[ind]
-		newNode2 := insert(nextNode, postfix, value)
-		if newNode2 != nil {
-			curNode.Children[ind] = newNode2
-			curNode.CalcHash()
-			return curNode
-		}
+		current := n.(*routingNode)
+		if split {
+			postfixS := n.Key()[len(prefix):]
+			current.key = postfixS
 
+			vNode := &valueNode{key: postfix, value: value}
+			vNode.CalcHash()
+
+			rNode := &routingNode{key: prefix}
+			ind := findIndex(postfix[0])
+			indS := findIndex(postfixS[0])
+			rNode.Children[ind] = vNode
+			rNode.Children[indS] = current
+			rNode.CalcHash()
+			return rNode
+
+		} else {
+			ind := findIndex(postfix[0])
+			nextNode := current.Children[ind]
+			newNode2 := insert(nextNode, postfix, value)
+			if newNode2 != nil {
+				current.Children[ind] = newNode2
+				current.CalcHash()
+				return current
+			}
+		}
 	case *valueNode:
+		//since we have fixed length trie, we will never have splits for value nodes
 		current := n.(*valueNode)
 		if Equal(prefix, key) { //exact match, update value
 			current.value = value
@@ -163,23 +182,56 @@ func Equal(a, b []byte) bool {
 	return true
 }
 
-func CommonPrefix(a, b []byte) []byte {
-	var c []byte
+func CommonPrefix(a, b []byte) (c []byte) {
 	for i, v := range a {
 		if v == b[i] {
 			c = append(c, v)
 		} else {
-			return c
+			return
 		}
 	}
-
-	return c
+	return
 }
 
 //Ordered array made with left-right-root walk
 func (t *FixedLengthHexKeyMerkleTrie) Values() (values [][]byte) {
 
 	return aggregate(values, t.root)
+}
+
+type Entry struct {
+	Key   []byte
+	Value []byte
+}
+
+func (t *FixedLengthHexKeyMerkleTrie) Entries() (entries []Entry) {
+	return aggregateEntries(nil, entries, t.root)
+}
+
+func aggregateEntries(keyPrefix []byte, source []Entry, n Node) []Entry {
+	if n == nil {
+		return source
+	}
+	switch n.(type) {
+	case *nilNode:
+		return source
+	case *valueNode:
+		return append(source, Entry{
+			Key:   append(keyPrefix, n.(*valueNode).key...),
+			Value: n.(*valueNode).value,
+		})
+	case *routingNode:
+		node := n.(*routingNode)
+		for _, child := range node.Children {
+			bytes := append(keyPrefix, node.key...)
+			res := make([]byte, len(bytes))
+			copy(res, bytes)
+			source = aggregateEntries(res, source, child)
+		}
+		return source
+	}
+
+	return nil
 }
 
 func aggregate(source [][]byte, n Node) [][]byte {

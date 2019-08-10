@@ -6,19 +6,18 @@ import (
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"testing"
 )
 
 //Note that QC hash does not matter, since genesis.QC.header is genesis.header
 func TestIsValidGenesisBlock(t *testing.T) {
-	storage := &mocks.Storage{}
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	b, e := blockchain.IsValid(bc.GetGenesisBlock())
 	assert.NoError(t, e)
@@ -27,13 +26,13 @@ func TestIsValidGenesisBlock(t *testing.T) {
 }
 
 func TestIsValidBlock(t *testing.T) {
-	storage := &mocks.Storage{}
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
@@ -42,13 +41,13 @@ func TestIsValidBlock(t *testing.T) {
 	assert.True(t, b)
 }
 func TestIsNotValidWithBrokenHash(t *testing.T) {
-	storage := &mocks.Storage{}
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
@@ -62,13 +61,14 @@ func TestIsNotValidWithBrokenHash(t *testing.T) {
 }
 
 func TestIsNotValidWithBrokenDataHash(t *testing.T) {
-	storage := &mocks.Storage{}
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
@@ -81,13 +81,14 @@ func TestIsNotValidWithBrokenDataHash(t *testing.T) {
 	assert.False(t, b)
 }
 func TestIsNotValidWithBrokenQCHash(t *testing.T) {
-	storage := &mocks.Storage{}
+	storage := SoftStorageMock()
 	bsrv := &mocks.BlockService{}
-	storage.On("PutBlock", mock.AnythingOfType("*blockchain.Block")).Return(nil)
-	storage.On("GetBlock", mock.AnythingOfType("common.Hash")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("common.Hash")).Return(false)
-	storage.On("PutCurrentTopHeight", mock.AnythingOfType("int32")).Return(nil)
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: storage, BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))

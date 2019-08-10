@@ -66,23 +66,27 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher)
 	txService := blockchain.NewService(blockchain.NewTransactionValidator(), pool)
-	storage, _ := blockchain.NewStorage(cfg.DataDir, nil)
+	storage, _ := common.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(hotstuffSrv)
-	db := state.NewStateDB()
+	db := state.NewStateDB(storage)
 	bc := blockchain.CreateBlockchainFromStorage(storage, bsrv, pool, db)
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
+	initialState := &hotstuff.InitialState{
+		View:  int32(0),
+		Epoch: int32(0),
+	}
 	config := &hotstuff.ProtocolConfig{
-		F:          4,
-		Delta:      10 * time.Second,
-		Blockchain: bc,
-		Me:         me,
-		Srv:        hotstuffSrv,
-		Storage:    storage,
-		Sync:       synchr,
-		Validators: validators,
-		Committee:  committee,
+		F:            4,
+		Delta:        10 * time.Second,
+		Blockchain:   bc,
+		Me:           me,
+		Srv:          hotstuffSrv,
+		InitialState: initialState,
+		Sync:         synchr,
+		Validators:   validators,
+		Committee:    committee,
 	}
 
 	pacer := hotstuff.CreatePacer(config)

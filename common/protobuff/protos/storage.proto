@@ -17,3 +17,14 @@ message Account {
     uint64 nonce = 1;
     bytes value = 2;
 }
+
+message Snapshot {
+    bytes hash = 1;
+    repeated bytes siblings = 2;
+    repeated Entry entries = 3;
+}
+
+message Entry {
+    bytes address = 1;
+    bytes account = 2;
+}

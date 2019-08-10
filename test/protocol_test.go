@@ -284,15 +284,16 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 	}
 	me := generateIdentity(t, ind)
 	srv := &mocks.Service{}
-	storage := &mocks.Storage{}
-	storage.On("PutCurrentEpoch", mock.AnythingOfType("int32")).Return(nil)
-	storage.On("GetCurrentEpoch").Return(int32(0), nil)
-	storage.On("GetCurrentTopHeight").Return(int32(0), nil)
+	storage := SoftStorageMock()
+	bpersister := &blockchain.BlockPersister{storage}
+	cpersister := &blockchain.BlockchainPersister{storage}
 
 	//synchr := &mocks.Synchronizer{}
 	loader := &mocks.CommitteeLoader{}
 	bsrv := &mocks.BlockService{}
-	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.Config{Storage: mockStorage(), BlockService: bsrv, Pool: mockPool(), Db: mockDB()})
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	peers := make([]*common.Peer, 10)
@@ -315,11 +316,12 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 
 	pacer := &mocks.Pacer{}
 	config.Pacer = pacer
-	pacer.On("FireEvent", mock.AnythingOfType("hotstuff.Event"))
+	pacer.On("FireEvent", mock.AnythingOfType("hotstuff.EventType"))
 	pacer.On("GetCurrentView").Return(int32(1))
 	pacer.On("GetCurrent").Return(peers[1])
 	pacer.On("GetNext").Return(peers[2])
 	pacer.On("SubscribeProtocolEvents", mock.AnythingOfType("chan hotstuff.Event"))
+	pacer.On("FireEvent", mock.AnythingOfType("hotstuff.Event"))
 
 	p := hotstuff.CreateProtocol(config)
 	eventChan := make(chan hotstuff.Event)

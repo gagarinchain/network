@@ -3,6 +3,7 @@ package blockchain
 import (
 	"crypto/ecdsa"
 	"errors"
+	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -17,6 +18,40 @@ type Block struct {
 	qc     *QuorumCertificate
 	txs    *trie.FixedLengthHexKeyMerkleTrie
 	data   []byte
+}
+
+type BlockPersister struct {
+	Storage net.Storage
+}
+
+func (bp *BlockPersister) Persist(b *Block) error {
+	bytes, e := proto.Marshal(b.GetMessage())
+	if e != nil {
+		return e
+	}
+
+	return bp.Storage.Put(net.Block, b.Header().Hash().Bytes(), bytes)
+}
+
+func (bp *BlockPersister) Load(hash common.Hash) (b *Block, er error) {
+	value, er := bp.Storage.Get(net.Block, hash.Bytes())
+	if er != nil {
+		return nil, er
+	}
+	if value == nil {
+		return nil, errors.New("empty value found")
+	}
+	block := &pb.Block{}
+	er = proto.Unmarshal(value, block)
+	if er != nil {
+		return nil, er
+	}
+
+	return CreateBlockFromMessage(block), nil
+}
+
+func (bp *BlockPersister) Contains(hash common.Hash) bool {
+	return bp.Storage.Contains(net.Block, hash.Bytes())
 }
 
 func (b *Block) TxsCount() int {

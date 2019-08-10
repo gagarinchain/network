@@ -2,8 +2,7 @@
 
 package mocks
 
-import blockchain "github.com/gagarinchain/network/blockchain"
-import common "github.com/gagarinchain/network/common/eth/common"
+import gagarinchain "github.com/gagarinchain/network"
 import leveldb "github.com/syndtr/goleveldb/leveldb"
 import mock "github.com/stretchr/testify/mock"
 
@@ -12,13 +11,13 @@ type Storage struct {
 	mock.Mock
 }
 
-// Contains provides a mock function with given fields: hash
-func (_m *Storage) Contains(hash common.Hash) bool {
-	ret := _m.Called(hash)
+// Contains provides a mock function with given fields: rtype, key
+func (_m *Storage) Contains(rtype gagarinchain.ResourceType, key []byte) bool {
+	ret := _m.Called(rtype, key)
 
 	var r0 bool
-	if rf, ok := ret.Get(0).(func(common.Hash) bool); ok {
-		r0 = rf(hash)
+	if rf, ok := ret.Get(0).(func(gagarinchain.ResourceType, []byte) bool); ok {
+		r0 = rf(rtype, key)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
@@ -26,22 +25,36 @@ func (_m *Storage) Contains(hash common.Hash) bool {
 	return r0
 }
 
-// GetBlock provides a mock function with given fields: hash
-func (_m *Storage) GetBlock(hash common.Hash) (*blockchain.Block, error) {
-	ret := _m.Called(hash)
+// Delete provides a mock function with given fields: rtype, key
+func (_m *Storage) Delete(rtype gagarinchain.ResourceType, key []byte) error {
+	ret := _m.Called(rtype, key)
 
-	var r0 *blockchain.Block
-	if rf, ok := ret.Get(0).(func(common.Hash) *blockchain.Block); ok {
-		r0 = rf(hash)
+	var r0 error
+	if rf, ok := ret.Get(0).(func(gagarinchain.ResourceType, []byte) error); ok {
+		r0 = rf(rtype, key)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Get provides a mock function with given fields: rtype, key
+func (_m *Storage) Get(rtype gagarinchain.ResourceType, key []byte) ([]byte, error) {
+	ret := _m.Called(rtype, key)
+
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func(gagarinchain.ResourceType, []byte) []byte); ok {
+		r0 = rf(rtype, key)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*blockchain.Block)
+			r0 = ret.Get(0).([]byte)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(common.Hash) error); ok {
-		r1 = rf(hash)
+	if rf, ok := ret.Get(1).(func(gagarinchain.ResourceType, []byte) error); ok {
+		r1 = rf(rtype, key)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -49,141 +62,29 @@ func (_m *Storage) GetBlock(hash common.Hash) (*blockchain.Block, error) {
 	return r0, r1
 }
 
-// GetCurrentEpoch provides a mock function with given fields:
-func (_m *Storage) GetCurrentEpoch() (int32, error) {
-	ret := _m.Called()
+// Keys provides a mock function with given fields: rtype, keyPrefix
+func (_m *Storage) Keys(rtype gagarinchain.ResourceType, keyPrefix []byte) [][]byte {
+	ret := _m.Called(rtype, keyPrefix)
 
-	var r0 int32
-	if rf, ok := ret.Get(0).(func() int32); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(int32)
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetCurrentTopHeight provides a mock function with given fields:
-func (_m *Storage) GetCurrentTopHeight() (int32, error) {
-	ret := _m.Called()
-
-	var r0 int32
-	if rf, ok := ret.Get(0).(func() int32); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(int32)
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetHeightIndexRecord provides a mock function with given fields: height
-func (_m *Storage) GetHeightIndexRecord(height int32) ([]common.Hash, error) {
-	ret := _m.Called(height)
-
-	var r0 []common.Hash
-	if rf, ok := ret.Get(0).(func(int32) []common.Hash); ok {
-		r0 = rf(height)
+	var r0 [][]byte
+	if rf, ok := ret.Get(0).(func(gagarinchain.ResourceType, []byte) [][]byte); ok {
+		r0 = rf(rtype, keyPrefix)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]common.Hash)
+			r0 = ret.Get(0).([][]byte)
 		}
 	}
 
-	var r1 error
-	if rf, ok := ret.Get(1).(func(int32) error); ok {
-		r1 = rf(height)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetTopCommittedHeight provides a mock function with given fields:
-func (_m *Storage) GetTopCommittedHeight() (int32, error) {
-	ret := _m.Called()
-
-	var r0 int32
-	if rf, ok := ret.Get(0).(func() int32); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(int32)
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// PutBlock provides a mock function with given fields: b
-func (_m *Storage) PutBlock(b *blockchain.Block) error {
-	ret := _m.Called(b)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(*blockchain.Block) error); ok {
-		r0 = rf(b)
-	} else {
-		r0 = ret.Error(0)
-	}
-
 	return r0
 }
 
-// PutCurrentEpoch provides a mock function with given fields: currentEpoch
-func (_m *Storage) PutCurrentEpoch(currentEpoch int32) error {
-	ret := _m.Called(currentEpoch)
+// Put provides a mock function with given fields: rtype, key, value
+func (_m *Storage) Put(rtype gagarinchain.ResourceType, key []byte, value []byte) error {
+	ret := _m.Called(rtype, key, value)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(int32) error); ok {
-		r0 = rf(currentEpoch)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// PutCurrentTopHeight provides a mock function with given fields: currentTopHeight
-func (_m *Storage) PutCurrentTopHeight(currentTopHeight int32) error {
-	ret := _m.Called(currentTopHeight)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(int32) error); ok {
-		r0 = rf(currentTopHeight)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// PutTopCommittedHeight provides a mock function with given fields: currentTopHeight
-func (_m *Storage) PutTopCommittedHeight(currentTopHeight int32) error {
-	ret := _m.Called(currentTopHeight)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(int32) error); ok {
-		r0 = rf(currentTopHeight)
+	if rf, ok := ret.Get(0).(func(gagarinchain.ResourceType, []byte, []byte) error); ok {
+		r0 = rf(rtype, key, value)
 	} else {
 		r0 = ret.Error(0)
 	}
