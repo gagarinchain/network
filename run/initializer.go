@@ -87,6 +87,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Sync:         synchr,
 		Validators:   validators,
 		Committee:    committee,
+		Storage:      storage,
 	}
 
 	pacer := hotstuff.CreatePacer(config)
