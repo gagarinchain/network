@@ -5,21 +5,21 @@ import (
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/libp2p/go-libp2p-net"
+	"github.com/libp2p/go-libp2p-core/network"
 )
 
 type Message struct {
 	source *common.Peer
-	stream net.Stream
+	stream network.Stream
 	sm     []byte
 	*pb.Message
 }
 
-func (m *Message) SetStream(stream net.Stream) {
+func (m *Message) SetStream(stream network.Stream) {
 	m.stream = stream
 }
 
-func (m *Message) Stream() net.Stream {
+func (m *Message) Stream() network.Stream {
 	return m.stream
 }
 
@@ -36,7 +36,7 @@ func CreateMessage(messageType pb.Message_MessageType, payload *any.Any, source 
 	return m
 }
 
-func CreateMessageFromProto(message *pb.Message, source *common.Peer, stream net.Stream) *Message {
+func CreateMessageFromProto(message *pb.Message, source *common.Peer, stream network.Stream) *Message {
 	m := &Message{Message: message, source: source, stream: stream}
 	return m
 }

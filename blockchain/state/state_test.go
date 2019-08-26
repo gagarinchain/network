@@ -2,7 +2,6 @@ package state
 
 import (
 	"crypto/ecdsa"
-	"github.com/davecgh/go-spew/spew"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
@@ -93,13 +92,13 @@ func TestSnapshot_ApplyTransaction(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	acc, _ := snapshot.Get(Me)
+	acc, _ := snapshot.GetForRead(Me)
 	assert.Equal(t, big.NewInt(1), acc.balance)
 
-	acc, _ = snapshot.Get(to)
+	acc, _ = snapshot.GetForRead(to)
 	assert.Equal(t, big.NewInt(190), acc.balance)
 
-	acc, _ = snapshot.Get(from)
+	acc, _ = snapshot.GetForRead(from)
 	assert.Equal(t, big.NewInt(10), acc.balance)
 
 	assert.NotEqual(t, proofBefore, proofAfter)
@@ -138,9 +137,9 @@ func TestStateDB_Create(t *testing.T) {
 	gu.Put(to, NewAccount(0, big.NewInt(30)))
 
 	m, _ := db.Get(maiev)
-	fromMa, _ := m.Get(from)
+	fromMa, _ := m.GetForRead(from)
 	g, _ := db.Get(guldan)
-	fromGu, _ := g.Get(from)
+	fromGu, _ := g.GetForRead(from)
 
 	assert.Equal(t, big.NewInt(111), fromMa.balance)
 	assert.Equal(t, big.NewInt(90), fromGu.balance)
@@ -211,8 +210,8 @@ func TestStorageIntegration(t *testing.T) {
 	db2 := NewStateDB(storage)
 
 	guldanFromDb, _ := db2.Get(guldan)
-	cFromDb, _ := guldanFromDb.Get(c)
-	aFromDb, _ := guldanFromDb.Get(a)
+	cFromDb, _ := guldanFromDb.GetForRead(c)
+	aFromDb, _ := guldanFromDb.GetForRead(a)
 	assert.Equal(t, cFromDb.balance, big.NewInt(33))
 	assert.Equal(t, aFromDb.balance, big.NewInt(10))
 }
@@ -220,6 +219,5 @@ func TestStorageIntegration(t *testing.T) {
 func generate() common.Address {
 	pk, _ := crypto.GenerateKey()
 	address := crypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
-	spew.Dump(address.Hex())
 	return address
 }

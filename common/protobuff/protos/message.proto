@@ -110,6 +110,9 @@ message Transaction {
 
     enum Type {
         PAYMENT = 0;
-        SLASHING   = 1;
+        SLASHING = 1;
+        SETTLEMENT = 2;
+        AGREEMENT = 3;
+        PROOF = 4;
     }
 }

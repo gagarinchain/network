@@ -8,10 +8,12 @@ import (
 	"os"
 )
 import "github.com/gagarinchain/network/common/eth/common"
+import cmn "github.com/gagarinchain/network/common"
 
 type BlockchainConfig struct {
 	Seed           map[common.Address]*state.Account
 	BlockPerister  *BlockPersister
+	ProposerGetter cmn.ProposerForHeight
 	ChainPersister *BlockchainPersister
 	BlockService   BlockService
 	Pool           TransactionPool

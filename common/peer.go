@@ -7,6 +7,10 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
+type ProposerForHeight interface {
+	ProposerForHeight(blockHeight int32) *Peer
+}
+
 type Peer struct {
 	address    common.Address
 	publicKey  *ecdsa.PublicKey

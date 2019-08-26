@@ -5,6 +5,7 @@ import (
 	bch "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/gogo/protobuf/proto"
@@ -17,7 +18,7 @@ func TestIsSiblingParent(t *testing.T) {
 	storage := SoftStorageMock()
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -32,7 +33,7 @@ func TestIsSiblingAncestor(t *testing.T) {
 	storage := SoftStorageMock()
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -56,7 +57,7 @@ func TestIsSiblingReverseParentSibling(t *testing.T) {
 	storage := SoftStorageMock()
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -77,7 +78,7 @@ func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 	storage := SoftStorageMock()
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -97,7 +98,7 @@ func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 	storage := SoftStorageMock()
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -121,7 +122,7 @@ func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
 	storage := SoftStorageMock()
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
@@ -182,7 +183,7 @@ func TestOnCommit(t *testing.T) {
 	storage, _ := cmn.NewStorage("", nil)
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	genesisBlock := bc.GetGenesisBlock()
 	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
 	_ = bc.AddBlock(genesisBlock)
@@ -285,7 +286,7 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
 
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB()})
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	genesisBlock := bc.GetGenesisBlock()
 	genesisBlock.SetQC(bch.CreateQuorumCertificate([]byte("valid"), genesisBlock.Header()))
 	_ = bc.AddBlock(genesisBlock)
@@ -326,8 +327,8 @@ func mockDB() state.DB {
 	db := &mocks.DB{}
 	db.On("Get", mock.AnythingOfType("common.Hash")).Return(nil, false)
 	db.On("Init", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("*state.Snapshot")).Return(nil)
-	db.On("Create", mock.AnythingOfType("common.Hash")).Return(state.NewSnapshot(crypto.Keccak256Hash()), nil)
-	db.On("Commit", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Hash")).Return(state.NewSnapshot(crypto.Keccak256Hash()), nil)
+	db.On("Create", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Address")).Return(state.NewSnapshot(crypto.Keccak256Hash(), common.Address{}), nil)
+	db.On("Commit", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Hash")).Return(state.NewSnapshot(crypto.Keccak256Hash(), common.Address{}), nil)
 	db.On("Release", mock.AnythingOfType("common.Hash")).Return(nil)
 
 	return db

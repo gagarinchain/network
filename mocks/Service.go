@@ -42,6 +42,11 @@ func (_m *Service) Broadcast(ctx context.Context, msg *message.Message) {
 	_m.Called(ctx, msg)
 }
 
+// BroadcastTransaction provides a mock function with given fields: ctx, msg
+func (_m *Service) BroadcastTransaction(ctx context.Context, msg *message.Message) {
+	_m.Called(ctx, msg)
+}
+
 // SendMessage provides a mock function with given fields: ctx, peer, msg
 func (_m *Service) SendMessage(ctx context.Context, peer *common.Peer, msg *message.Message) {
 	_m.Called(ctx, peer, msg)

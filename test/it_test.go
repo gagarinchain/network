@@ -646,16 +646,18 @@ func TestScenario7a(t *testing.T) {
 
 	ctx.setMe(1)
 	ctx.StartFirstEpoch()
-	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[2].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[2].GetAddress(), big.NewInt(100), big.NewInt(1))
 
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0x7407f14945fe7e3d88677df2ac02c6c908efb26678dc6b2fa5dfae1559561263", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0xaec20c02722ed0d295b5a7ca74d02c388bc6e06b19c570c07c53240c75a5735d", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, "0xf6d107d0a505bf7117fb07fd28a535a2c389ac1dde8c086b76d935245b8da05e", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x4a49ccec083b2eecc17877d4f9108d5e29ccb4ee9efe85b1381bc82644571aef", proposal.NewBlock.Header().StateHash().Hex())
 	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
 
-} //Scenario 7aa: Propose block with transactions
+}
+
+//Scenario 7aa: Propose block with transactions
 func TestScenario7aa(t *testing.T) {
 	ctx := initContext(t)
 
@@ -666,14 +668,14 @@ func TestScenario7aa(t *testing.T) {
 	ctx.setMe(1)
 	ctx.StartFirstEpoch()
 
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
-	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
 
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0xb535391dde7189e9ab7945d78dcf38538444950b4d4ee816a26bfed47e73d330", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0x0dd55211fe1d094d25cbcb799c68297d9e5e59ececba85b37a015437046e9ca3", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, "0x8d658a3df7ee7e1128fe457e675bde64d4e9cbbf7539a33c63133dbe34e3a6c4", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x92c5d4acbf6308a7a3c5f5007e53cf3727bb7d74828b31bd2f7aab10aa93edb1", proposal.NewBlock.Header().StateHash().Hex())
 	assert.Equal(t, 2, proposal.NewBlock.TxsCount())
 
 }
@@ -689,8 +691,8 @@ func TestScenario7b(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(0)
 
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
-	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
 
 	block := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("Wunder blok"))
 	if e := ctx.stateDB.Release(block.Header().Hash()); e != nil {
@@ -717,8 +719,8 @@ func TestScenario7c(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
-	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	qcb1 := ctx.createQC(block1)
 
@@ -755,35 +757,35 @@ func TestScenario7d(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(10), big.NewInt(1))
-	ctx.generateTransaction(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(10), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	qcb1 := ctx.createQC(block1)
 	_ = ctx.bc.AddBlock(block1)
 
 	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	qcb2 := ctx.createQC(block2)
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(1), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(1), big.NewInt(1))
 	_ = ctx.bc.AddBlock(block2)
 
 	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(2), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(2), big.NewInt(1))
 	_ = ctx.bc.AddBlock(block3)
 
 	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(3), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(3), big.NewInt(1))
 	_ = ctx.bc.AddBlock(block4)
 
 	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(4), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(4), big.NewInt(1))
 	_ = ctx.bc.AddBlock(block32)
 
 	block33 := ctx.bc.NewBlock(block2, qcb2, []byte("block 33"))
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(5), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(5), big.NewInt(1))
 	_ = ctx.bc.AddBlock(block33)
 
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
-	ctx.generateTransaction(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(6), big.NewInt(1))
+	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(6), big.NewInt(1))
 	_ = ctx.bc.AddBlock(block42)
 
 	_, ok := ctx.stateDB.Get(block42.Header().Hash())
@@ -803,8 +805,186 @@ func TestScenario7d(t *testing.T) {
 
 }
 
-func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int) *tx.Transaction {
-	trans := tx.CreateTransaction(tx.Payment, to, from, 1, amount, fee, []byte(""))
+//Scenario 8a: Settlement
+//Send settlement transaction
+//Receive it
+//Send agreement transaction
+//Receive it
+func TestScenario8a(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
+	go ctx.txService.Run(timeout, ctx.txChan)
+	defer f()
+
+	ctx.StartFirstEpoch()
+
+	s := ctx.generateSettlement(ctx.me.GetAddress(), big.NewInt(553), big.NewInt(tx.DefaultSettlementReward+3))
+	any, _ := ptypes.MarshalAny(s.GetMessage())
+	m := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
+	ctx.txChan <- m
+
+	sentTx := <-ctx.sentTxChan
+	sentPb := &pb.Transaction{}
+	_ = ptypes.UnmarshalAny(sentTx.GetPayload(), sentPb)
+
+	assert.Equal(t, common2.BytesToAddress(s.Hash().Bytes()), common2.BytesToAddress(sentPb.To))
+
+	ctx.txChan <- sentTx
+
+	fromPool := poolToChan(timeout, ctx)
+
+	t1 := <-fromPool
+	t2 := <-fromPool
+
+	assert.Equal(t, tx.Settlement, t1.TxType())
+	assert.Equal(t, tx.Agreement, t2.TxType())
+}
+
+//Scenario 8b:
+//Settler
+//Receive 2f + 1 agreements
+//Send proof
+//Check reward and settle
+//S:0x0F1 0    -> 553(settle) + 10(settle_reward) -> 563 -> -10(settle_reward) - 563(settle) -> 0
+//0:0xA60 1000 -> 1000(init) - 13(3fee + 10reward) - 2(agreement_fee) -> 985 -> + 553(settle) - 10(proof_fee) + 4(3 change 1 self reward) = 1532
+//1:0x54b 2000 -> 7 * 2(agreement_fee) + 3(proposer_reward) -2(agreement_fee) -> 2015 -> + 1(agreement_reward) = 2016
+//2:0xCFC 9000 -> - 2(agreement_fee) -> 8998 -> + 10(proof_fee) + 1(agreement_reward) = 9009
+//3:0xdA6 4000 -> -2(agreement_fee) -> 3998 -> + 1(agreement_reward) = 3999
+//4:0x07E 3500 -> -2(agreement_fee) -> 3498 -> + 1(agreement_reward) = 3499
+//5:0xCa2 7500 -> -2(agreement_fee) -> 7498 -> + 1(agreement_reward) = 7499
+//6:0x660 9000 -> -2(agreement_fee) -> 8998 -> + 1(agreement_reward) = 8999
+//7
+//8
+//9
+func TestScenario8b(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
+	go ctx.txService.Run(timeout, ctx.txChan)
+	defer f()
+
+	ctx.StartFirstEpoch()
+
+	s := ctx.generateSettlement(ctx.me.GetAddress(), big.NewInt(553), big.NewInt(tx.DefaultSettlementReward+3))
+	any, _ := ptypes.MarshalAny(s.GetMessage())
+	sm := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
+	ctx.txChan <- sm
+	var proof []byte
+	for i := 0; i < 2*len(ctx.peers)/3+1; i++ {
+		nonce := 1
+		if bytes.Equal(ctx.peers[i].GetAddress().Bytes(), ctx.me.GetAddress().Bytes()) {
+			nonce = 2
+		}
+		agreement := tx.CreateAgreement(s, uint64(nonce), nil)
+		if err := agreement.CreateProof(ctx.peers[i].GetPrivateKey()); err != nil {
+			t.Error(err)
+		}
+		agreement.Sign(ctx.peers[i].GetPrivateKey())
+		any, _ := ptypes.MarshalAny(agreement.GetMessage())
+		m := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
+		proof = append(proof, agreement.Data()...)
+		ctx.txChan <- m
+	}
+
+	fromPool := waitPoolTransactions(timeout, ctx, len(ctx.peers)/2+1)
+	<-fromPool
+
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	_ = ctx.bc.AddBlock(block1)
+	to := common2.BytesToAddress(s.Hash().Bytes()[12:])
+	snap := ctx.bc.GetHeadSnapshot()
+	_, found := snap.GetForRead(to)
+	if !found {
+		t.Error("snapshot not found")
+	}
+
+	proofTran := tx.CreateTransaction(tx.Proof, to, ctx.me.GetAddress(), 3, big.NewInt(0), big.NewInt(10), proof)
+	proofTran.Sign(ctx.me.GetPrivateKey())
+	pany, _ := ptypes.MarshalAny(proofTran.GetMessage())
+	pm := msg.CreateMessage(pb.Message_TRANSACTION, pany, ctx.me)
+	ctx.txChan <- pm
+
+	fromPool = waitPoolTransactions(timeout, ctx, len(ctx.peers)/2+2)
+	<-fromPool
+
+	block2 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
+	_ = ctx.bc.AddBlock(block2)
+
+	head := ctx.bc.GetHeadSnapshot()
+
+	a1, _ := head.GetForRead(ctx.peers[0].GetAddress())
+	a2, _ := head.GetForRead(ctx.peers[1].GetAddress())
+	a3, _ := head.GetForRead(ctx.peers[2].GetAddress())
+	a4, _ := head.GetForRead(ctx.peers[3].GetAddress())
+	a5, _ := head.GetForRead(ctx.peers[4].GetAddress())
+	a6, _ := head.GetForRead(ctx.peers[5].GetAddress())
+	a7, _ := head.GetForRead(ctx.peers[6].GetAddress())
+	as, _ := head.GetForRead(common2.HexToAddress("0x0f10169CaFAd230fB8C57D1432562f8fFF121aAb"))
+
+	assert.Equal(t, big.NewInt(1532), a1.Balance())
+	assert.Equal(t, big.NewInt(2016), a2.Balance())
+	assert.Equal(t, big.NewInt(9009), a3.Balance())
+	assert.Equal(t, big.NewInt(3999), a4.Balance())
+	assert.Equal(t, big.NewInt(3499), a5.Balance())
+	assert.Equal(t, big.NewInt(7499), a6.Balance())
+	assert.Equal(t, big.NewInt(8999), a7.Balance())
+	assert.Equal(t, big.NewInt(0), as.Balance())
+}
+
+func poolToChan(timeout context.Context, ctx *TestContext) chan *tx.Transaction {
+	fromPool := make(chan *tx.Transaction)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				it := ctx.pool.Iterator()
+				next := it.Next()
+				if next != nil {
+					ctx.pool.Remove(next)
+					fromPool <- next
+
+				}
+			case <-timeout.Done():
+				close(fromPool)
+				return
+			}
+		}
+	}()
+	return fromPool
+}
+
+func waitPoolTransactions(timeout context.Context, ctx *TestContext, count int) chan struct{} {
+	fromPool := make(chan struct{})
+	ticker := time.NewTicker(100 * time.Millisecond)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				it := ctx.pool.Iterator()
+				i := 0
+				for it.HasNext() {
+					it.Next()
+					i++
+				}
+				if i >= count {
+					fromPool <- struct{}{}
+				}
+
+			case <-timeout.Done():
+				close(fromPool)
+				return
+			}
+		}
+	}()
+	return fromPool
+}
+
+func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int, txType tx.Type) *tx.Transaction {
+	trans := tx.CreateTransaction(txType, to, from, 1, amount, fee, []byte(""))
 	for _, peer := range ctx.peers {
 		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
 			trans.Sign(peer.GetPrivateKey())
@@ -812,6 +992,20 @@ func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fe
 	}
 	ctx.pool.Add(trans)
 
+	return trans
+}
+
+func (ctx *TestContext) generatePayment(from, to common2.Address, amount, fee *big.Int) *tx.Transaction {
+	return ctx.generateTransaction(from, to, amount, fee, tx.Payment)
+}
+
+func (ctx *TestContext) generateSettlement(from common2.Address, amount, fee *big.Int) *tx.Transaction {
+	trans := tx.CreateTransaction(tx.Settlement, common2.HexToAddress(tx.SettlementAddressHex), from, 1, amount, fee, []byte(""))
+	for _, peer := range ctx.peers {
+		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
+			trans.Sign(peer.GetPrivateKey())
+		}
+	}
 	return trans
 }
 
@@ -830,9 +1024,12 @@ type TestContext struct {
 	me           *common.Peer
 	hotstuffChan chan *msg.Message
 	epochChan    chan *msg.Message
+	txChan       chan *msg.Message
+	sentTxChan   chan *msg.Message
 	blockChan    chan *blockchain.Block
 	seed         map[common2.Address]*state.Account
 	stateDB      state.DB
+	txService    *blockchain.TxService
 }
 
 func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.Message {
@@ -982,6 +1179,10 @@ func initContext(t *testing.T) *TestContext {
 	srv.On("Broadcast", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.MatchedBy(matcher(pb.Message_PROPOSAL))).Run(func(args mock.Arguments) {
 		proposalChan <- (args[1]).(*msg.Message)
 	})
+	sentTxChan := make(chan *msg.Message)
+	srv.On("BroadcastTransaction", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.MatchedBy(matcher(pb.Message_TRANSACTION))).Run(func(args mock.Arguments) {
+		sentTxChan <- (args[1]).(*msg.Message)
+	})
 
 	voteChan := make(chan *msg.Message)
 	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*common.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
@@ -996,6 +1197,12 @@ func initContext(t *testing.T) *TestContext {
 	bsrv.On("RequestFork", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("int32"), mock.AnythingOfType("common.Hash"),
 		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
 
+	var custodians []common2.Address
+	for _, p := range peers {
+		custodians = append(custodians, p.GetAddress())
+	}
+	txService := blockchain.NewService(blockchain.NewTransactionValidator(custodians), pool, srv, bc, identity)
+
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
 	p := hotstuff.CreateProtocol(config)
@@ -1003,9 +1210,11 @@ func initContext(t *testing.T) *TestContext {
 
 	eventChan := make(chan hotstuff.Event)
 	pacer.SubscribeProtocolEvents(eventChan)
+	bc.SetProposerGetter(pacer)
 
 	hottuffChan := make(chan *msg.Message)
 	epochChan := make(chan *msg.Message)
+	txChan := make(chan *msg.Message)
 	return &TestContext{
 		voteChan:     voteChan,
 		peers:        peers,
@@ -1024,5 +1233,8 @@ func initContext(t *testing.T) *TestContext {
 		hotstuffChan: hottuffChan,
 		epochChan:    epochChan,
 		stateDB:      stateDb,
+		txService:    txService,
+		txChan:       txChan,
+		sentTxChan:   sentTxChan,
 	}
 }

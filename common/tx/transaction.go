@@ -15,11 +15,19 @@ import (
 type Type int
 
 const (
-	Payment Type = iota
+	SettlementAddressHex         = "0x6522b1ac0c0c078f1fcc696b9cf72c59bb3624b7d2a9d82059b2f3832fd9973d"
+	DefaultSettlementReward      = 10 //probably this value should be set from config or via consensus
+	DefaultAgreementFee          = 2
+	Payment                 Type = iota
+	Slashing                Type = iota
+	Settlement              Type = iota
+	Agreement               Type = iota
+	Proof                   Type = iota
 )
 
 type Iterator interface {
 	Next() *Transaction
+	HasNext() bool
 }
 
 type Transaction struct {
@@ -74,6 +82,10 @@ func (tx *Transaction) To() common.Address {
 	return tx.to
 }
 
+func (tx *Transaction) SetTo(to common.Address) {
+	tx.to = to
+}
+
 func (tx *Transaction) TxType() Type {
 	return tx.txType
 }
@@ -103,14 +115,75 @@ func (t ByFeeAndValue) Swap(i, j int) {
 }
 
 func CreateTransaction(txType Type, to common.Address, from common.Address, nonce uint64, value *big.Int, fee *big.Int, data []byte) *Transaction {
-	return &Transaction{txType: txType, to: to, from: from, nonce: nonce, value: value, fee: fee, data: data}
+	return &Transaction{
+		txType: txType,
+		to:     to,
+		from:   from,
+		nonce:  nonce,
+		value:  value,
+		fee:    fee,
+		data:   data,
+	}
+}
+
+func CreateAgreement(t *Transaction, nonce uint64, proof []byte) *Transaction {
+	return &Transaction{
+		to:     common.BytesToAddress(t.Hash().Bytes()[12:]),
+		txType: Agreement,
+		value:  big.NewInt(0),
+		fee:    big.NewInt(DefaultAgreementFee),
+		nonce:  nonce,
+		data:   proof,
+	}
+}
+
+func (tx *Transaction) CreateProof(pk *ecdsa.PrivateKey) (e error) {
+	if tx.txType != Agreement {
+		return errors.New("proof is allowed only for agreements")
+	}
+	sig, e := crypto.Sign(crypto.Keccak256(tx.to.Bytes()), pk)
+
+	if e != nil {
+		return e
+	}
+	tx.data = sig
+
+	return
+}
+func (tx *Transaction) RecoverProver() (provers []common.Address, e error) {
+	if tx.txType != Proof {
+		return provers, errors.New("proof is allowed only for proof tx")
+	}
+
+	for i := 0; i < len(tx.Data()); i += 65 {
+		sig := tx.Data()[i : i+65]
+		pub, e := crypto.SigToPub(crypto.Keccak256(tx.to.Bytes()), sig)
+		if e != nil {
+			return provers, errors.New("bad signature")
+		}
+		a := crypto.PubkeyToAddress(*pub)
+		provers = append(provers, a)
+	}
+
+	return
 }
 
 func (tx *Transaction) GetMessage() *pb.Transaction {
 	var txType pb.Transaction_Type
-	if tx.txType == Payment {
+
+	switch tx.txType {
+	case Payment:
 		txType = pb.Transaction_PAYMENT
+	case Slashing:
+		txType = pb.Transaction_SLASHING
+	case Settlement:
+		txType = pb.Transaction_SETTLEMENT
+	case Agreement:
+		txType = pb.Transaction_AGREEMENT
+	case Proof:
+		txType = pb.Transaction_PROOF
 	}
+
 	return &pb.Transaction{
 		Type:      txType,
 		To:        tx.to.Bytes(),
@@ -170,7 +243,22 @@ func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
 		return nil, errors.New("bad signature")
 	}
 	a := crypto.PubkeyToAddress(*pub)
-	tx := CreateTransaction(Payment,
+
+	var txType Type
+	switch msg.Type {
+	case pb.Transaction_PAYMENT:
+		txType = Payment
+	case pb.Transaction_SLASHING:
+		txType = Slashing
+	case pb.Transaction_SETTLEMENT:
+		txType = Settlement
+	case pb.Transaction_AGREEMENT:
+		txType = Agreement
+	case pb.Transaction_PROOF:
+		txType = Proof
+	}
+
+	tx := CreateTransaction(txType,
 		common.BytesToAddress(msg.GetTo()),
 		a,
 		uint64(msg.GetNonce()),
@@ -195,6 +283,11 @@ func (tx *Transaction) Sign(key *ecdsa.PrivateKey) {
 	tx.signature = sig
 }
 
+func (tx *Transaction) Hash() common.Hash {
+	pbtx := tx.GetMessage()
+	return Hash(*pbtx)
+}
+
 func Hash(msg pb.Transaction) common.Hash {
 	msg.Signature = nil
 	bytes, e := proto.Marshal(&msg)
@@ -205,7 +298,7 @@ func Hash(msg pb.Transaction) common.Hash {
 	return crypto.Keccak256Hash(bytes)
 }
 
-//we actually can't simply use hash of pb.Transaction as a key, because we can have the same message with signature excluded
+//we actually can't simply use hash of pb.Transaction as a key, because we can have the same message with signature excluded (we don't have TO field)
 //that mean that we have to use hash of message with signature for key and hash of message without signature for signing, what seems like mess
 func (tx *Transaction) CalculateHashKey() common.Hash {
 	tx.hashKey = common.Hash{}

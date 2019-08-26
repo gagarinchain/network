@@ -106,8 +106,13 @@ type Blockchain struct {
 	blockService            BlockService
 	txPool                  TransactionPool
 	stateDB                 state.DB
+	proposerGetter          cmn.ProposerForHeight
 	blockPersister          *BlockPersister
 	chainPersister          *BlockchainPersister
+}
+
+func (bc *Blockchain) SetProposerGetter(proposerGetter cmn.ProposerForHeight) {
+	bc.proposerGetter = proposerGetter
 }
 
 func (bc *Blockchain) BlockService(blockService BlockService) {
@@ -126,13 +131,14 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 		blockService:            cfg.BlockService,
 		txPool:                  cfg.Pool,
 		stateDB:                 cfg.Db,
+		proposerGetter:          cfg.ProposerGetter,
 		blockPersister:          cfg.BlockPerister,
 		chainPersister:          cfg.ChainPersister,
 	}
 
 	var s *state.Snapshot
 	if cfg.Seed != nil {
-		s = state.NewSnapshotWithAccounts(zero.Header().Hash(), cfg.Seed)
+		s = state.NewSnapshotWithAccounts(zero.Header().Hash(), common.Address{}, cfg.Seed)
 	}
 	if e := cfg.Db.Init(zero.Header().Hash(), s); e != nil {
 		panic("can't init state DB")
@@ -419,6 +425,14 @@ func (bc *Blockchain) GetHead() *Block {
 	return b[0]
 }
 
+func (bc *Blockchain) GetHeadSnapshot() *state.Snapshot {
+	s, f := bc.stateDB.Get(bc.GetHead().Header().Hash())
+	if !f {
+		log.Error("Can't find head snapshot")
+	}
+	return s
+}
+
 func (bc *Blockchain) GetTopHeight() int32 {
 	return bc.GetHead().Header().Height()
 }
@@ -441,7 +455,7 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 	//todo remove this hack by handling genesis in special way
 	if block.Height() != 0 {
-		if err := bc.applyTransactionsAndValidateProof(block); err != nil {
+		if err := bc.applyTransactionsAndValidate(block); err != nil {
 			return err
 		}
 	}
@@ -552,7 +566,8 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 }
 
 func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
-	s, e := bc.stateDB.Create(parent.Header().Hash())
+	proposer := bc.proposerGetter.ProposerForHeight(parent.header.height + 1).GetAddress() //this block will be the block of next height
+	s, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
 	if e != nil {
 		log.Error("Can't create new block", e)
 		return nil
@@ -579,7 +594,6 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 		}
 		txs.InsertOrUpdate([]byte(next.HashKey().Hex()), next.Serialized())
 		txs_arr = append(txs_arr, next)
-		spew.Dump(next)
 	}
 
 	header := createHeader(
@@ -658,21 +672,30 @@ func (bc *Blockchain) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
 	}
 }
 
-func (bc *Blockchain) applyTransactionsAndValidateProof(block *Block) error {
-	s, e := bc.stateDB.Create(block.Header().Parent())
+func (bc *Blockchain) applyTransactionsAndValidate(block *Block) error {
+	_, f := bc.stateDB.Get(block.Header().hash)
+	if f {
+		log.Debug("Found block that was created by us and already processed, skip this step")
+		return nil
+	}
+
+	s, e := bc.stateDB.Create(block.Header().Parent(), bc.proposerGetter.ProposerForHeight(block.Height()).GetAddress())
 	if e != nil {
 		return e
 	}
 
 	iterator := block.Txs()
-	for next := iterator.Next(); next != nil; next = iterator.Next() {
+	for iterator.HasNext() {
+		next := iterator.Next()
 		if err := s.ApplyTransaction(next); err != nil {
 			return err
 		}
 	}
 
 	if !bytes.Equal(s.Proof().Bytes(), block.Header().stateHash.Bytes()) {
-		log.Debugf("Not equal state hash: expected %v, calculated %v", s.Proof().Hex(), block.Header().stateHash.Hex())
+
+		spew.Dump(s.Entries())
+		log.Debugf("Not equal state hash: expected %v, calculated %v", block.Header().stateHash.Hex(), s.Proof().Hex())
 		return InvalidStateHashError
 	}
 	_, err := bc.stateDB.Commit(block.Header().Parent(), block.Header().Hash())

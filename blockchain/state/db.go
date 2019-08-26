@@ -16,6 +16,7 @@ var (
 	InsufficientFundsError  = errors.New("insufficient funds")
 	ExpiredTransactionError = errors.New("expired transaction")
 	FutureTransactionError  = errors.New("future transaction")
+	WrongProofOrigin        = errors.New("wrong proof origin")
 	NotEmptyInitDBError     = errors.New("can't initialize not empty DB")
 	log                     = logging.MustGetLogger("state")
 )
@@ -94,7 +95,7 @@ func (db *DBImpl) Init(hash common.Hash, seed *Snapshot) error {
 	}
 
 	if seed == nil {
-		seed = NewSnapshot(hash)
+		seed = NewSnapshot(hash, common.Address{})
 	}
 
 	db.snapshots[hash] = seed
@@ -112,7 +113,7 @@ func (db *DBImpl) Get(hash common.Hash) (s *Snapshot, f bool) {
 	return sn, f
 }
 
-func (db *DBImpl) Create(parent common.Hash) (s *Snapshot, e error) {
+func (db *DBImpl) Create(parent common.Hash, proposer common.Address) (s *Snapshot, e error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -121,10 +122,7 @@ func (db *DBImpl) Create(parent common.Hash) (s *Snapshot, e error) {
 		return nil, errors.New("no prent is found")
 	}
 
-	cpy := parentSnapshot.trie.Copy()
-	snapshot := &Snapshot{trie: cpy}
-	parentSnapshot.siblings = append(parentSnapshot.siblings, snapshot)
-	parentSnapshot.SetPending(snapshot)
+	snapshot := parentSnapshot.NewPendingSnapshot(proposer)
 
 	return snapshot, nil
 }
@@ -172,6 +170,20 @@ func (db *DBImpl) release(snapshot *Snapshot) {
 type Account struct {
 	nonce   uint64
 	balance *big.Int
+	origin  common.Address
+	voters  []common.Address
+}
+
+func (a *Account) Voters() []common.Address {
+	return a.voters
+}
+
+func (a *Account) Balance() *big.Int {
+	return a.balance
+}
+
+func (a *Account) Nonce() uint64 {
+	return a.nonce
 }
 
 func NewAccount(nonce uint64, balance *big.Int) *Account {

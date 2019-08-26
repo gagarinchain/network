@@ -2,6 +2,7 @@ package test
 
 import (
 	"github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/mock"
 )
@@ -16,4 +17,12 @@ func SoftStorageMock() gagarinchain.Storage {
 	storage.On("Keys", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8")).Return(nil)
 
 	return storage
+}
+
+func MockProposerForHeight() common.ProposerForHeight {
+	proposer := &mocks.ProposerForHeight{}
+	proposer.On("ProposerForHeight", mock.AnythingOfType("int32")).Return(&common.Peer{})
+
+	return proposer
+
 }

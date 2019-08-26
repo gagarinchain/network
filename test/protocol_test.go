@@ -292,7 +292,7 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 	loader := &mocks.CommitteeLoader{}
 	bsrv := &mocks.BlockService{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(),
+		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 

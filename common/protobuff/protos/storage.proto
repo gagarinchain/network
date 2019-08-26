@@ -16,6 +16,8 @@ message Tx {
 message Account {
     uint64 nonce = 1;
     bytes value = 2;
+    bytes origin = 3;
+    repeated bytes voters = 4;
 }
 
 message Snapshot {
