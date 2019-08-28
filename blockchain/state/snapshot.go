@@ -164,26 +164,41 @@ func (snap *Snapshot) Put(address common.Address, account *Account) {
 	snap.trie.InsertOrUpdate([]byte(strings.ToLower(address.Hex())), b)
 }
 
-func (snap *Snapshot) ApplyTransaction(t *tx.Transaction) (err error) {
+func (snap *Snapshot) IsApplicable(t *tx.Transaction) (err error) {
 	sender, found := snap.GetForUpdate(t.From())
 	if !found {
-		log.Infof("Sender is not found %v", t.From().Hex())
 		return FutureTransactionError
 	}
-
-	proposer, found := snap.GetForUpdate(snap.proposer)
-	if !found {
-		proposer = NewAccount(0, big.NewInt(0))
-	}
-
 	if t.Nonce() < sender.nonce+1 {
 		return ExpiredTransactionError
 	}
 	if t.Nonce() > sender.nonce+1 {
 		return FutureTransactionError
 	}
+	cost := t.Fee()
+	if sender.balance.Cmp(cost) < 0 {
+		return InsufficientFundsError
+	}
+	return nil
+}
+
+func (snap *Snapshot) ApplyTransaction(t *tx.Transaction) (err error) {
+	if err := snap.IsApplicable(t); err != nil {
+		return err
+	}
+
+	sender, found := snap.GetForUpdate(t.From())
+	if !found {
+		log.Infof("Sender is not found %v", t.From().Hex())
+		return FutureTransactionError
+	}
 
 	sender.nonce += 1
+
+	proposer, found := snap.GetForUpdate(snap.proposer)
+	if !found {
+		proposer = NewAccount(0, big.NewInt(0))
+	}
 
 	var receiver *Account
 	to := t.To()

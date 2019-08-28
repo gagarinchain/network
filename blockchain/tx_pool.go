@@ -2,10 +2,14 @@ package blockchain
 
 import (
 	"bytes"
+	"context"
 	"github.com/gagarinchain/network/common/tx"
 	"sort"
 	"sync"
+	"time"
 )
+
+const Interval = 100 * time.Millisecond
 
 type TransactionPoolImpl struct {
 	pending []*tx.Transaction
@@ -25,7 +29,7 @@ func (tp *TransactionPoolImpl) Add(tx *tx.Transaction) {
 
 func (tp *TransactionPoolImpl) getTopByFee() []*tx.Transaction {
 	pendingCopy := append(tp.pending[:0:0], tp.pending...)
-	sort.Sort(sort.Reverse(tx.ByFeeAndValue(pendingCopy)))
+	sort.Sort(sort.Reverse(tx.ByFeeAndNonce(pendingCopy)))
 	return pendingCopy
 }
 
@@ -80,4 +84,41 @@ func (i *orderedIterator) Next() *tx.Transaction {
 
 func (i *orderedIterator) HasNext() bool {
 	return i.state < len(i.txs)
+}
+
+func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []*tx.Transaction) {
+	chunks = make(chan []*tx.Transaction)
+	ticker := time.NewTicker(Interval)
+	index := 0
+
+	tick := func(pending []*tx.Transaction) {
+		last := len(pending)
+		part := tp.pending[index:last]
+		sort.Sort(sort.Reverse(tx.ByFeeAndNonce(part)))
+		index = last
+		go func(txs chan []*tx.Transaction) {
+			select {
+			case txs <- part:
+			case <-ctx.Done():
+				log.Warning("Cancelled writing part")
+				return
+			}
+		}(chunks)
+	}
+
+	tick(tp.pending)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				tick(tp.pending)
+			case <-ctx.Done():
+				log.Warning("Cancelled writing chunks")
+				close(chunks)
+				return
+			}
+		}
+	}()
+
+	return
 }

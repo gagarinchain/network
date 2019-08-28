@@ -1,12 +1,14 @@
 package test
 
 import (
+	"context"
 	"github.com/gagarinchain/network"
 	bch "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/common/tx"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -317,6 +319,11 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 func mockPool() bch.TransactionPool {
 	pool := &mocks.TransactionPool{}
 	pool.On("RemoveAll")
+
+	txs := make(chan []*tx.Transaction)
+	close(txs)
+
+	pool.On("Drain", mock.MatchedBy(func(ctx context.Context) bool { return true })).Return(txs)
 	iterator := &mocks.Iterator{}
 	iterator.On("Next").Return(nil)
 	pool.On("Iterator").Return(iterator)
