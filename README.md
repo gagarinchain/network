@@ -1,5 +1,54 @@
-# yab
-Yet another blockchain
+# Gagarin.Network
+### Common shell commands
+* generates protobuf classes
+    * ```make protos```
+* build gnetwork binaries
+    * ```make build```
+* generate mock classes
+    * ```mockery --all```
+* start network
+    * ```gnetwork -l $i #starts network on 908i port, where i=0...N```
+### Static dir
+* peers.json
+```
+{
+	"peers": [ #list of bootstrap peers
+		{
+			"addr": "0xA60c85Be9c2b8980Dbd3F82cF8CE19DE12f3E829", #blockchain addr
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9080/p2p/16Uiu2HAmCRVJB9iKxon89fp8J25KvEgkEmgViLnaYi7A9aiZoSpy" #libp2p multiaddr
+		},
+  ...
+```
+* peer(i).json, where i is the same i from start network
+```
+{
+	"addr": "0xA60c85Be9c2b8980Dbd3F82cF8CE19DE12f3E829", #blockchain addr
+	"id": "16Uiu2HAmCRVJB9iKxon89fp8J25KvEgkEmgViLnaYi7A9aiZoSpy", #libp2p peer id (public ECDSA key)
+	"pk": "d57c7eea371eb351b87aa8f74425df74fa5550cbc6ec20115661c7459b0e5425", #blockchain private key 
+	"pkpeer": "080212208ceba2eb4883bfd2638dd37807b9986ea9ce18319b4bcf663fafb007db3087e6" #libp2p peer private ECDSA key
+}
+```
+* seed.json starting state
+```
+{
+  "accounts": [ #account list
+    {
+      "address": "0xA60c85Be9c2b8980Dbd3F82cF8CE19DE12f3E829", #blockchain address
+      "balance": 1000 #starting balance
+    },
+    ...
+```
+* settings.yaml
+```
+Hotstuff: #hotstuff settings 
+  N: 10 #total node amount, must be 3 * n + 1, here n = 3
+  Delta: 5000 #stage duration in milliseconds, 2*Delta is v iew change duration, 4* Delta is GST
+  BlockDelta: 10 #max time in millisecinds to wait for transactions 
+Network:
+  MinPeerThreshold: 3 #minimum peer count to bootstrap connection, from bootstrap list
+  ReconnectPeriod: 10000 #period after watchdog checks bootstrap connections and reconnects whether count less then MinPeerThreshold
+  ConnectionTimeout: 3000 # timeout
+```
 
 ## Что такое Height, Epoch ViewNumber, Round?
 ### Round
