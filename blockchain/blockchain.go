@@ -23,9 +23,6 @@ import "github.com/emirpasic/gods/maps/treemap"
 
 const TxLimit = 50
 
-//todo move it to config
-const Delta = time.Millisecond
-
 var (
 	InvalidStateHashError = errors.New("invalid block state hash")
 )
@@ -111,6 +108,7 @@ type Blockchain struct {
 	proposerGetter          cmn.ProposerForHeight
 	blockPersister          *BlockPersister
 	chainPersister          *BlockchainPersister
+	delta                   time.Duration
 }
 
 func (bc *Blockchain) SetProposerGetter(proposerGetter cmn.ProposerForHeight) {
@@ -136,6 +134,7 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 		proposerGetter:          cfg.ProposerGetter,
 		blockPersister:          cfg.BlockPerister,
 		chainPersister:          cfg.ChainPersister,
+		delta:                   cfg.Delta,
 	}
 
 	var s *state.Snapshot
@@ -152,22 +151,15 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 	return blockchain
 }
 
-func CreateBlockchainFromStorage(storage net.Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
-	pblock := &BlockPersister{Storage: storage}
-	pchain := &BlockchainPersister{Storage: storage}
+func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
+	pblock := &BlockPersister{Storage: cfg.Storage}
+	pchain := &BlockchainPersister{Storage: cfg.Storage}
 
 	topHeight, err := pchain.GetCurrentTopHeight()
 	log.Debugf("loaded topheight %v", topHeight)
 
 	if err != nil || topHeight < 0 {
-		return CreateBlockchainFromGenesisBlock(&BlockchainConfig{
-			Seed:           nil,
-			ChainPersister: pchain,
-			BlockPerister:  pblock,
-			BlockService:   blockService,
-			Pool:           pool,
-			Db:             db,
-		})
+		return CreateBlockchainFromGenesisBlock(cfg)
 	}
 
 	blockchain := &Blockchain{
@@ -175,11 +167,12 @@ func CreateBlockchainFromStorage(storage net.Storage, blockService BlockService,
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
-		blockService:            blockService,
-		txPool:                  pool,
-		stateDB:                 db,
+		blockService:            cfg.BlockService,
+		txPool:                  cfg.Pool,
+		stateDB:                 cfg.Db,
 		blockPersister:          pblock,
 		chainPersister:          pchain,
+		delta:                   cfg.Delta,
 	}
 
 	topCommittedHeight, err := pchain.GetTopCommittedHeight()
@@ -610,7 +603,7 @@ func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte
 
 func (bc *Blockchain) collectTransactions(s *state.Snapshot, txs *trie.FixedLengthHexKeyMerkleTrie) {
 	c := context.Background()
-	timeout, _ := context.WithTimeout(c, Delta)
+	timeout, _ := context.WithTimeout(c, bc.delta)
 	chunks := bc.txPool.Drain(timeout)
 	i := 0
 	for chunk := range chunks {

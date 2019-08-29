@@ -1150,6 +1150,8 @@ func initContext(t *testing.T) *TestContext {
 		BlockService:   bsrv,
 		Pool:           pool,
 		Db:             stateDb,
+		Delta:          1 * time.Millisecond, //todo we have a lot of tests where blocks has no transactions, and we create several blocks per round. probably we must add instant block generation without transactions for tests
+		Storage:        storage,
 	})
 
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)

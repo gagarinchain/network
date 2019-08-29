@@ -2,7 +2,6 @@ package state
 
 import (
 	"bytes"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -137,8 +136,6 @@ func (snap *Snapshot) Update(address common.Address, account *Account) {
 	forUpdate, found := snap.forUpdate[address]
 	if found { //already taken for update
 		if forUpdate != account {
-			spew.Dump(forUpdate)
-			spew.Dump(account)
 			log.Error("Can't update, value is already taken")
 			return
 		}

@@ -7,6 +7,8 @@ import (
 	golog "github.com/ipfs/go-log"
 	"github.com/op/go-logging"
 	gologging "github.com/whyrusleeping/go-logging"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -17,6 +19,19 @@ var stdoutLogFormat = logging.MustStringFormatter(
 )
 
 var log = logging.MustGetLogger("main")
+
+type Settings struct {
+	Hotstuff struct {
+		N          int
+		Delta      int
+		BlockDelta int
+	}
+	Network struct {
+		MinPeerThreshold  int
+		ReconnectPeriod   int
+		ConnectionTimeout int
+	}
+}
 
 func main() {
 	// LibP2P code uses golog to log messages. They log with different
@@ -38,6 +53,9 @@ func main() {
 	if *ind == -1 {
 		log.Fatal("Please provide peer index with -l")
 	}
+
+	s := readSettings()
+
 	index := strconv.Itoa(*ind)
 	var loader cmn.CommitteeLoader = &cmn.CommitteeLoaderImpl{}
 	committee := loader.LoadPeerListFromFile("static/peers.json")
@@ -55,12 +73,40 @@ func main() {
 		Committee:  committee[0:4],
 	}
 
-	ctx := CreateContext(cfg, committee[0:4], committee[*ind])
+	ctx := CreateContext(cfg, committee[0:4], committee[*ind], s)
 
 	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.
-	ctx.Bootstrap()
+	ctx.Bootstrap(s)
 
 	select {}
 
+}
+
+func readSettings() (s *Settings) {
+	file, e := os.Open("static/settings.yaml")
+	if e != nil {
+		log.Error("Can't load settings, using default", e)
+	} else {
+		defer file.Close()
+		s = &Settings{}
+		byteValue, _ := ioutil.ReadAll(file)
+		if err := yaml.Unmarshal(byteValue, s); err != nil {
+			log.Error("Can't load settings, using default", e)
+		}
+	}
+	if s == nil {
+		s = &Settings{
+			Hotstuff: struct {
+				N          int
+				Delta      int
+				BlockDelta int
+			}{N: 10, Delta: 5000, BlockDelta: 10},
+			Network: struct {
+				MinPeerThreshold  int
+				ReconnectPeriod   int
+				ConnectionTimeout int
+			}{MinPeerThreshold: 3, ReconnectPeriod: 10000, ConnectionTimeout: 3000},
+		}
+	}
 }

@@ -175,7 +175,11 @@ func TestWarmUpFromStorageWithGenesisBlockOnly(t *testing.T) {
 		}),
 		mock.AnythingOfType("[]uint8")).Return(cmn.Int32ToByte(-1), nil)
 
-	bc := bch.CreateBlockchainFromStorage(storage, nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromStorage(&bch.BlockchainConfig{
+		Db:      mockDB(),
+		Pool:    mockPool(),
+		Storage: storage,
+	})
 
 	assert.Equal(t, zero, bc.GetGenesisBlock())
 
@@ -307,7 +311,12 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	_ = bc.AddBlock(block47)
 	bc.OnCommit(block34)
 
-	bc2 := bch.CreateBlockchainFromStorage(storage, nil, mockPool(), mockDB())
+	bc2 := bch.CreateBlockchainFromStorage(&bch.BlockchainConfig{
+		Db:      mockDB(),
+		Pool:    mockPool(),
+		Storage: storage,
+		Delta:   5000,
+	})
 
 	assert.Equal(t, genesisBlock, bc2.GetGenesisBlock())
 	assert.Equal(t, block34, bc2.GetTopCommittedBlock())

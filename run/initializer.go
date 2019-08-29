@@ -43,7 +43,7 @@ func (c *Context) Node() *network.Node {
 	return c.node
 }
 
-func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common.Peer) *Context {
+func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common.Peer, s *Settings) *Context {
 	validators := []net.Validator{
 		hotstuff.NewEpochStartValidator(committee),
 		hotstuff.NewProposalValidator(committee),
@@ -69,7 +69,13 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(hotstuffSrv)
 	db := state.NewStateDB(storage)
-	bc := blockchain.CreateBlockchainFromStorage(storage, bsrv, pool, db)
+	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
+		Storage:      storage,
+		BlockService: bsrv,
+		Pool:         pool,
+		Db:           db,
+		Delta:        time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
+	})
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
@@ -78,8 +84,8 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Epoch: int32(0),
 	}
 	config := &hotstuff.ProtocolConfig{
-		F:            4,
-		Delta:        10 * time.Second,
+		F:            s.Hotstuff.N,
+		Delta:        time.Duration(s.Hotstuff.Delta) * time.Millisecond,
 		Blockchain:   bc,
 		Me:           me,
 		Srv:          hotstuffSrv,
@@ -125,9 +131,14 @@ func filterSelf(peers []*common.Peer, self *common.Peer) (res []*common.Peer) {
 	return res
 }
 
-func (c *Context) Bootstrap() {
+func (c *Context) Bootstrap(s *Settings) {
 	rootCtx := context.Background()
-	statusChan, errChan := c.node.Bootstrap(rootCtx)
+	config := &network.BootstrapConfig{
+		Period:            time.Duration(s.Network.ReconnectPeriod) * time.Millisecond,
+		MinPeerThreshold:  s.Network.MinPeerThreshold,
+		ConnectionTimeout: time.Duration(s.Network.ConnectionTimeout) * time.Millisecond,
+	}
+	statusChan, errChan := c.node.Bootstrap(rootCtx, config)
 
 	for {
 		select {
