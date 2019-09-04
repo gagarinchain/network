@@ -651,9 +651,9 @@ func TestScenario7a(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
+	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
 	assert.Equal(t, "0xf6d107d0a505bf7117fb07fd28a535a2c389ac1dde8c086b76d935245b8da05e", proposal.NewBlock.Header().TxHash().Hex())
 	assert.Equal(t, "0x4a49ccec083b2eecc17877d4f9108d5e29ccb4ee9efe85b1381bc82644571aef", proposal.NewBlock.Header().StateHash().Hex())
-	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
 
 }
 
@@ -1150,6 +1150,8 @@ func initContext(t *testing.T) *TestContext {
 		BlockService:   bsrv,
 		Pool:           pool,
 		Db:             stateDb,
+		Delta:          1 * time.Millisecond, //todo we have a lot of tests where blocks has no transactions, and we create several blocks per round. probably we must add instant block generation without transactions for tests
+		Storage:        storage,
 	})
 
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)

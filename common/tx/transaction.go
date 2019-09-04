@@ -16,7 +16,7 @@ type Type int
 
 const (
 	SettlementAddressHex         = "0x6522b1ac0c0c078f1fcc696b9cf72c59bb3624b7d2a9d82059b2f3832fd9973d"
-	DefaultSettlementReward      = 10 //probably this value should be set from config or via consensus
+	DefaultSettlementReward      = 10 //probably this value should be set from config or via consensus or moved to different TX field
 	DefaultAgreementFee          = 2
 	Payment                 Type = iota
 	Slashing                Type = iota
@@ -94,23 +94,23 @@ func (tx *Transaction) Fee() *big.Int {
 	return tx.fee
 }
 
-type ByFeeAndValue []*Transaction
+type ByFeeAndNonce []*Transaction
 
 var log = logging.MustGetLogger("tx")
 
-func (t ByFeeAndValue) Len() int {
+func (t ByFeeAndNonce) Len() int {
 	return len(t)
 }
 
-func (t ByFeeAndValue) Less(i, j int) bool {
+func (t ByFeeAndNonce) Less(i, j int) bool {
 	r := t[i].fee.Cmp(t[j].fee)
 	if r == 0 {
-		return t[i].value.Cmp(t[j].value) < 0
+		return t[i].nonce < t[j].nonce
 	}
 	return r < 0
 }
 
-func (t ByFeeAndValue) Swap(i, j int) {
+func (t ByFeeAndNonce) Swap(i, j int) {
 	t[i], t[j] = t[j], t[i]
 }
 

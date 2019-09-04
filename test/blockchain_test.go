@@ -1,12 +1,14 @@
 package test
 
 import (
+	"context"
 	"github.com/gagarinchain/network"
 	bch "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/common/tx"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -173,7 +175,11 @@ func TestWarmUpFromStorageWithGenesisBlockOnly(t *testing.T) {
 		}),
 		mock.AnythingOfType("[]uint8")).Return(cmn.Int32ToByte(-1), nil)
 
-	bc := bch.CreateBlockchainFromStorage(storage, nil, mockPool(), mockDB())
+	bc := bch.CreateBlockchainFromStorage(&bch.BlockchainConfig{
+		Db:      mockDB(),
+		Pool:    mockPool(),
+		Storage: storage,
+	})
 
 	assert.Equal(t, zero, bc.GetGenesisBlock())
 
@@ -305,7 +311,12 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	_ = bc.AddBlock(block47)
 	bc.OnCommit(block34)
 
-	bc2 := bch.CreateBlockchainFromStorage(storage, nil, mockPool(), mockDB())
+	bc2 := bch.CreateBlockchainFromStorage(&bch.BlockchainConfig{
+		Db:      mockDB(),
+		Pool:    mockPool(),
+		Storage: storage,
+		Delta:   5000,
+	})
 
 	assert.Equal(t, genesisBlock, bc2.GetGenesisBlock())
 	assert.Equal(t, block34, bc2.GetTopCommittedBlock())
@@ -317,6 +328,11 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 func mockPool() bch.TransactionPool {
 	pool := &mocks.TransactionPool{}
 	pool.On("RemoveAll")
+
+	txs := make(chan []*tx.Transaction)
+	close(txs)
+
+	pool.On("Drain", mock.MatchedBy(func(ctx context.Context) bool { return true })).Return(txs)
 	iterator := &mocks.Iterator{}
 	iterator.On("Next").Return(nil)
 	pool.On("Iterator").Return(iterator)

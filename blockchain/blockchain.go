@@ -15,7 +15,6 @@ import (
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/trie"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/op/go-logging"
 	"sync"
 	"time"
@@ -109,6 +108,7 @@ type Blockchain struct {
 	proposerGetter          cmn.ProposerForHeight
 	blockPersister          *BlockPersister
 	chainPersister          *BlockchainPersister
+	delta                   time.Duration
 }
 
 func (bc *Blockchain) SetProposerGetter(proposerGetter cmn.ProposerForHeight) {
@@ -134,6 +134,7 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 		proposerGetter:          cfg.ProposerGetter,
 		blockPersister:          cfg.BlockPerister,
 		chainPersister:          cfg.ChainPersister,
+		delta:                   cfg.Delta,
 	}
 
 	var s *state.Snapshot
@@ -150,22 +151,15 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 	return blockchain
 }
 
-func CreateBlockchainFromStorage(storage net.Storage, blockService BlockService, pool TransactionPool, db state.DB) *Blockchain {
-	pblock := &BlockPersister{Storage: storage}
-	pchain := &BlockchainPersister{Storage: storage}
+func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
+	pblock := &BlockPersister{Storage: cfg.Storage}
+	pchain := &BlockchainPersister{Storage: cfg.Storage}
 
 	topHeight, err := pchain.GetCurrentTopHeight()
 	log.Debugf("loaded topheight %v", topHeight)
 
 	if err != nil || topHeight < 0 {
-		return CreateBlockchainFromGenesisBlock(&BlockchainConfig{
-			Seed:           nil,
-			ChainPersister: pchain,
-			BlockPerister:  pblock,
-			BlockService:   blockService,
-			Pool:           pool,
-			Db:             db,
-		})
+		return CreateBlockchainFromGenesisBlock(cfg)
 	}
 
 	blockchain := &Blockchain{
@@ -173,11 +167,12 @@ func CreateBlockchainFromStorage(storage net.Storage, blockService BlockService,
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
-		blockService:            blockService,
-		txPool:                  pool,
-		stateDB:                 db,
+		blockService:            cfg.BlockService,
+		txPool:                  cfg.Pool,
+		stateDB:                 cfg.Db,
 		blockPersister:          pblock,
 		chainPersister:          pchain,
+		delta:                   cfg.Delta,
 	}
 
 	topCommittedHeight, err := pchain.GetTopCommittedHeight()
@@ -566,6 +561,10 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 }
 
 func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
+	return bc.newBlock(parent, qc, data, true)
+}
+
+func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte, withTransactions bool) *Block {
 	proposer := bc.proposerGetter.ProposerForHeight(parent.header.height + 1).GetAddress() //this block will be the block of next height
 	s, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
 	if e != nil {
@@ -573,27 +572,9 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 		return nil
 	}
 
-	it := bc.txPool.Iterator()
 	txs := trie.New()
-	var txs_arr []*tx.Transaction
-	//todo make optimizer, to collect transactions due to fee, size, single account, etc
-	for next, count := it.Next(), 0; next != nil && count < TxLimit; next, count = it.Next(), count+1 {
-		err := s.ApplyTransaction(next)
-		switch err {
-		case state.FutureTransactionError:
-			log.Error(err)
-			//ignore this transaction
-			continue
-		case state.InsufficientFundsError:
-			log.Error(err)
-			//ignore this transaction
-			continue
-		case state.ExpiredTransactionError: //this is pretty normal to see stale transactions in the pool, possibly blocks containing this txs were not yet committed
-			log.Debug(err)
-			continue
-		}
-		txs.InsertOrUpdate([]byte(next.HashKey().Hex()), next.Serialized())
-		txs_arr = append(txs_arr, next)
+	if withTransactions {
+		bc.collectTransactions(s, txs)
 	}
 
 	header := createHeader(
@@ -620,8 +601,31 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 	return block
 }
 
+func (bc *Blockchain) collectTransactions(s *state.Snapshot, txs *trie.FixedLengthHexKeyMerkleTrie) {
+	c := context.Background()
+	timeout, _ := context.WithTimeout(c, bc.delta)
+	chunks := bc.txPool.Drain(timeout)
+	i := 0
+	for chunk := range chunks {
+		for _, t := range chunk {
+			if s.IsApplicable(t) != nil {
+				continue
+			}
+			if s.ApplyTransaction(t) != nil {
+				continue
+			}
+			txs.InsertOrUpdate([]byte(t.HashKey().Hex()), t.Serialized())
+			i++
+
+			if i >= TxLimit {
+				return
+			}
+		}
+	}
+}
+
 func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
-	block := bc.NewBlock(head, head.QC(), []byte(""))
+	block := bc.newBlock(head, head.QC(), []byte(""), false)
 
 	if e := bc.AddBlock(block); e != nil {
 		log.Error("Can't add empty block")

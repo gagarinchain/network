@@ -2,10 +2,12 @@ package blockchain
 
 import (
 	"encoding/json"
+	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"time"
 )
 import "github.com/gagarinchain/network/common/eth/common"
 import cmn "github.com/gagarinchain/network/common"
@@ -18,6 +20,8 @@ type BlockchainConfig struct {
 	BlockService   BlockService
 	Pool           TransactionPool
 	Db             state.DB
+	Storage        gagarinchain.Storage
+	Delta          time.Duration
 }
 
 type SeedData struct {
