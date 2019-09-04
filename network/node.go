@@ -9,10 +9,10 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
 	"github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/opts"
-	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-record"
 	"github.com/multiformats/go-multiaddr"
@@ -97,11 +97,11 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	return node, nil
 }
 
-func (n *Node) GetPeerInfo() *peerstore.PeerInfo {
+func (n *Node) GetPeerInfo() *peer.AddrInfo {
 	join := multiaddr.Join(n.Host.Addrs()...)
 	s := join.String() + fmt.Sprintf("/p2p/%v", n.Host.ID().Pretty())
 	a, e := multiaddr.NewMultiaddr(s)
-	info, e := peerstore.InfoFromP2pAddr(a)
+	info, e := peer.AddrInfoFromP2pAddr(a)
 	if e != nil {
 		log.Error("Can't get peerInfo", e)
 	}

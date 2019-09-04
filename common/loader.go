@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
-	p2pcrypto "github.com/libp2p/go-libp2p-crypto"
-	"github.com/libp2p/go-libp2p-peerstore"
+	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"io/ioutil"
 	"os"
@@ -53,7 +53,7 @@ func (c *CommitteeLoaderImpl) LoadPeerListFromFile(filePath string) (res []*Peer
 			return nil
 		}
 
-		info, e := peerstore.InfoFromP2pAddr(addr)
+		info, e := peer.AddrInfoFromP2pAddr(addr)
 		if e != nil {
 			log.Fatal("Can't create address", e)
 			return nil

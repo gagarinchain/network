@@ -67,7 +67,6 @@ func newIterator(txs []*tx.Transaction) tx.Iterator {
 	return &orderedIterator{txs: txs, state: 0}
 }
 
-//TODO make channel here, so we can collect incoming transactions until threshold is achieved
 func (i *orderedIterator) Next() *tx.Transaction {
 	if i.state < len(i.txs) {
 		cur := i.txs[i.state]

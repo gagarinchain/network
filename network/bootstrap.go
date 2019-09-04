@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gagarinchain/network/common"
-	"github.com/libp2p/go-libp2p-host"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p-net"
-	"github.com/libp2p/go-libp2p-peerstore"
 	"github.com/op/go-logging"
 	"sync"
 	"time"
@@ -29,7 +30,7 @@ type BootstrapConfig struct {
 	ConnectionTimeout time.Duration
 
 	//Peers we started with, base peers used to discover additional ones
-	InitialPeers []peerstore.PeerInfo
+	InitialPeers []peer.AddrInfo
 }
 
 //Default parameters for bootstrapping
@@ -40,7 +41,7 @@ var DefaultBootstrapConfig = BootstrapConfig{
 }
 
 func bootstrapWithPeers(committee []*common.Peer) BootstrapConfig {
-	peers := make([]peerstore.PeerInfo, len(committee))
+	peers := make([]peer.AddrInfo, len(committee))
 	for i, c := range committee {
 		peers[i] = *c.GetPeerInfo()
 	}
@@ -121,9 +122,9 @@ func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) err
 	threshold := len(cfg.InitialPeers) - cfg.MinPeerThreshold
 
 	// filter out connected nodes
-	var notConnected []peerstore.PeerInfo
+	var notConnected []peer.AddrInfo
 	for _, p := range peers {
-		if host.Network().Connectedness(p.ID) != net.Connected {
+		if host.Network().Connectedness(p.ID) != network.Connected {
 			notConnected = append(notConnected, p)
 		}
 	}
@@ -137,7 +138,7 @@ func bootstrapTick(ctx context.Context, host host.Host, cfg BootstrapConfig) err
 	return bootstrapConnect(ctx, host, notConnected, threshold)
 }
 
-func bootstrapConnect(ctx context.Context, ph host.Host, peers []peerstore.PeerInfo, threshold int) error {
+func bootstrapConnect(ctx context.Context, ph host.Host, peers []peer.AddrInfo, threshold int) error {
 	if len(peers) < 1 {
 		return nil
 	}
@@ -148,7 +149,7 @@ func bootstrapConnect(ctx context.Context, ph host.Host, peers []peerstore.PeerI
 		wg.Add(1)
 
 		//running startup routines
-		go func(p peerstore.PeerInfo) {
+		go func(p peer.AddrInfo) {
 			defer wg.Done()
 			log.Debugf("%s connecting %s", ph.ID(), p.ID)
 			log.Debugf("Got addresses [%v] for peer [%s]", p.Addrs, p.ID)

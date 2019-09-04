@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-crypto"
-	"github.com/libp2p/go-libp2p-net"
-	"github.com/libp2p/go-libp2p-peer"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-protocol"
 	"golang.org/x/net/context"
 )
@@ -43,7 +43,7 @@ func main2() {
 	spew.Printf("I am %v", peerHost.Addrs())
 	spew.Printf("\nId %v", id.Pretty())
 
-	peerHost.SetStreamHandler(protocol.ID("/Libp2pProtocol/2.0.0"), func(stream net.Stream) {
+	peerHost.SetStreamHandler(protocol.ID("/Libp2pProtocol/2.0.0"), func(stream network.Stream) {
 		spew.Dump(stream)
 	})
 
