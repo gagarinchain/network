@@ -29,6 +29,7 @@ func (tp *TransactionPoolImpl) Add(tx *tx.Transaction) {
 
 func (tp *TransactionPoolImpl) getTopByFee() []*tx.Transaction {
 	pendingCopy := append(tp.pending[:0:0], tp.pending...)
+	//TODO we can sort only top n elements in array with optimized sorting algorithms
 	sort.Sort(sort.Reverse(tx.ByFeeAndNonce(pendingCopy)))
 	return pendingCopy
 }
