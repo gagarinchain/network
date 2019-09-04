@@ -62,6 +62,22 @@ func (_m *Pacer) GetNext() *common.Peer {
 	return r0
 }
 
+// ProposerForHeight provides a mock function with given fields: blockHeight
+func (_m *Pacer) ProposerForHeight(blockHeight int32) *common.Peer {
+	ret := _m.Called(blockHeight)
+
+	var r0 *common.Peer
+	if rf, ok := ret.Get(0).(func(int32) *common.Peer); ok {
+		r0 = rf(blockHeight)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*common.Peer)
+		}
+	}
+
+	return r0
+}
+
 // SubscribeProtocolEvents provides a mock function with given fields: sub
 func (_m *Pacer) SubscribeProtocolEvents(sub chan hotstuff.Event) {
 	_m.Called(sub)

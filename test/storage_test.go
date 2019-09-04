@@ -32,7 +32,7 @@ func TestStorageBlockAddition(t *testing.T) {
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: service, Pool: mockPool(), Db: mockDB(),
+		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: service, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
 

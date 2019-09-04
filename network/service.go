@@ -9,9 +9,9 @@ import (
 	protoio "github.com/gogo/protobuf/io"
 	"github.com/gogo/protobuf/proto"
 	"github.com/jbenet/go-context/io"
-	"github.com/libp2p/go-libp2p-net"
-	"github.com/libp2p/go-libp2p-peer"
-	"github.com/libp2p/go-libp2p-protocol"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-libp2p-pubsub"
 	"io"
 	"math/rand"
@@ -33,6 +33,7 @@ type Service interface {
 
 	//Broadcast message to all peers
 	Broadcast(ctx context.Context, msg *msg.Message)
+	BroadcastTransaction(ctx context.Context, msg *msg.Message)
 
 	Bootstrap(ctx context.Context) (chan int, chan error)
 }
@@ -147,7 +148,7 @@ func (s *ServiceImpl) sendRequestSync(ctx context.Context, pid peer.ID, req *msg
 	}
 
 	cr := ctxio.NewReader(ctx, stream)
-	r := protoio.NewDelimitedReader(cr, net.MessageSizeMax) //TODO decide on msg size
+	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax) //TODO decide on msg size
 
 	respMsg := &pb.Message{}
 	if e := r.ReadMsg(respMsg); e != nil {
@@ -165,22 +166,30 @@ func (s *ServiceImpl) SendMessageTriggered(ctx context.Context, peer *common.Pee
 }
 
 func (s *ServiceImpl) Broadcast(ctx context.Context, msg *msg.Message) {
+	s.broadcast(ctx, HotstuffTopic, msg)
+}
+
+func (s *ServiceImpl) BroadcastTransaction(ctx context.Context, msg *msg.Message) {
+	s.broadcast(ctx, TransactionTopic, msg)
+}
+
+func (s *ServiceImpl) broadcast(ctx context.Context, topic string, msg *msg.Message) {
 	go func() {
 		bytes, e := proto.Marshal(msg.Message)
 		if e != nil {
 			log.Error("Can't marshall message", e)
 		}
 
-		e = s.node.PubSub.Publish(ctx, HotstuffTopic, bytes)
+		e = s.node.PubSub.Publish(ctx, topic, bytes)
 		if e != nil {
 			log.Error("Can't broadcast message", e)
 		}
 	}()
 }
 
-func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream net.Stream) {
+func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream network.Stream) {
 	cr := ctxio.NewReader(ctx, stream)
-	r := protoio.NewDelimitedReader(cr, net.MessageSizeMax)
+	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)
 
 	for {
 		m := &pb.Message{}
@@ -207,8 +216,8 @@ func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream net.Stream) {
 	}
 }
 
-func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context) net.StreamHandler {
-	return func(stream net.Stream) {
+func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context) network.StreamHandler {
+	return func(stream network.Stream) {
 		s.handleNewMessage(ctx, stream)
 	}
 }

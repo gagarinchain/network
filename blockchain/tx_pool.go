@@ -77,3 +77,7 @@ func (i *orderedIterator) Next() *tx.Transaction {
 		return nil
 	}
 }
+
+func (i *orderedIterator) HasNext() bool {
+	return i.state < len(i.txs)
+}

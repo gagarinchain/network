@@ -34,13 +34,13 @@ func (_m *DB) Commit(parent common.Hash, pending common.Hash) (*state.Snapshot, 
 	return r0, r1
 }
 
-// Create provides a mock function with given fields: parent
-func (_m *DB) Create(parent common.Hash) (*state.Snapshot, error) {
-	ret := _m.Called(parent)
+// Create provides a mock function with given fields: parent, proposer
+func (_m *DB) Create(parent common.Hash, proposer common.Address) (*state.Snapshot, error) {
+	ret := _m.Called(parent, proposer)
 
 	var r0 *state.Snapshot
-	if rf, ok := ret.Get(0).(func(common.Hash) *state.Snapshot); ok {
-		r0 = rf(parent)
+	if rf, ok := ret.Get(0).(func(common.Hash, common.Address) *state.Snapshot); ok {
+		r0 = rf(parent, proposer)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*state.Snapshot)
@@ -48,8 +48,8 @@ func (_m *DB) Create(parent common.Hash) (*state.Snapshot, error) {
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(common.Hash) error); ok {
-		r1 = rf(parent)
+	if rf, ok := ret.Get(1).(func(common.Hash, common.Address) error); ok {
+		r1 = rf(parent, proposer)
 	} else {
 		r1 = ret.Error(1)
 	}

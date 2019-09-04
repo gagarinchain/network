@@ -11,6 +11,22 @@
     {
       "address": "0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339",
       "balance": 9000
+    },
+    {
+      "address": "0xdA61C8D3d0612dDFb0750973Acce47660ec4831f",
+      "balance": 4000
+    },
+    {
+      "address": "0x07Ef7FcB80b9d7193f3fa4035468ea7901FA0099",
+      "balance": 3500
+    },
+    {
+      "address": "0xCa2E8b3B21c3ddE86f5f983A9626ddA609f67c00",
+      "balance": 7500
+    },
+    {
+      "address": "0x660F7a82964F697A76B3702C0C43444959D5d78f",
+      "balance": 9000
     }
   ]
 }

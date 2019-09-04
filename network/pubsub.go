@@ -3,12 +3,11 @@ package network
 import (
 	"context"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-host"
-	"github.com/libp2p/go-libp2p-net"
-	"github.com/libp2p/go-libp2p-peer"
-	"github.com/libp2p/go-libp2p-peerstore"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/routing"
 	"github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p-routing"
 	"sync"
 	"time"
 )
@@ -17,7 +16,7 @@ import (
 // See vyzo comment: https://github.com/ipfs/go-ipfs/issues/5569#issuecomment-427556556
 type GossipDhtPubSub struct {
 	Pubsub  *pubsub.PubSub
-	Routing routing.IpfsRouting
+	Routing routing.Routing
 	Host    host.Host
 }
 
@@ -81,16 +80,16 @@ func (ps *GossipDhtPubSub) connectToPubSubPeers(ctx context.Context, cid cid.Cid
 	var wg sync.WaitGroup
 
 	// filter out connected nodes
-	var notConnected []peerstore.PeerInfo
+	var notConnected []peer.AddrInfo
 	for p := range provs {
-		if ps.Host.Network().Connectedness(p.ID) != net.Connected {
+		if ps.Host.Network().Connectedness(p.ID) != network.Connected {
 			notConnected = append(notConnected, p)
 		}
 	}
 
 	for _, prov := range notConnected {
 		wg.Add(1)
-		go func(pi peerstore.PeerInfo) {
+		go func(pi peer.AddrInfo) {
 			defer wg.Done()
 			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			defer cancel()

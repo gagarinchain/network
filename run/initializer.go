@@ -6,6 +6,7 @@ import (
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common"
+	common2 "github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
@@ -65,7 +66,6 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	pool := blockchain.NewTransactionPool()
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher)
-	txService := blockchain.NewService(blockchain.NewTransactionValidator(), pool)
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(hotstuffSrv)
 	db := state.NewStateDB(storage)
@@ -90,10 +90,17 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Storage:      storage,
 	}
 
+	var custodians []common2.Address
+	for _, c := range committee {
+		custodians = append(custodians, c.GetAddress())
+	}
+	txService := blockchain.NewService(blockchain.NewTransactionValidator(custodians), pool, hotstuffSrv, bc, me)
+
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
 	p := hotstuff.CreateProtocol(config)
 	log.Debugf("%+v\n", p)
+	bc.SetProposerGetter(pacer)
 	return &Context{
 		node:              node,
 		blockProtocol:     protocol,

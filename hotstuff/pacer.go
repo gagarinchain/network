@@ -15,6 +15,7 @@ import (
 
 type Pacer interface {
 	EventNotifier
+	cmn.ProposerForHeight
 	GetCurrentView() int32
 	GetCurrent() *cmn.Peer
 	GetNext() *cmn.Peer
@@ -178,6 +179,10 @@ func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
 
 func (p *StaticPacer) Committee() []*cmn.Peer {
 	return p.committee
+}
+
+func (p *StaticPacer) ProposerForHeight(blockHeight int32) *cmn.Peer {
+	return p.committee[blockHeight%int32(len(p.committee))]
 }
 
 func (p *StaticPacer) GetCurrent() *cmn.Peer {
