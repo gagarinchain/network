@@ -2,6 +2,7 @@
 
 package mocks
 
+import context "context"
 import mock "github.com/stretchr/testify/mock"
 import tx "github.com/gagarinchain/network/common/tx"
 
@@ -13,6 +14,22 @@ type TransactionPool struct {
 // Add provides a mock function with given fields: _a0
 func (_m *TransactionPool) Add(_a0 *tx.Transaction) {
 	_m.Called(_a0)
+}
+
+// Drain provides a mock function with given fields: ctx
+func (_m *TransactionPool) Drain(ctx context.Context) chan []*tx.Transaction {
+	ret := _m.Called(ctx)
+
+	var r0 chan []*tx.Transaction
+	if rf, ok := ret.Get(0).(func(context.Context) chan []*tx.Transaction); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(chan []*tx.Transaction)
+		}
+	}
+
+	return r0
 }
 
 // Iterator provides a mock function with given fields:

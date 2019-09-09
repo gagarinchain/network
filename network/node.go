@@ -110,9 +110,17 @@ func (n *Node) GetPeerInfo() *peer.AddrInfo {
 
 // Will bootstrap the peer host using the provided bootstrap peers. Once the host
 // has been bootstrapped it will proceed to bootstrap the DHT.
-func (n *Node) Bootstrap(ctx context.Context) (statusChan chan int, errChan chan error) {
+func (n *Node) Bootstrap(ctx context.Context, cfg *BootstrapConfig) (statusChan chan int, errChan chan error) {
 	peers := n.bootstrapPeers
-	return Bootstrap(ctx, n.Routing.(*dht.IpfsDHT), n.Host, bootstrapWithPeers(peers))
+	c := bootstrapWithPeers(peers)
+	if cfg != nil {
+		c.MinPeerThreshold = cfg.MinPeerThreshold
+		c.ConnectionTimeout = cfg.ConnectionTimeout
+		c.Period = cfg.Period
+	}
+
+	chans, errChans := Bootstrap(ctx, n.Routing.(*dht.IpfsDHT), n.Host, c)
+	return chans, errChans
 }
 
 // Shutdown will cancel the context shared by the various components which will shut them all down

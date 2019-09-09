@@ -1,0 +1,8 @@
+Hotstuff:
+  N: 10
+  Delta: 5000
+  BlockDelta: 10
+Network:
+  MinPeerThreshold: 3
+  ReconnectPeriod: 10000
+  ConnectionTimeout: 3000
