@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/emirpasic/gods/utils"
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
@@ -420,12 +419,12 @@ func (bc *Blockchain) GetHead() *Block {
 	return b[0]
 }
 
-func (bc *Blockchain) GetHeadSnapshot() *state.Snapshot {
-	s, f := bc.stateDB.Get(bc.GetHead().Header().Hash())
+func (bc *Blockchain) GetHeadRecord() *state.Record {
+	r, f := bc.stateDB.Get(bc.GetHead().Header().Hash())
 	if !f {
 		log.Error("Can't find head snapshot")
 	}
-	return s
+	return r
 }
 
 func (bc *Blockchain) GetTopHeight() int32 {
@@ -566,7 +565,7 @@ func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte
 
 func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte, withTransactions bool) *Block {
 	proposer := bc.proposerGetter.ProposerForHeight(parent.header.height + 1).GetAddress() //this block will be the block of next height
-	s, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
+	r, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
 	if e != nil {
 		log.Error("Can't create new block", e)
 		return nil
@@ -574,7 +573,7 @@ func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte
 
 	txs := trie.New()
 	if withTransactions {
-		bc.collectTransactions(s, txs)
+		bc.collectTransactions(r, txs)
 	}
 
 	header := createHeader(
@@ -582,7 +581,7 @@ func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte
 		common.Hash{},
 		qc.GetHash(),
 		txs.Proof(),
-		s.Proof(),
+		r.RootProof(),
 		crypto.Keccak256Hash(data),
 		parent.Header().Hash(),
 		time.Now().UTC().Round(time.Second))
@@ -601,7 +600,7 @@ func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte
 	return block
 }
 
-func (bc *Blockchain) collectTransactions(s *state.Snapshot, txs *trie.FixedLengthHexKeyMerkleTrie) {
+func (bc *Blockchain) collectTransactions(s *state.Record, txs *trie.FixedLengthHexKeyMerkleTrie) {
 	c := context.Background()
 	timeout, _ := context.WithTimeout(c, bc.delta)
 	chunks := bc.txPool.Drain(timeout)
@@ -683,7 +682,7 @@ func (bc *Blockchain) applyTransactionsAndValidate(block *Block) error {
 		return nil
 	}
 
-	s, e := bc.stateDB.Create(block.Header().Parent(), bc.proposerGetter.ProposerForHeight(block.Height()).GetAddress())
+	r, e := bc.stateDB.Create(block.Header().Parent(), bc.proposerGetter.ProposerForHeight(block.Height()).GetAddress())
 	if e != nil {
 		return e
 	}
@@ -691,15 +690,13 @@ func (bc *Blockchain) applyTransactionsAndValidate(block *Block) error {
 	iterator := block.Txs()
 	for iterator.HasNext() {
 		next := iterator.Next()
-		if err := s.ApplyTransaction(next); err != nil {
+		if err := r.ApplyTransaction(next); err != nil {
 			return err
 		}
 	}
 
-	if !bytes.Equal(s.Proof().Bytes(), block.Header().stateHash.Bytes()) {
-
-		spew.Dump(s.Entries())
-		log.Debugf("Not equal state hash: expected %v, calculated %v", block.Header().stateHash.Hex(), s.Proof().Hex())
+	if !bytes.Equal(r.RootProof().Bytes(), block.Header().stateHash.Bytes()) {
+		log.Debugf("Not equal state hash: expected %v, calculated %v", block.Header().stateHash.Hex(), r.RootProof().Hex())
 		return InvalidStateHashError
 	}
 	_, err := bc.stateDB.Commit(block.Header().Parent(), block.Header().Hash())

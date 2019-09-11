@@ -343,8 +343,10 @@ func mockDB() state.DB {
 	db := &mocks.DB{}
 	db.On("Get", mock.AnythingOfType("common.Hash")).Return(nil, false)
 	db.On("Init", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("*state.Snapshot")).Return(nil)
-	db.On("Create", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Address")).Return(state.NewSnapshot(crypto.Keccak256Hash(), common.Address{}), nil)
-	db.On("Commit", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Hash")).Return(state.NewSnapshot(crypto.Keccak256Hash(), common.Address{}), nil)
+	snapshot := state.NewSnapshot(crypto.Keccak256Hash(), common.Address{})
+	record := state.NewRecord(snapshot, nil)
+	db.On("Create", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Address")).Return(record, nil)
+	db.On("Commit", mock.AnythingOfType("common.Hash"), mock.AnythingOfType("common.Hash")).Return(record, nil)
 	db.On("Release", mock.AnythingOfType("common.Hash")).Return(nil)
 
 	return db

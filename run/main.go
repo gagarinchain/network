@@ -109,4 +109,5 @@ func readSettings() (s *Settings) {
 			}{MinPeerThreshold: 3, ReconnectPeriod: 10000, ConnectionTimeout: 3000},
 		}
 	}
+	return
 }

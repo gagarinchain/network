@@ -4,6 +4,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emirpasic/gods v1.12.0
 	github.com/ethereum/go-ethereum v1.9.1
+	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.2
 	github.com/ipfs/go-cid v0.0.3
@@ -19,6 +20,7 @@ require (
 	github.com/libp2p/go-libp2p-protocol v0.1.0
 	github.com/libp2p/go-libp2p-pubsub v0.1.0
 	github.com/libp2p/go-libp2p-record v0.1.0
+	github.com/magiconair/properties v1.8.0
 	github.com/multiformats/go-multiaddr v0.0.4
 	github.com/multiformats/go-multihash v0.0.6
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
@@ -28,5 +30,8 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
+	golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7 // indirect
 	gopkg.in/yaml.v2 v2.2.2
 )
+
+go 1.13

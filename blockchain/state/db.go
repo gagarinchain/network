@@ -3,11 +3,9 @@ package state
 import (
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gogo/protobuf/proto"
+	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/op/go-logging"
 	"github.com/pkg/errors"
-	"math/big"
 	"sync"
 )
 
@@ -22,75 +20,71 @@ var (
 )
 
 type DBImpl struct {
-	snapshots map[common.Hash]*Snapshot
-	persister *SnapshotPersister
-	lock      sync.RWMutex
+	records         map[common.Hash]*Record
+	snapPersister   *SnapshotPersister
+	recordPersister *RecordPersister
+	lock            sync.RWMutex
 }
 
 func NewStateDB(storage gagarinchain.Storage) DB {
-	persister := &SnapshotPersister{storage: storage}
-	snapshots := make(map[common.Hash]*Snapshot)
-	db := &DBImpl{snapshots: snapshots, persister: persister, lock: sync.RWMutex{}}
+	snapPersister := &SnapshotPersister{storage: storage}
+	recordPersister := &RecordPersister{storage: storage}
+	records := make(map[common.Hash]*Record)
+	db := &DBImpl{records: records, snapPersister: snapPersister, recordPersister: recordPersister, lock: sync.RWMutex{}}
 
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	hashes := persister.Hashes()
-	messages := make(map[common.Hash]*pb.Snapshot)
-	for _, hash := range hashes {
-		value, e := persister.Get(hash)
+	hashes := snapPersister.Hashes()
+	snaps := make(map[common.Hash]*Snapshot)
+	for _, hash := range hashes { //parse snapshots
+		value, e := snapPersister.Get(hash)
 		if e != nil {
 			log.Errorf("Can't find snapshot with hash %v", value)
 			continue
 		}
-		m := &pb.Snapshot{}
-		if err := proto.Unmarshal(value, m); err != nil {
-			log.Errorf("Can't unmarshal snapshot with hash %v", value)
+		snap, e := SnapshotFromProto(value)
+		if e != nil {
+			log.Error("Can't parse snapshot", e)
 			continue
 		}
-
-		messages[hash] = m
+		snaps[hash] = snap
 	}
 
-	for k := range messages {
-		_, e := createSnapshot(k, messages, snapshots)
+	recHashes := recordPersister.Hashes()
+	//todo omit this structure and associate hash with record itself, so we can reduce memory usage
+	pbRecs := make(map[common.Hash]*pb.Record)
+	for _, h := range recHashes {
+		recMessage, e := recordPersister.Get(h)
 		if e != nil {
-			log.Error("Can't parse snapshots", e)
+			log.Error("Can't parse record", e)
 			return db
 		}
+
+		record, e := GetProto(recMessage)
+		if e != nil {
+			log.Error("Can't parse record", e)
+			continue
+		}
+		rec, e := FromProto(record, snaps)
+		if e != nil {
+			log.Error("Can't parse record", e)
+			continue
+		}
+		records[rec.snap.hash] = rec
+		pbRecs[rec.snap.hash] = record
+
 	}
+
+	for _, s := range records {
+		s.SetParentFromProto(pbRecs[s.snap.hash], records)
+	}
+
 	return db
 }
 
-func createSnapshot(key common.Hash, msgs map[common.Hash]*pb.Snapshot, snaps map[common.Hash]*Snapshot) (s *Snapshot, e error) {
-	msg := msgs[key]
-
-	s, e = FromProtoWithoutSiblings(msg)
-	if e != nil {
-		log.Error("Can't deserialize snapshot", e)
-		return
-	}
-	snaps[key] = s
-
-	for _, sibl := range msg.Siblings {
-		siblHash := common.BytesToHash(sibl)
-		sibling, f := snaps[siblHash]
-		if !f { //not found parsed subtree, go on parsing sibling
-			sibling, e = createSnapshot(siblHash, msgs, snaps)
-			if e != nil {
-				log.Error("Can't create sibling", e)
-				continue
-			}
-		}
-		s.siblings = append(s.siblings, sibling)
-	}
-	delete(msgs, key)
-
-	return
-}
-
 func (db *DBImpl) Init(hash common.Hash, seed *Snapshot) error {
-	if len(db.snapshots) > 0 {
+	if len(db.records) > 0 {
 		return NotEmptyInitDBError
 	}
 
@@ -98,98 +92,85 @@ func (db *DBImpl) Init(hash common.Hash, seed *Snapshot) error {
 		seed = NewSnapshot(hash, common.Address{})
 	}
 
-	db.snapshots[hash] = seed
-	if err := db.persister.Put(seed); err != nil {
-		return err
-	}
+	rec := NewRecord(seed, nil)
+	db.records[hash] = rec
+	db.persist(rec, nil)
 	return nil
 }
 
-func (db *DBImpl) Get(hash common.Hash) (s *Snapshot, f bool) {
+func (db *DBImpl) Get(hash common.Hash) (r *Record, f bool) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
-	sn, f := db.snapshots[hash]
+	sn, f := db.records[hash]
 
 	return sn, f
 }
 
-func (db *DBImpl) Create(parent common.Hash, proposer common.Address) (s *Snapshot, e error) {
+func (db *DBImpl) Create(parent common.Hash, proposer common.Address) (r *Record, e error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	parentSnapshot, f := db.snapshots[parent]
+	parentRecord, f := db.records[parent]
 	if !f {
 		return nil, errors.New("no prent is found")
 	}
+	pending := parentRecord.NewPendingRecord(proposer)
 
-	snapshot := parentSnapshot.NewPendingSnapshot(proposer)
-
-	return snapshot, nil
+	return pending, nil
 }
 
-func (db *DBImpl) Commit(parent, pending common.Hash) (s *Snapshot, e error) {
+func (db *DBImpl) Commit(parent, pending common.Hash) (r *Record, e error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	parentSnapshot, f := db.snapshots[parent]
+	parentRecord, f := db.records[parent]
 	if !f {
 		return nil, errors.New("no prent is found")
 	}
 
-	pendingSnapshot := parentSnapshot.Pending()
-	pendingSnapshot.hash = pending
-	parentSnapshot.pending = nil
-	db.snapshots[pending] = pendingSnapshot
-	if e := db.persister.Put(pendingSnapshot); e != nil {
+	pendingRecord := parentRecord.Pending()
+	pendingRecord.snap.hash = pending
+	parentRecord.pending = nil
+	parentRecord.siblings = append(parentRecord.siblings, pendingRecord)
+	db.records[pending] = pendingRecord
+	db.persist(pendingRecord, parentRecord)
+
+	return pendingRecord, nil
+}
+
+func (db *DBImpl) persist(pendingRecord *Record, parentRecord *Record) {
+	if e := db.snapPersister.Put(pendingRecord.snap); e != nil {
 		log.Error("Can't persist snapshot")
 	}
-
-	return pendingSnapshot, nil
+	if e := db.recordPersister.Put(pendingRecord); e != nil {
+		log.Error("Can't persist record")
+	}
+	if parentRecord != nil {
+		if e := db.recordPersister.Put(parentRecord); e != nil {
+			log.Error("Can't persist parent record")
+		}
+	}
 }
 
 func (db *DBImpl) Release(blockHash common.Hash) error {
-	s, f := db.snapshots[blockHash]
+	n, f := db.records[blockHash]
 	if !f {
 		return errors.New("no snapshot found for block")
 	}
-	db.release(s)
+	db.release(n)
 
 	return nil
 }
 
-func (db *DBImpl) release(snapshot *Snapshot) {
-	delete(db.snapshots, snapshot.hash)
-	if e := db.persister.Delete(snapshot.hash); e != nil {
+func (db *DBImpl) release(record *Record) {
+	delete(db.records, record.snap.hash)
+	if e := db.recordPersister.Delete(record.snap.hash); e != nil {
+		log.Error("Can't delete record from storage")
+	}
+	if e := db.snapPersister.Delete(record.snap.hash); e != nil {
 		log.Error("Can't delete snapshot from storage")
 	}
-	for _, sibl := range snapshot.siblings {
+	for _, sibl := range record.siblings {
 		db.release(sibl)
 	}
-}
-
-type Account struct {
-	nonce   uint64
-	balance *big.Int
-	origin  common.Address
-	voters  []common.Address
-}
-
-func (a *Account) Voters() []common.Address {
-	return a.voters
-}
-
-func (a *Account) Balance() *big.Int {
-	return a.balance
-}
-
-func (a *Account) Nonce() uint64 {
-	return a.nonce
-}
-
-func NewAccount(nonce uint64, balance *big.Int) *Account {
-	return &Account{nonce: nonce, balance: balance}
-}
-
-func (a *Account) Copy() *Account {
-	return NewAccount(a.nonce, new(big.Int).Set(a.balance))
 }

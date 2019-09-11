@@ -12,15 +12,15 @@ type DB struct {
 }
 
 // Commit provides a mock function with given fields: parent, pending
-func (_m *DB) Commit(parent common.Hash, pending common.Hash) (*state.Snapshot, error) {
+func (_m *DB) Commit(parent common.Hash, pending common.Hash) (*state.Record, error) {
 	ret := _m.Called(parent, pending)
 
-	var r0 *state.Snapshot
-	if rf, ok := ret.Get(0).(func(common.Hash, common.Hash) *state.Snapshot); ok {
+	var r0 *state.Record
+	if rf, ok := ret.Get(0).(func(common.Hash, common.Hash) *state.Record); ok {
 		r0 = rf(parent, pending)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*state.Snapshot)
+			r0 = ret.Get(0).(*state.Record)
 		}
 	}
 
@@ -35,15 +35,15 @@ func (_m *DB) Commit(parent common.Hash, pending common.Hash) (*state.Snapshot, 
 }
 
 // Create provides a mock function with given fields: parent, proposer
-func (_m *DB) Create(parent common.Hash, proposer common.Address) (*state.Snapshot, error) {
+func (_m *DB) Create(parent common.Hash, proposer common.Address) (*state.Record, error) {
 	ret := _m.Called(parent, proposer)
 
-	var r0 *state.Snapshot
-	if rf, ok := ret.Get(0).(func(common.Hash, common.Address) *state.Snapshot); ok {
+	var r0 *state.Record
+	if rf, ok := ret.Get(0).(func(common.Hash, common.Address) *state.Record); ok {
 		r0 = rf(parent, proposer)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*state.Snapshot)
+			r0 = ret.Get(0).(*state.Record)
 		}
 	}
 
@@ -58,15 +58,15 @@ func (_m *DB) Create(parent common.Hash, proposer common.Address) (*state.Snapsh
 }
 
 // Get provides a mock function with given fields: hash
-func (_m *DB) Get(hash common.Hash) (*state.Snapshot, bool) {
+func (_m *DB) Get(hash common.Hash) (*state.Record, bool) {
 	ret := _m.Called(hash)
 
-	var r0 *state.Snapshot
-	if rf, ok := ret.Get(0).(func(common.Hash) *state.Snapshot); ok {
+	var r0 *state.Record
+	if rf, ok := ret.Get(0).(func(common.Hash) *state.Record); ok {
 		r0 = rf(hash)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*state.Snapshot)
+			r0 = ret.Get(0).(*state.Record)
 		}
 	}
 

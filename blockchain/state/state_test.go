@@ -2,6 +2,7 @@ package state
 
 import (
 	"crypto/ecdsa"
+	"github.com/davecgh/go-spew/spew"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
@@ -12,26 +13,28 @@ import (
 )
 
 func TestSnapshot_Empty(t *testing.T) {
-	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")))
+	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
 
-	hash := snapshot.Proof()
-	assert.Equal(t, crypto.Keccak256Hash([]byte("")).Hex(), hash.Hex())
+	proof := snapshot.RootProof()
+	assert.Equal(t, common.BytesToHash([]byte{0}), proof)
 }
 
 func TestSnapshot_ApplyTransactionNoAccount(t *testing.T) {
-	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")))
+	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
+	record := NewRecord(snapshot, nil)
 	Me = generate()
 	from := generate()
 	to := generate()
 
 	tr := tx.CreateTransaction(tx.Payment, to, from, 0, big.NewInt(100), big.NewInt(1), []byte("123456"))
-	err := snapshot.ApplyTransaction(tr)
+	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, FutureTransactionError)
 }
 
 func TestSnapshot_ApplyTransactionInsufficientFunds(t *testing.T) {
-	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")))
+	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
+	record := NewRecord(snapshot, nil)
 	Me = generate()
 	from := generate()
 	to := generate()
@@ -40,13 +43,14 @@ func TestSnapshot_ApplyTransactionInsufficientFunds(t *testing.T) {
 	snapshot.Put(from, NewAccount(0, big.NewInt(90)))
 
 	tr := tx.CreateTransaction(tx.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
-	err := snapshot.ApplyTransaction(tr)
+	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, InsufficientFundsError)
 }
 
 func TestSnapshot_ApplyTransactionFutureNonce(t *testing.T) {
-	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")))
+	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
+	record := NewRecord(snapshot, nil)
 	Me = generate()
 	from := generate()
 	to := generate()
@@ -56,13 +60,14 @@ func TestSnapshot_ApplyTransactionFutureNonce(t *testing.T) {
 	snapshot.Put(to, NewAccount(0, big.NewInt(90)))
 
 	tr := tx.CreateTransaction(tx.Payment, to, from, 5, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
-	err := snapshot.ApplyTransaction(tr)
+	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, FutureTransactionError)
 }
 
 func TestSnapshot_ApplyTransactionNoMe(t *testing.T) {
-	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")))
+	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
+	record := NewRecord(snapshot, nil)
 	Me = generate()
 	from := generate()
 	to := generate()
@@ -70,35 +75,36 @@ func TestSnapshot_ApplyTransactionNoMe(t *testing.T) {
 	snapshot.Put(from, NewAccount(0, big.NewInt(90)))
 
 	tr := tx.CreateTransaction(tx.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
-	err := snapshot.ApplyTransaction(tr)
+	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, InsufficientFundsError)
 }
 
-func TestSnapshot_ApplyTransaction(t *testing.T) {
-	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")))
+func TestSnapshot_ApplyTransactionSingleSnapshot(t *testing.T) {
 	Me = generate()
 	from := generate()
 	to := generate()
+	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), Me)
+	rec := NewRecord(snapshot, nil)
 
 	snapshot.Put(Me, NewAccount(0, big.NewInt(0)))
 	snapshot.Put(from, NewAccount(0, big.NewInt(111)))
 	snapshot.Put(to, NewAccount(0, big.NewInt(90)))
 
-	proofBefore := snapshot.Proof()
+	proofBefore := snapshot.RootProof()
 	tr := tx.CreateTransaction(tx.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
-	err := snapshot.ApplyTransaction(tr)
-	proofAfter := snapshot.Proof()
+	err := rec.ApplyTransaction(tr)
+	proofAfter := snapshot.RootProof()
 
 	assert.Nil(t, err)
 
-	acc, _ := snapshot.GetForRead(Me)
+	acc, _ := rec.Get(Me)
 	assert.Equal(t, big.NewInt(1), acc.balance)
 
-	acc, _ = snapshot.GetForRead(to)
+	acc, _ = rec.Get(to)
 	assert.Equal(t, big.NewInt(190), acc.balance)
 
-	acc, _ = snapshot.GetForRead(from)
+	acc, _ = rec.Get(from)
 	assert.Equal(t, big.NewInt(10), acc.balance)
 
 	assert.NotEqual(t, proofBefore, proofAfter)
@@ -116,15 +122,17 @@ func TestStateDB_New(t *testing.T) {
 }
 
 func TestStateDB_Create(t *testing.T) {
+	Me = generate()
+
 	valeera := crypto.Keccak256Hash([]byte("eeeeeee Valeera"))
 	maiev := crypto.Keccak256Hash([]byte("eeeeeee Maiev"))
 	guldan := crypto.Keccak256Hash([]byte("eeeeeee Guldan"))
 	storage, _ := cmn.NewStorage("", nil)
 	db := NewStateDB(storage)
 	db.Init(valeera, nil)
-	ma, _ := db.Create(valeera)
+	ma, _ := db.Create(valeera, Me)
 	db.Commit(valeera, maiev)
-	gu, _ := db.Create(valeera)
+	gu, _ := db.Create(valeera, Me)
 	db.Commit(valeera, guldan)
 
 	Me = generate()
@@ -137,24 +145,26 @@ func TestStateDB_Create(t *testing.T) {
 	gu.Put(to, NewAccount(0, big.NewInt(30)))
 
 	m, _ := db.Get(maiev)
-	fromMa, _ := m.GetForRead(from)
+	fromMa, _ := m.Get(from)
 	g, _ := db.Get(guldan)
-	fromGu, _ := g.GetForRead(from)
+	fromGu, _ := g.Get(from)
 
 	assert.Equal(t, big.NewInt(111), fromMa.balance)
 	assert.Equal(t, big.NewInt(90), fromGu.balance)
 }
 
 func TestStateDB_Release(t *testing.T) {
+	Me = generate()
+
 	valeera := crypto.Keccak256Hash([]byte("eeeeeee Valeera"))
 	maiev := crypto.Keccak256Hash([]byte("eeeeeee Maiev"))
 	guldan := crypto.Keccak256Hash([]byte("eeeeeee Guldan"))
 	storage, _ := cmn.NewStorage("", nil)
 	db := NewStateDB(storage)
 	db.Init(valeera, nil)
-	ma, _ := db.Create(valeera)
+	ma, _ := db.Create(valeera, Me)
 	db.Commit(valeera, maiev)
-	gu, _ := db.Create(maiev)
+	gu, _ := db.Create(maiev, Me)
 	db.Commit(maiev, guldan)
 
 	Me = generate()
@@ -190,28 +200,44 @@ func TestStorageIntegration(t *testing.T) {
 	seed[c] = NewAccount(2, big.NewInt(30))
 
 	valeera := crypto.Keccak256Hash([]byte("eeeeeee Valeera"))
-	seedSnapshot := NewSnapshotWithAccounts(valeera, seed)
+	seedSnapshot := NewSnapshotWithAccounts(valeera, a, seed)
 
 	if err := db.Init(valeera, seedSnapshot); err != nil {
 		t.Error(err)
 	}
 
 	maiev := crypto.Keccak256Hash([]byte("eeeeeee Maiev"))
-	maievSnapshot, _ := db.Create(valeera)
-	maievSnapshot.Put(b, NewAccount(2, big.NewInt(25)))
-	maievSnapshot.Put(d, NewAccount(1, big.NewInt(45)))
-	maievSnapshot, _ = db.Commit(valeera, maiev)
+	maievRec, _ := db.Create(valeera, a)
+
+	bforUpdate, _ := maievRec.GetForUpdate(b)
+	bforUpdate.nonce = 2
+	bforUpdate.balance = big.NewInt(25)
+	_ = maievRec.Update(b, bforUpdate)
+
+	maievRec.Put(d, NewAccount(1, big.NewInt(45)))
+
+	maievRec, _ = db.Commit(valeera, maiev)
 
 	guldan := crypto.Keccak256Hash([]byte("eeeeeee Guldan"))
-	guldanSnap, _ := db.Create(maiev)
-	guldanSnap.Put(c, NewAccount(1, big.NewInt(33)))
-	guldanSnap, _ = db.Commit(maiev, guldan)
+	guldanRec, _ := db.Create(maiev, a)
+	cforUpdate, _ := guldanRec.GetForUpdate(c)
+	cforUpdate.nonce = 1
+	cforUpdate.balance = big.NewInt(33)
+	_ = guldanRec.Update(c, cforUpdate)
+
+	guldanRec, _ = db.Commit(maiev, guldan)
 
 	db2 := NewStateDB(storage)
 
-	guldanFromDb, _ := db2.Get(guldan)
-	cFromDb, _ := guldanFromDb.GetForRead(c)
-	aFromDb, _ := guldanFromDb.GetForRead(a)
+	guldanFromDb, f := db2.Get(guldan)
+	if !f {
+		t.Error("no record is found")
+	}
+	cFromDb, _ := guldanFromDb.Get(c)
+	aFromDb, _ := guldanFromDb.Get(a)
+
+	spew.Dump(guldanRec.Get(c))
+	spew.Dump(cFromDb)
 	assert.Equal(t, cFromDb.balance, big.NewInt(33))
 	assert.Equal(t, aFromDb.balance, big.NewInt(10))
 }
