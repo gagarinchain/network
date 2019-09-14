@@ -70,11 +70,13 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	bsrv := blockchain.NewBlockService(hotstuffSrv)
 	db := state.NewStateDB(storage)
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
-		Storage:      storage,
-		BlockService: bsrv,
-		Pool:         pool,
-		Db:           db,
-		Delta:        time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
+		BlockPerister:  &blockchain.BlockPersister{Storage: storage},
+		ChainPersister: &blockchain.BlockchainPersister{Storage: storage},
+		BlockService:   bsrv,
+		Pool:           pool,
+		Db:             db,
+		Storage:        storage,
+		Delta:          time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
 	})
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
