@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/network/common/eth/crypto/bls12_381"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/phoreproject/bls/g1pubs"
 	"io/ioutil"
 	"os"
 )
@@ -85,6 +87,7 @@ func (c *CommitteeLoaderImpl) LoadPeerFromFile(fileName string, peer *Peer) (pee
 	// it from the db on subsequent start ups.
 	pkpeer := v["pkpeer"].(string)
 	addr := v["addr"].(string)
+	pub := v["pub"].(string)
 	pk := v["pk"].(string)
 
 	decodeString, e := hex.DecodeString(pkpeer)
@@ -96,15 +99,18 @@ func (c *CommitteeLoaderImpl) LoadPeerFromFile(fileName string, peer *Peer) (pee
 	pkbytes, e := hex.DecodeString(pk)
 	if e != nil {
 		return nil, e
-
 	}
-	key, e := crypto.ToECDSA(pkbytes)
+	pubbytes, e := hex.DecodeString(pub)
 	if e != nil {
 		return nil, e
-
 	}
+
+	key := g1pubs.DeserializeSecretKey(bls12_381.ToBytes32(pkbytes))
+	publicKey, _ := g1pubs.DeserializePublicKey(bls12_381.ToBytes48(pubbytes))
+
 	peer.SetAddress(common.HexToAddress(addr))
-	peer.SetPrivateKey(key)
+	peer.SetPublicKey(crypto.NewPublicKey(publicKey))
+	peer.SetPrivateKey(crypto.NewPrivateKey(key))
 
 	return privKey, nil
 }

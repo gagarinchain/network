@@ -8,10 +8,16 @@ message Tx {
     uint64 nonce = 4;
     bytes value = 5;
     bytes fee = 6;
-    bytes signature = 7;
+    Sign signature = 7;
     bytes hashKey = 8;
     bytes data = 9;
 }
+
+message Sign{
+    bytes from = 1;
+    bytes signature = 2;
+}
+
 
 message Account {
     uint64 nonce = 1;

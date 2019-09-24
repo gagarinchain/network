@@ -3,7 +3,6 @@ package blockchain
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -634,25 +633,19 @@ func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
 	return block
 }
 
-func (bc *Blockchain) GetGenesisBlockSignedHash(key *ecdsa.PrivateKey) []byte {
+func (bc *Blockchain) GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature {
 	hash := bc.GetGenesisBlock().Header().Hash()
-	sig, e := crypto.Sign(hash.Bytes(), key)
-	if e != nil {
+	sig := crypto.Sign(hash.Bytes(), key)
+	if sig == nil {
 		log.Fatal("Can't sign genesis block")
 	}
 	return sig
 
 }
-func (bc *Blockchain) ValidateGenesisBlockSignature(signature []byte, address common.Address) bool {
+func (bc *Blockchain) ValidateGenesisBlockSignature(signature *crypto.Signature, address common.Address) bool {
 	hash := bc.GetGenesisBlock().Header().Hash()
-	pub, e := crypto.SigToPub(hash.Bytes(), signature)
-	if e != nil {
-		log.Error("bad epoch signature")
-		return false
-	}
-	a := crypto.PubkeyToAddress(*pub)
-
-	return a == address
+	signatureAddress := crypto.PubkeyToAddress(crypto.NewPublicKey(signature.Pub()))
+	return crypto.Verify(hash.Bytes(), signature) && bytes.Equal(address.Bytes(), signatureAddress.Bytes())
 }
 
 func (bc *Blockchain) GetTopCommittedBlock() *Block {

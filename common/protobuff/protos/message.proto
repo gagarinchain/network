@@ -28,24 +28,35 @@ message HelloPayload {
 message EpochStartPayload {
     oneof body {
         QuorumCertificate cert = 1;
-        bytes genesisSignature = 2;
+        Signature genesisSignature = 2;
 
     }
-    bytes signature = 3;
+    Signature signature = 3;
     int32 epoch_number = 4;
 }
 
 message ProposalPayload {
     QuorumCertificate cert = 1;
-    bytes signature = 2;
+    Signature signature = 2;
     Block block = 3;
 
 }
 
 message VotePayload {
     QuorumCertificate cert = 1;
-    bytes signature = 2;
+    Signature signature = 2;
     BlockHeader header = 3;
+}
+
+message Signature {
+    bytes from = 1;
+    bytes signature = 2;
+}
+
+message SignatureAggregate {
+    bytes bitmap = 1;
+    int32 n = 2;
+    bytes signature = 3;
 }
 
 message BlockRequestPayload {
@@ -71,7 +82,7 @@ message Error {
 }
 message QuorumCertificate {
     BlockHeader header = 1;
-    bytes signatureAggregate = 2;
+    SignatureAggregate signatureAggregate = 2;
 }
 
 message Block {
@@ -105,7 +116,7 @@ message Transaction {
     uint64 nonce = 3;
     int64 value = 4;
     int64 fee = 5;
-    bytes signature = 6;
+    Signature signature = 6;
     bytes data = 7;
 
     enum Type {

@@ -14,7 +14,7 @@ import (
 
 type Epoch struct {
 	qc               *blockchain.QuorumCertificate
-	genesisSignature []byte
+	genesisSignature *crypto.Signature
 	sender           *comm.Peer
 	number           int32
 }
@@ -31,11 +31,11 @@ func (ep *Epoch) Sender() *comm.Peer {
 	return ep.sender
 }
 
-func (ep *Epoch) GenesisSignature() []byte {
+func (ep *Epoch) GenesisSignature() *crypto.Signature {
 	return ep.genesisSignature
 }
 
-func CreateEpoch(sender *comm.Peer, number int32, qc *blockchain.QuorumCertificate, genesisSignature []byte) *Epoch {
+func CreateEpoch(sender *comm.Peer, number int32, qc *blockchain.QuorumCertificate, genesisSignature *crypto.Signature) *Epoch {
 	return &Epoch{qc, genesisSignature, sender, number}
 }
 
@@ -52,29 +52,47 @@ func CreateEpochFromMessage(msg *msg.Message) (*Epoch, error) {
 
 	var ep *Epoch
 	if cert := p.GetCert(); cert != nil {
-		ep = CreateEpoch(msg.Source(), p.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(cert), p.GetGenesisSignature())
+		ep = CreateEpoch(msg.Source(), p.EpochNumber, blockchain.CreateQuorumCertificateFromMessage(cert), nil)
 
 	} else {
-		ep = CreateEpoch(msg.Source(), p.EpochNumber, nil, p.GetGenesisSignature())
+		pbSign := p.GetGenesisSignature()
+		signature := crypto.NewSignatureFromBytes(pbSign.From, pbSign.Signature)
+		ep = CreateEpoch(msg.Source(), p.EpochNumber, nil, signature)
 	}
 
 	hash, e := CalculateHash(ep.createPayload())
-
-	pub, e := crypto.SigToPub(hash.Bytes(), p.Signature)
 	if e != nil {
+		return nil, errors.New("bad hash")
+	}
+	sign := crypto.SignatureFromProto(p.Signature)
+	res := crypto.Verify(hash.Bytes(), sign)
+	if !res {
 		return nil, errors.New("bad signature")
 	}
-	a := crypto.PubkeyToAddress(*pub)
+
+	a := crypto.PubkeyToAddress(crypto.NewPublicKey(sign.Pub()))
+	msg.Source().SetPublicKey(crypto.NewPublicKey(sign.Pub()))
 	msg.Source().SetAddress(a)
 
 	return ep, nil
 }
 
 func CalculateHash(ep *pb.EpochStartPayload) (common.Hash, error) {
-	payload := &pb.EpochStartPayload{EpochNumber: ep.EpochNumber, Body: &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.Signature}}
+	var payload *pb.EpochStartPayload
+	if ep.GetGenesisSignature() != nil {
+		payload = &pb.EpochStartPayload{
+			Body:        &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.GetGenesisSignature()},
+			EpochNumber: ep.GetEpochNumber(),
+		}
+	} else {
+		payload = &pb.EpochStartPayload{
+			Body:        &pb.EpochStartPayload_Cert{Cert: ep.GetCert()},
+			EpochNumber: ep.GetEpochNumber(),
+		}
+	}
 	any, e := ptypes.MarshalAny(payload)
 	if e != nil {
-		return common.Hash{}, errors.Errorf("error while marshalling Payload", e)
+		return common.Hash{}, errors.WithMessage(e, "error while marshalling Payload")
 	}
 	hashbytes := common.BytesToHash(crypto.Keccak256(any.GetValue()))
 
@@ -88,15 +106,15 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 		return nil, err
 	}
 
-	sig, err := crypto.Sign(hash.Bytes(), ep.sender.GetPrivateKey())
-	if err != nil {
-		return nil, errors.Errorf("can'T sign sync message", err)
+	sig := crypto.Sign(hash.Bytes(), ep.sender.GetPrivateKey())
+	if sig == nil {
+		return nil, errors.WithMessage(err, "can'T sign sync message")
 	}
 
-	payload.Signature = sig
+	payload.Signature = sig.ToProto()
 	any2, e := ptypes.MarshalAny(payload)
 	if e != nil {
-		return nil, errors.Errorf("error while marshalling Payload", e)
+		return nil, errors.WithMessage(e, "error while marshalling Payload")
 	}
 
 	return msg.CreateMessage(pb.Message_EPOCH_START, any2, ep.sender), nil
@@ -104,9 +122,9 @@ func (ep *Epoch) GetMessage() (*msg.Message, error) {
 
 func (ep *Epoch) createPayload() *pb.EpochStartPayload {
 	var payload *pb.EpochStartPayload
-	if ep.genesisSignature != nil {
+	if ep.genesisSignature != nil && !ep.genesisSignature.IsEmpty() {
 		payload = &pb.EpochStartPayload{
-			Body:        &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.genesisSignature},
+			Body:        &pb.EpochStartPayload_GenesisSignature{GenesisSignature: ep.genesisSignature.ToProto()},
 			EpochNumber: ep.number,
 		}
 	} else {
