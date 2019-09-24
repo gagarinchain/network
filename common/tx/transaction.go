@@ -2,7 +2,6 @@ package tx
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"errors"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
@@ -37,7 +36,7 @@ type Transaction struct {
 	nonce     uint64
 	value     *big.Int
 	fee       *big.Int
-	signature []byte
+	signature *crypto.Signature
 	data      []byte
 	hashKey   common.Hash
 
@@ -62,7 +61,7 @@ func (tx *Transaction) Data() []byte {
 	return tx.data
 }
 
-func (tx *Transaction) Signature() []byte {
+func (tx *Transaction) Signature() *crypto.Signature {
 	return tx.signature
 }
 
@@ -116,56 +115,58 @@ func (t ByFeeAndNonce) Swap(i, j int) {
 
 func CreateTransaction(txType Type, to common.Address, from common.Address, nonce uint64, value *big.Int, fee *big.Int, data []byte) *Transaction {
 	return &Transaction{
-		txType: txType,
-		to:     to,
-		from:   from,
-		nonce:  nonce,
-		value:  value,
-		fee:    fee,
-		data:   data,
+		txType:    txType,
+		to:        to,
+		from:      from,
+		nonce:     nonce,
+		value:     value,
+		fee:       fee,
+		data:      data,
+		signature: crypto.EmptySignature(),
 	}
 }
 
 func CreateAgreement(t *Transaction, nonce uint64, proof []byte) *Transaction {
 	return &Transaction{
-		to:     common.BytesToAddress(t.Hash().Bytes()[12:]),
-		txType: Agreement,
-		value:  big.NewInt(0),
-		fee:    big.NewInt(DefaultAgreementFee),
-		nonce:  nonce,
-		data:   proof,
+		to:        common.BytesToAddress(t.Hash().Bytes()[12:]),
+		txType:    Agreement,
+		value:     big.NewInt(0),
+		fee:       big.NewInt(DefaultAgreementFee),
+		nonce:     nonce,
+		data:      proof,
+		signature: crypto.EmptySignature(),
 	}
 }
 
-func (tx *Transaction) CreateProof(pk *ecdsa.PrivateKey) (e error) {
+func (tx *Transaction) CreateProof(pk *crypto.PrivateKey) (e error) {
 	if tx.txType != Agreement {
 		return errors.New("proof is allowed only for agreements")
 	}
-	sig, e := crypto.Sign(crypto.Keccak256(tx.to.Bytes()), pk)
+	sig := crypto.Sign(crypto.Keccak256(tx.to.Bytes()), pk)
 
-	if e != nil {
-		return e
+	if sig == nil {
+		return errors.New("can't create proof")
 	}
-	tx.data = sig
+	toProto := sig.ToProto()
+	marshal, e := proto.Marshal(toProto)
+	if e != nil {
+		return errors.New("can't create proof")
+	}
+	tx.data = marshal
 
 	return
 }
-func (tx *Transaction) RecoverProver() (provers []common.Address, e error) {
+func (tx *Transaction) RecoverProver() (aggregate *crypto.SignatureAggregate, e error) {
 	if tx.txType != Proof {
-		return provers, errors.New("proof is allowed only for proof tx")
+		return aggregate, errors.New("proof is allowed only for proof tx")
 	}
 
-	for i := 0; i < len(tx.Data()); i += 65 {
-		sig := tx.Data()[i : i+65]
-		pub, e := crypto.SigToPub(crypto.Keccak256(tx.to.Bytes()), sig)
-		if e != nil {
-			return provers, errors.New("bad signature")
-		}
-		a := crypto.PubkeyToAddress(*pub)
-		provers = append(provers, a)
+	aggr := &pb.SignatureAggregate{}
+	if err := proto.Unmarshal(tx.data, aggr); err != nil {
+		return nil, err
 	}
 
-	return
+	return crypto.AggregateFromProto(aggr), nil
 }
 
 func (tx *Transaction) GetMessage() *pb.Transaction {
@@ -190,7 +191,7 @@ func (tx *Transaction) GetMessage() *pb.Transaction {
 		Nonce:     tx.nonce,
 		Value:     tx.value.Int64(),
 		Fee:       tx.fee.Int64(),
-		Signature: tx.signature,
+		Signature: tx.signature.ToProto(),
 		Data:      tx.data,
 	}
 }
@@ -204,7 +205,7 @@ func (tx *Transaction) serialize() []byte {
 		Nonce:     tx.nonce,
 		Value:     tx.value.Bytes(),
 		Fee:       tx.fee.Bytes(),
-		Signature: tx.signature,
+		Signature: tx.signature.ToStorageProto(),
 		Data:      tx.data,
 		HashKey:   tx.hashKey.Bytes(),
 	}
@@ -229,7 +230,7 @@ func Deserialize(tran []byte) (*Transaction, error) {
 		hashKey:   common.BytesToHash(pbt.HashKey),
 		value:     big.NewInt(0).SetBytes(pbt.Value),
 		fee:       big.NewInt(0).SetBytes(pbt.Fee),
-		signature: pbt.Signature,
+		signature: crypto.SignatureFromStorage(pbt.Signature),
 		nonce:     pbt.Nonce,
 		to:        common.BytesToAddress(pbt.To),
 		data:      pbt.Data,
@@ -238,12 +239,13 @@ func Deserialize(tran []byte) (*Transaction, error) {
 
 func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
 	hash := Hash(*msg)
-	pub, e := crypto.SigToPub(hash.Bytes(), msg.GetSignature())
-	if e != nil {
+	sign := crypto.SignatureFromProto(msg.GetSignature())
+	res := crypto.Verify(hash.Bytes(), sign)
+	if !res {
 		return nil, errors.New("bad signature")
 	}
-	a := crypto.PubkeyToAddress(*pub)
 
+	a := crypto.PubkeyToAddress(crypto.NewPublicKey(sign.Pub()))
 	var txType Type
 	switch msg.Type {
 	case pb.Transaction_PAYMENT:
@@ -271,13 +273,13 @@ func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
 }
 
 //For test purposes
-func (tx *Transaction) Sign(key *ecdsa.PrivateKey) {
+func (tx *Transaction) Sign(key *crypto.PrivateKey) {
 	pbtx := tx.GetMessage()
 	hash := Hash(*pbtx)
-	sig, err := crypto.Sign(hash.Bytes(), key)
+	sig := crypto.Sign(hash.Bytes(), key)
 
-	if err != nil {
-		log.Error("Can't sign message", err)
+	if sig == nil {
+		log.Error("Can't sign message")
 	}
 
 	tx.signature = sig

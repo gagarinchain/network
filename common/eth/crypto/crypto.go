@@ -20,12 +20,15 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/gagarinchain/network/common/eth"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/common/math"
+	"github.com/gagarinchain/network/common/eth/crypto/bls12_381"
+	"github.com/phoreproject/bls/g1pubs"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -183,8 +186,12 @@ func SaveECDSA(file string, key *ecdsa.PrivateKey) error {
 	return ioutil.WriteFile(file, []byte(k), 0600)
 }
 
-func GenerateKey() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(S256(), rand.Reader)
+func GenerateKey() (*PrivateKey, error) {
+	secretKey, e := g1pubs.RandKey(rand.Reader)
+	if e != nil {
+		return nil, e
+	}
+	return NewPrivateKey(secretKey), nil
 }
 
 // ValidateSignatureValues verifies whether the signature values are valid with
@@ -202,13 +209,61 @@ func ValidateSignatureValues(v byte, r, s *big.Int, homestead bool) bool {
 	return r.Cmp(secp256k1N) < 0 && s.Cmp(secp256k1N) < 0 && (v == 0 || v == 1)
 }
 
-func PubkeyToAddress(p ecdsa.PublicKey) common.Address {
-	pubBytes := FromECDSAPub(&p)
-	return common.BytesToAddress(Keccak256(pubBytes[1:])[12:])
+func PubkeyToAddress(pub *PublicKey) common.Address {
+	pubBytes := pub.v.Serialize()
+	return common.BytesToAddress(pubBytes[:])
 }
 
 func zeroBytes(bytes []byte) {
 	for i := range bytes {
 		bytes[i] = 0
+	}
+}
+
+func Sign(msg []byte, pk *PrivateKey) *Signature {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, 0)
+	sig := g1pubs.SignWithDomain(bls12_381.ToBytes32(msg), pk.v, bls12_381.ToBytes8(b))
+	return NewSignature(pk.PublicKey().v, sig)
+}
+
+func Verify(msg []byte, s *Signature) bool {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, 0)
+	return g1pubs.VerifyWithDomain(bls12_381.ToBytes32(msg), s.pub, s.sign, bls12_381.ToBytes8(b))
+}
+
+func VerifyAggregate(msg []byte, committee []*PublicKey, s *SignatureAggregate) bool {
+	if s == nil {
+		return false
+	}
+	aggregate := g1pubs.NewAggregatePubkey()
+	for i := 0; i < s.N(); i++ {
+		bit := s.bitmap.Bit(i)
+		if bit == 1 {
+			pub := committee[i]
+			aggregate.Aggregate(pub.V())
+		}
+	}
+
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, 0)
+
+	return g1pubs.VerifyWithDomain(bls12_381.ToBytes32(msg), aggregate, s.aggregate, bls12_381.ToBytes8(b))
+}
+
+func AggregateSignatures(bitmap *big.Int, n int, signs []*Signature) *SignatureAggregate {
+	var ss []*g1pubs.Signature
+	for _, v := range signs {
+		if v == nil {
+			continue
+		}
+		ss = append(ss, v.sign)
+	}
+	g1signs := g1pubs.AggregateSignatures(ss)
+	return &SignatureAggregate{
+		bitmap:    bitmap,
+		n:         n,
+		aggregate: g1signs,
 	}
 }

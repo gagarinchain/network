@@ -1,7 +1,7 @@
 package blockchain
 
 import (
-	"crypto/ecdsa"
+	"bytes"
 	"errors"
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common/eth/common"
@@ -151,7 +151,7 @@ func CreateGenesisBlock() (zero *Block) {
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)),
 		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
-	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(make([]byte, 256), zeroHeader), txs: trie.New()}
+	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader), txs: trie.New()}
 
 	return zero
 }
@@ -176,7 +176,8 @@ func (h *Header) IsGenesisBlock() bool {
 
 func CreateBlockFromMessage(block *pb.Block) *Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
-	cert := CreateQuorumCertificate(block.Cert.GetSignatureAggregate(), CreateBlockHeaderFromMessage(block.Cert.Header))
+	aggrPb := block.Cert.GetSignatureAggregate()
+	cert := CreateQuorumCertificate(crypto.AggregateFromProto(aggrPb), CreateBlockHeaderFromMessage(block.Cert.Header))
 	var txs = trie.New()
 	for _, tpb := range block.Txs {
 		t, e := tx.CreateTransactionFromMessage(tpb)
@@ -251,12 +252,11 @@ func HashHeader(h Header) common.Hash {
 	return crypto.Keccak256Hash(bytes)
 }
 
-//returns 65 byte of header signature in [R || S || V] format
-func (h *Header) Sign(key *ecdsa.PrivateKey) []byte {
-	sig, err := crypto.Sign(h.hash.Bytes(), key)
-
-	if err != nil {
-		log.Error("Can't sign message", err)
+//returns 96 byte of header signature
+func (h *Header) Sign(key *crypto.PrivateKey) *crypto.Signature {
+	sig := crypto.Sign(h.hash.Bytes(), key)
+	if sig == nil {
+		log.Error("Can't sign message")
 	}
 
 	return sig
@@ -281,7 +281,7 @@ func IsValid(block *Block) (bool, error) {
 
 	qcHash := block.QC().GetHash()
 	//TODO updated genesis block now will fail this validation, it is an error probably, we can't load genesis block
-	if qcHash != block.Header().QCHash() {
+	if !bytes.Equal(qcHash.Bytes(), block.Header().QCHash().Bytes()) {
 		return false, errors.New("QC hash is not valid")
 	}
 

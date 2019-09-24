@@ -6,7 +6,6 @@ import (
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common"
-	common2 "github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
@@ -98,11 +97,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Storage:      storage,
 	}
 
-	var custodians []common2.Address
-	for _, c := range committee {
-		custodians = append(custodians, c.GetAddress())
-	}
-	txService := blockchain.NewService(blockchain.NewTransactionValidator(custodians), pool, hotstuffSrv, bc, me)
+	txService := blockchain.NewService(blockchain.NewTransactionValidator(committee), pool, hotstuffSrv, bc, me)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer

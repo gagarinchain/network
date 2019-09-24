@@ -8,6 +8,7 @@ import (
 	bc "github.com/gagarinchain/network/blockchain"
 	comm "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/network"
@@ -270,6 +271,7 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 		head = p.blockchain.PadEmptyBlock(head)
 	}
 
+	//todo remove rand data
 	block := p.blockchain.NewBlock(head, p.hqc, []byte(strconv.Itoa(rand.Int())))
 	proposal := CreateProposal(block, p.hqc, p.me)
 
@@ -293,16 +295,25 @@ func (*Protocol) equivocate(peer *comm.Peer) {
 }
 
 func (p *Protocol) FinishQC(header *bc.Header) {
-	//Simply concatenate votes for now
-	var aggregate []byte
-	for _, v := range p.votes {
-		aggregate = append(aggregate, v.Signature...)
+	var signs []*crypto.Signature
+	signsByAddress := make(map[common.Address]*crypto.Signature)
+
+	for k, v := range p.votes {
+		signs = append(signs, v.Signature)
+		signsByAddress[k] = v.Signature
 	}
+	bitmap, n := p.pacer.GetBitmap(signsByAddress)
+
+	for _, v := range p.votes {
+		signs = append(signs, v.Signature)
+	}
+	aggregate := crypto.AggregateSignatures(bitmap, n, signs)
+
 	p.Update(bc.CreateQuorumCertificate(aggregate, header))
 	log.Debugf("Generated new QC for %v on height %v", header.Hash().Hex(), header.Height())
 }
 
-func (p *Protocol) FinishGenesisQC(aggregate []byte) {
+func (p *Protocol) FinishGenesisQC(aggregate *crypto.SignatureAggregate) {
 	p.blockchain.UpdateGenesisBlockQC(bc.CreateQuorumCertificate(aggregate, p.blockchain.GetGenesisBlock().Header()))
 	p.hqc = p.blockchain.GetGenesisCert()
 }

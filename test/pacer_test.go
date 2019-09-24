@@ -31,21 +31,21 @@ func TestOnStartEpochWithBrokenSignature(t *testing.T) {
 		pacer.OnEpochStart(context.Background(), message)
 	}
 
-	assert.True(t, pacer.StateId() == hotstuff.StartingEpoch)
+	assert.Equal(t, hotstuff.StartingEpoch, pacer.StateId())
 
 	sign := bc.GetGenesisBlockSignedHash(generateIdentity(t, 3).GetPrivateKey()) // generate random signature
 	epoch := hotstuff.CreateEpoch(pacer.Committee()[2*cfg.F/3], 1, nil, sign)
 	message, _ := epoch.GetMessage()
 	pacer.OnEpochStart(context.Background(), message)
 
-	assert.True(t, pacer.StateId() == hotstuff.StartingEpoch)
+	assert.Equal(t, hotstuff.StartingEpoch, pacer.StateId())
 
 	sign1 := bc.GetGenesisBlockSignedHash(pacer.Committee()[2*cfg.F/3].GetPrivateKey()) // generate random signature
 	epoch1 := hotstuff.CreateEpoch(pacer.Committee()[2*cfg.F/3], 1, nil, sign1)
 	message1, _ := epoch1.GetMessage()
 	pacer.OnEpochStart(context.Background(), message1)
 
-	assert.False(t, pacer.StateId() == hotstuff.StartingEpoch)
+	assert.NotEqual(t, hotstuff.StartingEpoch, pacer.StateId())
 
 }
 

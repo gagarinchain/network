@@ -3,16 +3,19 @@ package test
 import (
 	"bytes"
 	"context"
+	"github.com/davecgh/go-spew/spew"
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common"
 	common2 "github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/tx"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/mocks"
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -519,8 +522,10 @@ func TestScenario6b(t *testing.T) {
 	ctx.waitRounds(timeout, 6)
 
 	assert.Equal(t, int32(4), ctx.protocol.Vheight())
-	assert.Equal(t, block1, ctx.bc.GetTopCommittedBlock())
-	assert.Equal(t, block52, ctx.bc.GetBlockByHeight(5)[0])
+	spew.Dump(block1)
+	spew.Dump(ctx.bc.GetTopCommittedBlock())
+	assert.Equal(t, block1.Header(), ctx.bc.GetTopCommittedBlock().Header())
+	assert.Equal(t, block52.Header(), ctx.bc.GetBlockByHeight(5)[0].Header())
 }
 
 //Scenario 6c:
@@ -567,8 +572,8 @@ func TestScenario6c(t *testing.T) {
 	ctx.waitRounds(timeout, 6)
 
 	assert.Equal(t, int32(5), ctx.protocol.Vheight())
-	assert.Equal(t, block1, ctx.bc.GetTopCommittedBlock())
-	assert.Equal(t, block52, ctx.bc.GetBlockByHeight(5)[0])
+	assert.Equal(t, block1.Header(), ctx.bc.GetTopCommittedBlock().Header())
+	assert.Equal(t, block52.Header(), ctx.bc.GetBlockByHeight(5)[0].Header())
 }
 
 //Scenario 6d:
@@ -631,9 +636,9 @@ func TestScenario6d(t *testing.T) {
 
 	ctx.waitRounds(timeout, 7)
 
-	assert.Equal(t, block2, ctx.bc.GetTopCommittedBlock())
+	assert.Equal(t, block2.Header(), ctx.bc.GetTopCommittedBlock().Header())
 	assert.Equal(t, int32(6), ctx.protocol.Vheight())
-	assert.Equal(t, block6, ctx.bc.GetBlockByHeight(6)[0])
+	assert.Equal(t, block6.Header(), ctx.bc.GetBlockByHeight(6)[0].Header())
 }
 
 //Scenario 7a: Propose block with transaction
@@ -652,8 +657,8 @@ func TestScenario7a(t *testing.T) {
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
 	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
-	assert.Equal(t, "0xf6d107d0a505bf7117fb07fd28a535a2c389ac1dde8c086b76d935245b8da05e", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0xc445ab3c0426f26a2e8ee37ed7adbcc58580d89e39cc18936e8b498ba8918ed7", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, "0xc09dbb115a750bfbe498c614115640bd9c2791e84960f99d3e546ece5b487608", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x1eb122539ac414fec0123764791d1af66b7e855a105a25252fe11f3367069dd0", proposal.NewBlock.Header().StateHash().Hex())
 
 }
 
@@ -674,8 +679,8 @@ func TestScenario7aa(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0x8d658a3df7ee7e1128fe457e675bde64d4e9cbbf7539a33c63133dbe34e3a6c4", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0x9cfac7eaa68ae674bc2f647ef6c027528a2b31a4009c84987dbe6ac4455709ea", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, "0x44f73c5f778c3763a60560bb3a8da9f1eeae6bf7356ee6d62b775166b19a8f7b", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x4e648463fbcc0d0cba64c47be1b8100b67af3ca9af241a1f0f6fbca95d689ab1", proposal.NewBlock.Header().StateHash().Hex())
 	assert.Equal(t, 2, proposal.NewBlock.TxsCount())
 
 }
@@ -872,7 +877,7 @@ func TestScenario8b(t *testing.T) {
 	any, _ := ptypes.MarshalAny(s.GetMessage())
 	sm := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
 	ctx.txChan <- sm
-	var proof []byte
+	var proofs [][]byte
 	for i := 0; i < 2*len(ctx.peers)/3+1; i++ {
 		nonce := 1
 		if bytes.Equal(ctx.peers[i].GetAddress().Bytes(), ctx.me.GetAddress().Bytes()) {
@@ -885,7 +890,7 @@ func TestScenario8b(t *testing.T) {
 		agreement.Sign(ctx.peers[i].GetPrivateKey())
 		any, _ := ptypes.MarshalAny(agreement.GetMessage())
 		m := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
-		proof = append(proof, agreement.Data()...)
+		proofs = append(proofs, agreement.Data())
 		ctx.txChan <- m
 	}
 
@@ -901,7 +906,26 @@ func TestScenario8b(t *testing.T) {
 		t.Error("snapshot not found")
 	}
 
-	proofTran := tx.CreateTransaction(tx.Proof, to, ctx.me.GetAddress(), 3, big.NewInt(0), big.NewInt(10), proof)
+	mappedProofs := make(map[common2.Address]*crypto.Signature)
+	var signs []*crypto.Signature
+	for _, proof := range proofs {
+		pbSign := &pb.Signature{}
+		if err := proto.Unmarshal(proof, pbSign); err != nil {
+			t.Error(err)
+			return
+		}
+		signFromProto := crypto.SignatureFromProto(pbSign)
+		signs = append(signs, signFromProto)
+		address := crypto.PubkeyToAddress(crypto.NewPublicKey(signFromProto.Pub()))
+		mappedProofs[address] = signFromProto
+	}
+	bitmap, i := ctx.pacer.GetBitmap(mappedProofs)
+	spew.Dump(mappedProofs)
+	aggregate := crypto.AggregateSignatures(bitmap, i, signs)
+	prAggr := aggregate.ToProto()
+	aggrBytes, _ := proto.Marshal(prAggr)
+
+	proofTran := tx.CreateTransaction(tx.Proof, to, ctx.me.GetAddress(), 3, big.NewInt(0), big.NewInt(10), aggrBytes)
 	proofTran.Sign(ctx.me.GetPrivateKey())
 	pany, _ := ptypes.MarshalAny(proofTran.GetMessage())
 	pm := msg.CreateMessage(pb.Message_TRANSACTION, pany, ctx.me)
@@ -1065,11 +1089,9 @@ func (ctx *TestContext) sendMoreStartEpochMessages(index int32, start int, amoun
 		p := ctx.pacer.Committee()[i]
 		if hqc == nil {
 			hash := ctx.bc.GetGenesisBlockSignedHash(p.GetPrivateKey())
-			peer := common.CreatePeer(nil, p.GetPrivateKey(), p.GetPeerInfo())
-			epoch = hotstuff.CreateEpoch(peer, index, nil, hash)
+			epoch = hotstuff.CreateEpoch(p, index, nil, hash)
 		} else {
-			peer := common.CreatePeer(nil, p.GetPrivateKey(), p.GetPeerInfo())
-			epoch = hotstuff.CreateEpoch(peer, index, hqc, nil)
+			epoch = hotstuff.CreateEpoch(p, index, hqc, crypto.EmptySignature())
 		}
 		message, _ := epoch.GetMessage()
 		ctx.epochChan <- message
@@ -1111,12 +1133,18 @@ func (ctx *TestContext) createProposal(newBlock *blockchain.Block, peerNumber in
 }
 
 func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCertificate {
-	var sign []byte
-	for i := 0; i < 2*ctx.cfg.F/3+1; i++ {
-		sign = append(sign, block.Header().Sign(ctx.peers[i].GetPrivateKey())...)
-	}
+	var signs []*crypto.Signature
+	signsByAddress := make(map[common2.Address]*crypto.Signature)
 
-	return blockchain.CreateQuorumCertificate(sign, block.Header())
+	for i := 0; i < 2*ctx.cfg.F/3+1; i++ {
+		s := block.Header().Sign(ctx.peers[i].GetPrivateKey())
+		signs = append(signs, s)
+		signsByAddress[ctx.peers[i].GetAddress()] = s
+	}
+	bitmap, n := ctx.pacer.GetBitmap(signsByAddress)
+	aggregate := crypto.AggregateSignatures(bitmap, n, signs)
+
+	return blockchain.CreateQuorumCertificate(aggregate, block.Header())
 }
 
 func initContext(t *testing.T) *TestContext {
@@ -1199,11 +1227,7 @@ func initContext(t *testing.T) *TestContext {
 	bsrv.On("RequestFork", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("int32"), mock.AnythingOfType("common.Hash"),
 		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
 
-	var custodians []common2.Address
-	for _, p := range peers {
-		custodians = append(custodians, p.GetAddress())
-	}
-	txService := blockchain.NewService(blockchain.NewTransactionValidator(custodians), pool, srv, bc, identity)
+	txService := blockchain.NewService(blockchain.NewTransactionValidator(peers), pool, srv, bc, identity)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer

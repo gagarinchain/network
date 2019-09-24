@@ -1,7 +1,6 @@
 package hotstuff
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	bc "github.com/gagarinchain/network/blockchain"
 	comm "github.com/gagarinchain/network/common"
@@ -15,7 +14,7 @@ import (
 type Vote struct {
 	Sender    *comm.Peer
 	Header    *bc.Header
-	Signature []byte //We should not allow to change header if we want signature to be consistent with block
+	Signature *crypto.Signature //We should not allow to change header if we want signature to be consistent with block
 	HQC       *bc.QuorumCertificate
 }
 
@@ -23,7 +22,7 @@ func CreateVote(newBlock *bc.Header, hqc *bc.QuorumCertificate, sender *comm.Pee
 	return &Vote{Sender: sender, Header: newBlock, HQC: hqc}
 }
 
-func (v *Vote) Sign(key *ecdsa.PrivateKey) {
+func (v *Vote) Sign(key *crypto.PrivateKey) {
 	v.Signature = v.Header.Sign(key)
 }
 
@@ -40,16 +39,19 @@ func CreateVoteFromMessage(msg *msg.Message) (*Vote, error) {
 	qc := bc.CreateQuorumCertificateFromMessage(vp.Cert)
 	header := bc.CreateBlockHeaderFromMessage(vp.Header)
 
-	pub, e := crypto.SigToPub(header.Hash().Bytes(), vp.Signature)
-	if e != nil {
+	sign := crypto.SignatureFromProto(vp.Signature)
+	res := crypto.Verify(header.Hash().Bytes(), sign)
+	if !res {
 		return nil, errors.New("bad signature")
 	}
-	a := crypto.PubkeyToAddress(*pub)
+
+	a := crypto.PubkeyToAddress(crypto.NewPublicKey(sign.Pub()))
 	msg.Source().SetAddress(a)
+	msg.Source().SetPublicKey(crypto.NewPublicKey(sign.Pub()))
 
 	return CreateVote(header, qc, msg.Source()), nil
 }
 
 func (v *Vote) GetMessage() *pb.VotePayload {
-	return &pb.VotePayload{Cert: v.HQC.GetMessage(), Header: v.Header.GetMessage(), Signature: v.Signature}
+	return &pb.VotePayload{Cert: v.HQC.GetMessage(), Header: v.Header.GetMessage(), Signature: v.Signature.ToProto()}
 }

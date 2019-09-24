@@ -4,6 +4,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func TestStorageBlockAddition(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: service, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	b := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("random data"))
 	e = bc.AddBlock(b)

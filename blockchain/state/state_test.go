@@ -1,7 +1,6 @@
 package state
 
 import (
-	"crypto/ecdsa"
 	"github.com/davecgh/go-spew/spew"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
@@ -244,6 +243,6 @@ func TestStorageIntegration(t *testing.T) {
 
 func generate() common.Address {
 	pk, _ := crypto.GenerateKey()
-	address := crypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
+	address := crypto.PubkeyToAddress(pk.PublicKey())
 	return address
 }
