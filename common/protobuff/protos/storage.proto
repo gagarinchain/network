@@ -20,9 +20,15 @@ message Account {
     repeated bytes voters = 4;
 }
 
+message Record {
+    bytes snap = 1;
+    bytes parent = 2;
+    repeated bytes siblings = 3;
+}
+
 message Snapshot {
     bytes hash = 1;
-    repeated bytes siblings = 2;
+    bytes proposer = 2;
     repeated Entry entries = 3;
 }
 

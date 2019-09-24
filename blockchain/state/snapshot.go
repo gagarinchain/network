@@ -1,15 +1,13 @@
 package state
 
 import (
-	"bytes"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/trie"
-	"github.com/gagarinchain/network/common/tx"
+	"github.com/gagarinchain/network/common/trie/sparse"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
-	"strings"
 )
 
 type SnapshotPersister struct {
@@ -38,38 +36,27 @@ func (p *SnapshotPersister) Hashes() (hashes []common.Hash) {
 	return hashes
 }
 
+// Snapshot is wrapper around SMT, which is used for storing blockchain specific state.
+// Snapshot knows how to adapt account to be properly stored in SMT, persists state to db and implements other utility functions.
 type Snapshot struct {
-	trie      *trie.FixedLengthHexKeyMerkleTrie
-	pending   *Snapshot
-	siblings  []*Snapshot
-	hash      common.Hash
-	forUpdate map[common.Address]*Account
-	proposer  common.Address
-}
-
-func (snap *Snapshot) Pending() *Snapshot {
-	return snap.pending
-}
-
-func (snap *Snapshot) SetPending(pending *Snapshot) {
-	snap.pending = pending
+	trie     *sparse.SMT
+	proposer common.Address
+	hash     common.Hash
 }
 
 func NewSnapshot(hash common.Hash, proposer common.Address) *Snapshot {
 	return &Snapshot{
-		trie:      trie.New(),
-		hash:      hash,
-		proposer:  proposer,
-		forUpdate: make(map[common.Address]*Account),
+		trie:     sparse.NewSMT(256),
+		hash:     hash,
+		proposer: proposer,
 	}
 }
 
 func NewSnapshotWithAccounts(hash common.Hash, proposer common.Address, acc map[common.Address]*Account) *Snapshot {
 	s := &Snapshot{
-		trie:      trie.New(),
-		hash:      hash,
-		proposer:  proposer,
-		forUpdate: make(map[common.Address]*Account),
+		trie:     sparse.NewSMT(256),
+		hash:     hash,
+		proposer: proposer,
 	}
 
 	for k, v := range acc {
@@ -78,75 +65,7 @@ func NewSnapshotWithAccounts(hash common.Hash, proposer common.Address, acc map[
 	return s
 }
 
-func (snap *Snapshot) NewPendingSnapshot(proposer common.Address) *Snapshot {
-	s := &Snapshot{
-		trie:      snap.trie.Copy(),
-		forUpdate: make(map[common.Address]*Account),
-		proposer:  proposer,
-	}
-	snap.siblings = append(snap.siblings, s)
-	snap.SetPending(s)
-
-	return s
-}
-
-func (snap *Snapshot) GetForRead(address common.Address) (acc *Account, found bool) {
-	val, found := snap.trie.Get([]byte(strings.ToLower(address.Hex())))
-	if found {
-		account := DeserializeAccount(val)
-		if account == nil {
-			return nil, false
-		}
-
-		return account, true
-	}
-
-	return nil, false
-}
-
-func DeserializeAccount(serialized []byte) *Account {
-	pbAcc := &pb.Account{}
-	if err := proto.Unmarshal(serialized, pbAcc); err != nil {
-		log.Error(err)
-		return nil
-	}
-	balance := big.NewInt(0)
-	var voters []common.Address
-	for _, pbv := range pbAcc.Voters {
-		voters = append(voters, common.BytesToAddress(pbv))
-	}
-	return &Account{nonce: pbAcc.Nonce, balance: balance.SetBytes(pbAcc.Value), origin: common.BytesToAddress(pbAcc.Origin), voters: voters}
-}
-
-func (snap *Snapshot) GetForUpdate(address common.Address) (acc *Account, found bool) {
-	forUpdate, found := snap.forUpdate[address]
-	if found { //already taken for update
-		return forUpdate, true
-	}
-
-	account, found := snap.GetForRead(address)
-	if found {
-		snap.forUpdate[address] = account
-	}
-
-	return account, found
-}
-
-func (snap *Snapshot) Update(address common.Address, account *Account) {
-	forUpdate, found := snap.forUpdate[address]
-	if found { //already taken for update
-		if forUpdate != account {
-			log.Error("Can't update, value is already taken")
-			return
-		}
-		snap.Put(address, account)
-		delete(snap.forUpdate, address)
-	} else { //trying to update
-		log.Warning("Updating value that was not previously acquired for update, inserting it anyway")
-		snap.Put(address, account)
-	}
-}
-
+// Puts <address, account> pair to state storage
 func (snap *Snapshot) Put(address common.Address, account *Account) {
 	var addrBytes [][]byte
 	for _, v := range account.voters {
@@ -158,147 +77,23 @@ func (snap *Snapshot) Put(address common.Address, account *Account) {
 		log.Error("can't marshall balance", e)
 		return
 	}
-	snap.trie.InsertOrUpdate([]byte(strings.ToLower(address.Hex())), b)
+	snap.trie.Add(address.Big(), b)
 }
 
-func (snap *Snapshot) IsApplicable(t *tx.Transaction) (err error) {
-	sender, found := snap.GetForUpdate(t.From())
-	if !found {
-		return FutureTransactionError
-	}
-	if t.Nonce() < sender.nonce+1 {
-		return ExpiredTransactionError
-	}
-	if t.Nonce() > sender.nonce+1 {
-		return FutureTransactionError
-	}
-	cost := t.Fee()
-	if sender.balance.Cmp(cost) < 0 {
-		return InsufficientFundsError
-	}
-	return nil
+//Returns merkle proof for address
+func (snap *Snapshot) Proof(address common.Address) (proof *sparse.Proof, found bool) {
+	return snap.trie.Proof(address.Big())
 }
 
-func (snap *Snapshot) ApplyTransaction(t *tx.Transaction) (err error) {
-	if err := snap.IsApplicable(t); err != nil {
-		return err
+//Returns root node hash, can be used as state tree proof
+func (snap *Snapshot) RootProof() common.Hash {
+	bytes, b := snap.trie.GetById(snap.trie.Root())
+	if !b {
+		log.Error("Root hash is not found, strange situation")
+		return common.Hash{}
 	}
 
-	sender, found := snap.GetForUpdate(t.From())
-	if !found {
-		log.Infof("Sender is not found %v", t.From().Hex())
-		return FutureTransactionError
-	}
-
-	sender.nonce += 1
-
-	proposer, found := snap.GetForUpdate(snap.proposer)
-	if !found {
-		proposer = NewAccount(0, big.NewInt(0))
-	}
-
-	var receiver *Account
-	to := t.To()
-
-	switch t.TxType() {
-	case tx.Payment:
-		cost := big.NewInt(0).Add(t.Value(), t.Fee())
-		if sender.balance.Cmp(cost) < 0 {
-			return InsufficientFundsError
-		}
-
-		receiver, found = snap.GetForUpdate(t.To())
-		if !found {
-			receiver = NewAccount(0, big.NewInt(0))
-		}
-		sender.balance.Sub(sender.balance, cost)
-		receiver.balance.Add(receiver.balance, t.Value())
-		proposer.balance.Add(proposer.balance, t.Fee())
-	case tx.Settlement:
-		cost := t.Fee()
-		if sender.balance.Cmp(cost) < 0 {
-			return InsufficientFundsError
-		}
-
-		receiver, found = snap.GetForUpdate(t.To())
-		if !found {
-			receiver = NewAccount(0, big.NewInt(0).Add(t.Value(), big.NewInt(tx.DefaultSettlementReward))) //store reward at account while assets are not separate
-		}
-		proposer.balance.Add(proposer.balance, big.NewInt(0).Sub(t.Fee(), big.NewInt(tx.DefaultSettlementReward)))
-		sender.balance.Sub(sender.balance, cost)
-		receiver.origin = t.From()
-
-	case tx.Agreement:
-		cost := t.Fee()
-		if sender.balance.Cmp(cost) < 0 {
-			return InsufficientFundsError
-		}
-
-		receiver, found = snap.GetForUpdate(t.To())
-		if !found {
-			return FutureTransactionError
-		}
-		sender.balance.Sub(sender.balance, cost)
-		proposer.balance.Add(proposer.balance, t.Fee())
-		receiver.voters = append(receiver.voters, t.From())
-	case tx.Proof:
-		cost := big.NewInt(0).Add(t.Value(), t.Fee())
-		if sender.balance.Cmp(cost) < 0 {
-			return InsufficientFundsError
-		}
-		proposer.balance.Add(proposer.balance, t.Fee())
-		sender.balance.Sub(sender.balance, t.Fee())
-
-		receiver, found = snap.GetForUpdate(t.To())
-		if !found {
-			log.Infof("Address %v not found", t.From().Hex())
-			return FutureTransactionError
-		}
-
-		if !bytes.Equal(t.From().Bytes(), receiver.origin.Bytes()) {
-			return WrongProofOrigin
-		}
-
-		origin, found := snap.GetForUpdate(receiver.origin)
-		if !found {
-			log.Infof("Origin %v not found", t.From().Hex())
-			return FutureTransactionError
-		}
-
-		n := len(receiver.voters)
-		for _, v := range receiver.voters {
-			voter, f := snap.GetForUpdate(v)
-			if !f {
-				voter = NewAccount(0, big.NewInt(0))
-
-			}
-			fraction := big.NewInt(0).Div(big.NewInt(tx.DefaultSettlementReward), big.NewInt(int64(n)))
-			voter.balance.Add(voter.balance, fraction)
-			receiver.balance.Sub(receiver.balance, fraction)
-
-			snap.Update(v, voter)
-		}
-
-		if receiver.balance.Cmp(big.NewInt(0)) > 0 {
-			origin.balance.Add(origin.balance, receiver.balance)
-			receiver.balance.Set(big.NewInt(0))
-
-		}
-
-		snap.Update(receiver.origin, origin)
-
-	}
-
-	//TODO optimize it with batching several db updates and executing atomic
-	snap.Update(to, receiver)
-	snap.Update(t.From(), sender)
-	snap.Update(snap.proposer, proposer)
-
-	return nil
-}
-
-func (snap *Snapshot) Proof() common.Hash {
-	return snap.trie.Proof()
+	return common.BytesToHash(bytes)
 }
 
 type Entry struct {
@@ -306,11 +101,12 @@ type Entry struct {
 	Value *Account
 }
 
+//returns accounts stored in state storage
 func (snap *Snapshot) Entries() (entries []*Entry) {
 	for _, e := range snap.trie.Entries() {
 		entry := &Entry{
-			Key:   common.HexToAddress(string(e.Key)),
-			Value: DeserializeAccount(e.Value),
+			Key:   common.BigToAddress(e.Key),
+			Value: DeserializeAccount(e.Val),
 		}
 		entries = append(entries, entry)
 	}
@@ -319,22 +115,17 @@ func (snap *Snapshot) Entries() (entries []*Entry) {
 }
 
 func (snap *Snapshot) Serialize() []byte {
-	var hashes [][]byte
-	for _, sibl := range snap.siblings {
-		hashes = append(hashes, sibl.hash.Bytes())
-	}
-
 	var entries []*pb.Entry
 	for _, e := range snap.trie.Entries() {
 		entries = append(entries, &pb.Entry{
-			Address: e.Key,
-			Account: e.Value,
+			Address: e.Key.Bytes(),
+			Account: e.Val,
 		})
 	}
 
 	pbsnap := &pb.Snapshot{
 		Hash:     snap.hash.Bytes(),
-		Siblings: hashes,
+		Proposer: snap.proposer.Bytes(),
 		Entries:  entries,
 	}
 
@@ -346,16 +137,33 @@ func (snap *Snapshot) Serialize() []byte {
 	return bytes
 }
 
-func FromProtoWithoutSiblings(m *pb.Snapshot) (snap *Snapshot, e error) {
-	merkleTrie := trie.New()
-	snap = &Snapshot{
-		hash:      common.BytesToHash(m.Hash),
-		trie:      merkleTrie,
-		forUpdate: make(map[common.Address]*Account),
+// returns account associated with address
+func (snap *Snapshot) Get(address common.Address) (*Account, bool) {
+	val, found := snap.trie.Get(address.Big())
+	if !found {
+		return nil, false
 	}
 
+	return DeserializeAccount(val), true
+}
+
+func SnapshotFromProto(bytes []byte) (snap *Snapshot, e error) {
+	m := &pb.Snapshot{}
+	if err := proto.Unmarshal(bytes, m); err != nil {
+		return nil, err
+	}
+
+	merkleTrie := sparse.NewSMT(256)
+	snap = &Snapshot{
+		hash:     common.BytesToHash(m.Hash),
+		proposer: common.BytesToAddress(m.Proposer),
+		trie:     merkleTrie,
+	}
+
+	spew.Dump(common.BytesToHash(m.Hash))
 	for _, e := range m.GetEntries() {
-		merkleTrie.InsertOrUpdate(e.Address, e.Account)
+		spew.Dump(common.BytesToHash(e.GetAddress()))
+		merkleTrie.Add(big.NewInt(0).SetBytes(e.GetAddress()), e.Account)
 	}
 
 	return snap, nil

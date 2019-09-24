@@ -40,6 +40,7 @@ const CurrentView = ResourceType(0x3)
 const TopCommittedHeight = ResourceType(0x4)
 const CurrentTopHeight = ResourceType(0x5)
 const Snapshot = ResourceType(0x6)
+const Record = ResourceType(0x7)
 
 type Storage interface {
 	Put(rtype ResourceType, key []byte, value []byte) error

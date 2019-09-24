@@ -63,8 +63,8 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 }
 
 func (s *TxService) SendAgreement(ctx context.Context, t *tx.Transaction) error {
-	snap := s.bc.GetHeadSnapshot()
-	acc, found := snap.GetForRead(s.me.GetAddress())
+	rec := s.bc.GetHeadRecord()
+	acc, found := rec.Get(s.me.GetAddress())
 	var nonce uint64
 	if found {
 		nonce = acc.Nonce()
