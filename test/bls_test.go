@@ -7,15 +7,8 @@ import (
 	"github.com/phoreproject/bls/g1pubs"
 	"github.com/pkg/errors"
 	"io"
-	"math/big"
 	"testing"
 )
-
-type SignatureAggregate struct {
-	bitmap    *big.Int
-	n         int32
-	aggregate *g1pubs.Signature
-}
 
 func TestBlsSignatureVerify(t *testing.T) {
 	priv, _ := RandKey(rand.Reader)

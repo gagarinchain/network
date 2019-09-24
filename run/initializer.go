@@ -66,7 +66,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher)
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
-	bsrv := blockchain.NewBlockService(hotstuffSrv)
+	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee))
 	db := state.NewStateDB(storage)
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
 		BlockPerister:  &blockchain.BlockPersister{Storage: storage},

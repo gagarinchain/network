@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"github.com/davecgh/go-spew/spew"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/network"
 	golog "github.com/ipfs/go-log"
@@ -95,8 +94,6 @@ func readSettings() (s *Settings) {
 		if err := yaml.Unmarshal(byteValue, s); err != nil {
 			log.Error("Can't load settings, using default", e)
 		}
-
-		spew.Dump(s)
 	}
 	if s == nil {
 		s = &Settings{

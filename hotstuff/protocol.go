@@ -302,12 +302,12 @@ func (p *Protocol) FinishQC(header *bc.Header) {
 		signs = append(signs, v.Signature)
 		signsByAddress[k] = v.Signature
 	}
-	bitmap, n := p.pacer.GetBitmap(signsByAddress)
+	bitmap := p.pacer.GetBitmap(signsByAddress)
 
 	for _, v := range p.votes {
 		signs = append(signs, v.Signature)
 	}
-	aggregate := crypto.AggregateSignatures(bitmap, n, signs)
+	aggregate := crypto.AggregateSignatures(bitmap, signs)
 
 	p.Update(bc.CreateQuorumCertificate(aggregate, header))
 	log.Debugf("Generated new QC for %v on height %v", header.Hash().Hex(), header.Height())

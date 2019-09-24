@@ -10,7 +10,7 @@ import (
 
 type ProposerForHeight interface {
 	ProposerForHeight(blockHeight int32) *Peer
-	GetBitmap(src map[common.Address]*crypto.Signature) (bitmap *big.Int, size int)
+	GetBitmap(src map[common.Address]*crypto.Signature) (bitmap *big.Int)
 }
 
 type Peer struct {
@@ -47,7 +47,9 @@ func CreatePeer(publicKey *crypto.PublicKey, privateKey *crypto.PrivateKey, peer
 		peerInfo:   peerInfo,
 	}
 
-	peer.address = common.BytesToAddress(publicKey.Bytes())
+	if publicKey != nil {
+		peer.address = common.BytesToAddress(publicKey.Bytes())
+	}
 	return peer
 }
 
@@ -61,4 +63,12 @@ func (p *Peer) GetPeerInfo() *peer.AddrInfo {
 
 func (p *Peer) PublicKey() *crypto.PublicKey {
 	return p.publicKey
+}
+
+func PeersToPubs(peers []*Peer) (pubs []*crypto.PublicKey) {
+	for _, p := range peers {
+		pubs = append(pubs, p.PublicKey())
+	}
+
+	return pubs
 }

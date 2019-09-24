@@ -55,8 +55,7 @@ message Signature {
 
 message SignatureAggregate {
     bytes bitmap = 1;
-    int32 n = 2;
-    bytes signature = 3;
+    bytes signature = 2;
 }
 
 message BlockRequestPayload {

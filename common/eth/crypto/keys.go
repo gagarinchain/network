@@ -124,8 +124,18 @@ func (sa *SignatureAggregate) Bitmap() *big.Int {
 	return sa.bitmap
 }
 
+func (sa *SignatureAggregate) IsValid(message []byte, committee []*PublicKey) (res bool) {
+	var pubs []*PublicKey
+	for i, p := range committee {
+		if sa.Bitmap().Bit(i) == 1 {
+			pubs = append(pubs, p)
+		}
+	}
+	return VerifyAggregate(message, pubs, sa)
+}
+
 func AggregateFromProto(mes *pb.SignatureAggregate) *SignatureAggregate {
-	return NewAggregateFromBytes(mes.Bitmap, mes.N, mes.Signature)
+	return NewAggregateFromBytes(mes.Bitmap, mes.Signature)
 }
 
 func EmptySignature() *Signature {
@@ -143,9 +153,9 @@ func EmptyAggregateSignatures() *SignatureAggregate {
 	}
 }
 
-func NewAggregateFromBytes(bitmap []byte, n int32, sign []byte) *SignatureAggregate {
+func NewAggregateFromBytes(bitmap []byte, sign []byte) *SignatureAggregate {
 	b := big.NewInt(0).SetBytes(bitmap)
-	nn := int(n)
+	n := b.BitLen()
 
 	signBytes := bls12_381.ToBytes96(sign)
 	s, e := g1pubs.DeserializeSignature(signBytes)
@@ -156,7 +166,7 @@ func NewAggregateFromBytes(bitmap []byte, n int32, sign []byte) *SignatureAggreg
 
 	return &SignatureAggregate{
 		bitmap:    b,
-		n:         nn,
+		n:         n,
 		aggregate: s,
 	}
 }
@@ -165,7 +175,6 @@ func (sa *SignatureAggregate) ToProto() *pb.SignatureAggregate {
 	sign := sa.aggregate.Serialize()
 	return &pb.SignatureAggregate{
 		Bitmap:    sa.bitmap.Bytes(),
-		N:         int32(sa.n),
 		Signature: sign[:],
 	}
 

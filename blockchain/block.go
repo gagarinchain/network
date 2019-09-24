@@ -1,9 +1,9 @@
 package blockchain
 
 import (
-	"bytes"
 	"errors"
 	net "github.com/gagarinchain/network"
+	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -135,6 +135,8 @@ func (h *Header) Timestamp() time.Time {
 func (b *Block) QC() *QuorumCertificate {
 	return b.qc
 }
+
+//recalculate hash, since we add new field to block
 func (b *Block) SetQC(qc *QuorumCertificate) {
 	b.qc = qc
 	b.header.qcHash = qc.GetHash()
@@ -262,9 +264,24 @@ func (h *Header) Sign(key *crypto.PrivateKey) *crypto.Signature {
 	return sig
 }
 
-func IsValid(block *Block) (bool, error) {
-	if block == nil {
+type BlockValidator struct {
+	committee []*cmn.Peer
+}
+
+func NewBlockValidator(committee []*cmn.Peer) *BlockValidator {
+	return &BlockValidator{committee: committee}
+}
+
+func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
+	if entity == nil {
 		return false, errors.New("entity is nil")
+	}
+
+	block := entity.(*Block)
+
+	//Skip checks for genesis block
+	if block.Header().IsGenesisBlock() {
+		return true, nil
 	}
 
 	hash := HashHeader(*block.Header())
@@ -278,12 +295,13 @@ func IsValid(block *Block) (bool, error) {
 		log.Debugf("calculated %v, received %v", dataHash, block.Header().TxHash())
 		return false, errors.New("data hash is not valid")
 	}
+	return block.QC().IsValid(block.Header().QCHash(), cmn.PeersToPubs(b.committee))
+}
 
-	qcHash := block.QC().GetHash()
-	//TODO updated genesis block now will fail this validation, it is an error probably, we can't load genesis block
-	if !bytes.Equal(qcHash.Bytes(), block.Header().QCHash().Bytes()) {
-		return false, errors.New("QC hash is not valid")
-	}
+func (b *BlockValidator) Supported(mType pb.Message_MessageType) bool {
+	return mType == pb.Message_BLOCK_RESPONSE
+}
 
-	return true, nil
+func (b *BlockValidator) GetId() interface{} {
+	return "Block"
 }

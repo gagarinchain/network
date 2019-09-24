@@ -465,12 +465,12 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 		log.Debugf("Received 2 * F/3 + 1 start epoch messages, starting new epoch")
 		if max.n == 0 {
 			var signs []*crypto.Signature
-			bitmap, n := p.GetBitmap(p.epoch.voteStorage)
+			bitmap := p.GetBitmap(p.epoch.voteStorage)
 
 			for _, v := range p.epoch.voteStorage {
 				signs = append(signs, v)
 			}
-			aggregate := crypto.AggregateSignatures(bitmap, n, signs)
+			aggregate := crypto.AggregateSignatures(bitmap, signs)
 			p.protocol.FinishGenesisQC(aggregate)
 		}
 		p.newEpoch(max.n)
@@ -479,7 +479,7 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 	return nil
 }
 
-func (p *StaticPacer) GetBitmap(src map[common.Address]*crypto.Signature) (*big.Int, int) {
+func (p *StaticPacer) GetBitmap(src map[common.Address]*crypto.Signature) *big.Int {
 	bitmap := big.NewInt(0)
 	n := 0
 	for i, c := range p.Committee() {
@@ -489,7 +489,7 @@ func (p *StaticPacer) GetBitmap(src map[common.Address]*crypto.Signature) (*big.
 		}
 	}
 
-	return bitmap, n
+	return bitmap
 }
 
 func (p *StaticPacer) newEpoch(i int32) {

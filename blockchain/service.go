@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	gagarinchain "github.com/gagarinchain/network"
 	com "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
@@ -19,11 +20,12 @@ type BlockService interface {
 }
 
 type BlockServiceImpl struct {
-	srv network.Service
+	srv       network.Service
+	validator gagarinchain.Validator
 }
 
-func NewBlockService(srv network.Service) *BlockServiceImpl {
-	return &BlockServiceImpl{srv: srv}
+func NewBlockService(srv network.Service, validator gagarinchain.Validator) *BlockServiceImpl {
+	return &BlockServiceImpl{srv: srv, validator: validator}
 }
 
 func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error) {
@@ -95,7 +97,10 @@ func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, h
 			block := CreateBlockFromMessage(blockM)
 
 			log.Infof("Received new block with hash %v", block.Header().Hash().Hex())
-			isValid, e := IsValid(block)
+			if !s.validator.Supported(pb.Message_BLOCK_RESPONSE) {
+				panic("bad block validator")
+			}
+			isValid, e := s.validator.IsValid(block)
 			if e != nil {
 				log.Errorf("Block %v is not  valid, %v", block.Header().Hash().Hex(), e)
 				continue

@@ -14,7 +14,7 @@ type ProposerForHeight struct {
 }
 
 // GetBitmap provides a mock function with given fields: src
-func (_m *ProposerForHeight) GetBitmap(src map[common.Address]*crypto.Signature) (*big.Int, int) {
+func (_m *ProposerForHeight) GetBitmap(src map[common.Address]*crypto.Signature) *big.Int {
 	ret := _m.Called(src)
 
 	var r0 *big.Int
@@ -26,14 +26,7 @@ func (_m *ProposerForHeight) GetBitmap(src map[common.Address]*crypto.Signature)
 		}
 	}
 
-	var r1 int
-	if rf, ok := ret.Get(1).(func(map[common.Address]*crypto.Signature) int); ok {
-		r1 = rf(src)
-	} else {
-		r1 = ret.Get(1).(int)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // ProposerForHeight provides a mock function with given fields: blockHeight

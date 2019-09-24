@@ -1,6 +1,8 @@
 package blockchain
 
 import (
+	"bytes"
+	"errors"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -45,4 +47,25 @@ func (qc *QuorumCertificate) GetHash() common.Hash {
 	}
 	bytes := append(crypto.Keccak256(marshal), qc.QrefBlock().Hash().Bytes()...)
 	return common.BytesToHash(crypto.Keccak256(bytes))
+}
+
+func (qc *QuorumCertificate) IsValid(hash common.Hash, committee []*crypto.PublicKey) (bool, error) {
+	calculated := qc.GetHash()
+
+	//Skip qc checks for genesis QC
+	if qc.QrefBlock().IsGenesisBlock() {
+		return true, nil
+	}
+
+	if !bytes.Equal(calculated.Bytes(), hash.Bytes()) {
+		return false, errors.New("QC hash is not valid")
+	}
+
+	if qc.signatureAggregate.N() < 2*len(committee)/3+1 {
+		return false, errors.New("QC contains less than 2f + 1 signatures")
+	}
+	if qc.SignatureAggregate().IsValid(qc.QrefBlock().Hash().Bytes(), committee) {
+		return true, nil
+	}
+	return false, errors.New("QC is not valid")
 }

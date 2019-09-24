@@ -88,7 +88,7 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 			return false, FeeNotValid
 		}
 
-		if len(t.Data()) < 65 {
+		if len(t.Data()) < 96 {
 			return false, AggregateProofNotValid
 		}
 
@@ -98,15 +98,16 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 		}
 		aggregate := crypto.AggregateFromProto(aggrPb)
 
+		if aggregate.N() < 2*len(v.committee)/3+1 {
+			return false, AggregateProofNotValid
+		}
 		var pubs []*crypto.PublicKey
-		for i, p := range v.committee {
-			if aggregate.Bitmap().Bit(i) == 1 {
-				pubs = append(pubs, p.PublicKey())
-			}
+		for _, p := range v.committee {
+			pubs = append(pubs, p.PublicKey())
 		}
 
-		isValid := crypto.VerifyAggregate(crypto.Keccak256(t.To().Bytes()), pubs, aggregate)
-		if aggregate.N() != len(pubs) || !isValid {
+		isValid := aggregate.IsValid(crypto.Keccak256(t.To().Bytes()), pubs)
+		if !isValid {
 			return false, AggregateProofNotValid
 		}
 	}

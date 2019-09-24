@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"math/big"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -302,14 +301,6 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 	pacer.SubscribeProtocolEvents(eventChan)
 
 	return bc, p, config, eventChan
-}
-
-func generateIdentity(t *testing.T, ind int) *common.Peer {
-	loader := &common.CommitteeLoaderImpl{}
-	committee := loader.LoadPeerListFromFile("../static/peers.json")
-	_, _ = loader.LoadPeerFromFile("../static/peer"+strconv.Itoa(ind)+".json", committee[ind])
-
-	return committee[ind]
 }
 
 func mustAddr(t *testing.T, s string) ma.Multiaddr {

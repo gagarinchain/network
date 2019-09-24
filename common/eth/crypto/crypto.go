@@ -227,32 +227,43 @@ func Sign(msg []byte, pk *PrivateKey) *Signature {
 	return NewSignature(pk.PublicKey().v, sig)
 }
 
-func Verify(msg []byte, s *Signature) bool {
+func Verify(msg []byte, s *Signature) (res bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("Recovered in f", r)
+			res = false
+		}
+	}()
+
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, 0)
 	return g1pubs.VerifyWithDomain(bls12_381.ToBytes32(msg), s.pub, s.sign, bls12_381.ToBytes8(b))
 }
 
-func VerifyAggregate(msg []byte, committee []*PublicKey, s *SignatureAggregate) bool {
+func VerifyAggregate(msg []byte, pubs []*PublicKey, s *SignatureAggregate) (res bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("Recovered in f", r)
+			res = false
+		}
+	}()
+
 	if s == nil {
 		return false
 	}
-	aggregate := g1pubs.NewAggregatePubkey()
-	for i := 0; i < s.N(); i++ {
-		bit := s.bitmap.Bit(i)
-		if bit == 1 {
-			pub := committee[i]
-			aggregate.Aggregate(pub.V())
-		}
+	var gpubs []*g1pubs.PublicKey
+	for _, pub := range pubs {
+		gpubs = append(gpubs, pub.V())
 	}
+	aggregatePublicKey := g1pubs.AggregatePublicKeys(gpubs)
 
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, 0)
 
-	return g1pubs.VerifyWithDomain(bls12_381.ToBytes32(msg), aggregate, s.aggregate, bls12_381.ToBytes8(b))
+	return g1pubs.VerifyWithDomain(bls12_381.ToBytes32(msg), aggregatePublicKey, s.aggregate, bls12_381.ToBytes8(b))
 }
 
-func AggregateSignatures(bitmap *big.Int, n int, signs []*Signature) *SignatureAggregate {
+func AggregateSignatures(bitmap *big.Int, signs []*Signature) *SignatureAggregate {
 	var ss []*g1pubs.Signature
 	for _, v := range signs {
 		if v == nil {
@@ -261,9 +272,10 @@ func AggregateSignatures(bitmap *big.Int, n int, signs []*Signature) *SignatureA
 		ss = append(ss, v.sign)
 	}
 	g1signs := g1pubs.AggregateSignatures(ss)
+
 	return &SignatureAggregate{
 		bitmap:    bitmap,
-		n:         n,
+		n:         bitmap.BitLen(),
 		aggregate: g1signs,
 	}
 }

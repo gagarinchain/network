@@ -919,9 +919,9 @@ func TestScenario8b(t *testing.T) {
 		address := crypto.PubkeyToAddress(crypto.NewPublicKey(signFromProto.Pub()))
 		mappedProofs[address] = signFromProto
 	}
-	bitmap, i := ctx.pacer.GetBitmap(mappedProofs)
+	bitmap := ctx.pacer.GetBitmap(mappedProofs)
 	spew.Dump(mappedProofs)
-	aggregate := crypto.AggregateSignatures(bitmap, i, signs)
+	aggregate := crypto.AggregateSignatures(bitmap, signs)
 	prAggr := aggregate.ToProto()
 	aggrBytes, _ := proto.Marshal(prAggr)
 
@@ -1141,8 +1141,8 @@ func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCert
 		signs = append(signs, s)
 		signsByAddress[ctx.peers[i].GetAddress()] = s
 	}
-	bitmap, n := ctx.pacer.GetBitmap(signsByAddress)
-	aggregate := crypto.AggregateSignatures(bitmap, n, signs)
+	bitmap := ctx.pacer.GetBitmap(signsByAddress)
+	aggregate := crypto.AggregateSignatures(bitmap, signs)
 
 	return blockchain.CreateQuorumCertificate(aggregate, block.Header())
 }
