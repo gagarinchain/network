@@ -4,7 +4,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emirpasic/gods v1.12.0
 	github.com/ethereum/go-ethereum v1.9.1
-	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.2
 	github.com/ipfs/go-cid v0.0.3
@@ -14,7 +13,6 @@ require (
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
 	github.com/libp2p/go-libp2p v0.2.1
 	github.com/libp2p/go-libp2p-core v0.2.0
-	github.com/libp2p/go-libp2p-crypto v0.1.0
 	github.com/libp2p/go-libp2p-kad-dht v0.1.1
 	github.com/libp2p/go-libp2p-peerstore v0.1.3 // indirect
 	github.com/libp2p/go-libp2p-protocol v0.1.0

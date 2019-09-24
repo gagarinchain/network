@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/davecgh/go-spew/spew"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/network"
 	golog "github.com/ipfs/go-log"
@@ -22,15 +23,15 @@ var log = logging.MustGetLogger("main")
 
 type Settings struct {
 	Hotstuff struct {
-		N          int
-		Delta      int
-		BlockDelta int
-	}
+		N          int `yaml:"N"`
+		Delta      int `yaml:"Delta"`
+		BlockDelta int `yaml:"BlockDelta"`
+	} `yaml:"Hotstuff"`
 	Network struct {
-		MinPeerThreshold  int
-		ReconnectPeriod   int
-		ConnectionTimeout int
-	}
+		MinPeerThreshold  int `yaml:"MinPeerThreshold"`
+		ReconnectPeriod   int `yaml:"ReconnectPeriod"`
+		ConnectionTimeout int `yaml:"ConnectionTimeout"`
+	} `yaml:"Network"`
 }
 
 func main() {
@@ -94,18 +95,20 @@ func readSettings() (s *Settings) {
 		if err := yaml.Unmarshal(byteValue, s); err != nil {
 			log.Error("Can't load settings, using default", e)
 		}
+
+		spew.Dump(s)
 	}
 	if s == nil {
 		s = &Settings{
 			Hotstuff: struct {
-				N          int
-				Delta      int
-				BlockDelta int
+				N          int `yaml:"N"`
+				Delta      int `yaml:"Delta"`
+				BlockDelta int `yaml:"BlockDelta"`
 			}{N: 10, Delta: 5000, BlockDelta: 10},
 			Network: struct {
-				MinPeerThreshold  int
-				ReconnectPeriod   int
-				ConnectionTimeout int
+				MinPeerThreshold  int `yaml:"MinPeerThreshold"`
+				ReconnectPeriod   int `yaml:"ReconnectPeriod"`
+				ConnectionTimeout int `yaml:"ConnectionTimeout"`
 			}{MinPeerThreshold: 3, ReconnectPeriod: 10000, ConnectionTimeout: 3000},
 		}
 	}
