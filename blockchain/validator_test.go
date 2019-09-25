@@ -137,13 +137,13 @@ func TestProofValid(t *testing.T) {
 		}
 	}
 
-	bitmap, i := GetBitmap(committee, proofs)
-	aggregate := crypto.AggregateSignatures(bitmap, i, signs)
+	bitmap, _ := GetBitmap(committee, proofs)
+	aggregate := crypto.AggregateSignatures(bitmap, signs)
 	bytes, _ := proto.Marshal(aggregate.ToProto())
 	tran2 := tx.CreateTransaction(tx.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), bytes)
 
-	bitmap2, i2 := GetBitmap(committee, proofs2)
-	aggregate2 := crypto.AggregateSignatures(bitmap2, i2, signs2)
+	bitmap2, _ := GetBitmap(committee, proofs2)
+	aggregate2 := crypto.AggregateSignatures(bitmap2, signs2)
 	bytes2, _ := proto.Marshal(aggregate2.ToProto())
 	tran3 := tx.CreateTransaction(tx.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), bytes2)
 

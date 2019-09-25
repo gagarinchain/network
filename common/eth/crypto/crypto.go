@@ -275,7 +275,6 @@ func AggregateSignatures(bitmap *big.Int, signs []*Signature) *SignatureAggregat
 
 	return &SignatureAggregate{
 		bitmap:    bitmap,
-		n:         bitmap.BitLen(),
 		aggregate: g1signs,
 	}
 }

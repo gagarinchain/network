@@ -108,7 +108,6 @@ func NewSignatureFromBytes(pk []byte, sign []byte) *Signature {
 
 type SignatureAggregate struct {
 	bitmap    *big.Int
-	n         int
 	aggregate *g1pubs.Signature
 }
 
@@ -117,7 +116,14 @@ func (sa *SignatureAggregate) Aggregate() *g1pubs.Signature {
 }
 
 func (sa *SignatureAggregate) N() int {
-	return sa.n
+	n := 0
+	for i := 0; i < sa.bitmap.BitLen(); i++ {
+		if sa.bitmap.Bit(i) == 1 {
+			n++
+		}
+	}
+
+	return n
 }
 
 func (sa *SignatureAggregate) Bitmap() *big.Int {
@@ -148,14 +154,12 @@ func EmptySignature() *Signature {
 func EmptyAggregateSignatures() *SignatureAggregate {
 	return &SignatureAggregate{
 		bitmap:    big.NewInt(0),
-		n:         0,
 		aggregate: g1pubs.NewAggregateSignature(),
 	}
 }
 
 func NewAggregateFromBytes(bitmap []byte, sign []byte) *SignatureAggregate {
 	b := big.NewInt(0).SetBytes(bitmap)
-	n := b.BitLen()
 
 	signBytes := bls12_381.ToBytes96(sign)
 	s, e := g1pubs.DeserializeSignature(signBytes)
@@ -166,7 +170,6 @@ func NewAggregateFromBytes(bitmap []byte, sign []byte) *SignatureAggregate {
 
 	return &SignatureAggregate{
 		bitmap:    b,
-		n:         n,
 		aggregate: s,
 	}
 }
@@ -177,5 +180,4 @@ func (sa *SignatureAggregate) ToProto() *pb.SignatureAggregate {
 		Bitmap:    sa.bitmap.Bytes(),
 		Signature: sign[:],
 	}
-
 }

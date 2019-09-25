@@ -50,6 +50,7 @@ func GenerateIdentities() {
 
 		p := PeerData{
 			Address:      address.Hex(),
+			Pub:          pubstring,
 			MultiAddress: multiaddr,
 		}
 

@@ -25,6 +25,7 @@ type CommitteeData struct {
 
 type PeerData struct {
 	Address      string `json:"addr"`
+	Pub          string `json:"pub"`
 	MultiAddress string `json: ma"`
 }
 
@@ -49,6 +50,7 @@ func (c *CommitteeLoaderImpl) LoadPeerListFromFile(filePath string) (res []*Peer
 
 	for _, v := range data.Peers {
 		address := common.HexToAddress(v.Address)
+		pub := common.Hex2Bytes(v.Pub)
 		addr, e := ma.NewMultiaddr(v.MultiAddress)
 		if e != nil {
 			log.Fatal("Can't create address", e)
@@ -60,9 +62,11 @@ func (c *CommitteeLoaderImpl) LoadPeerListFromFile(filePath string) (res []*Peer
 			log.Fatal("Can't create address", e)
 			return nil
 		}
+		key, _ := g1pubs.DeserializePublicKey(bls12_381.ToBytes48(pub))
 		res = append(res, &Peer{
-			address:  address,
-			peerInfo: info,
+			address:   address,
+			publicKey: crypto.NewPublicKey(key),
+			peerInfo:  info,
 		})
 
 	}

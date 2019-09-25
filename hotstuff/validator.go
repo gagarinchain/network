@@ -77,6 +77,8 @@ func (p *ProposalValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("block hash is not valid")
 	}
 
+	//todo validate block
+
 	return true, nil
 
 }

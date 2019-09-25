@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/davecgh/go-spew/spew"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/network"
 	golog "github.com/ipfs/go-log"
@@ -59,6 +60,7 @@ func main() {
 	index := strconv.Itoa(*ind)
 	var loader cmn.CommitteeLoader = &cmn.CommitteeLoaderImpl{}
 	committee := loader.LoadPeerListFromFile("static/peers.json")
+	spew.Dump(committee)
 	peerKey, err := loader.LoadPeerFromFile("static/peer"+index+".json", committee[*ind])
 
 	if err != nil {
