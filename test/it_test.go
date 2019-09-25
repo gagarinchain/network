@@ -1061,6 +1061,7 @@ func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.
 
 	for i := 0; i < count; i++ {
 		vote := makeVote(ctx.bc, newBlock, ctx.peers[i])
+		vote.Sign(ctx.peers[i].GetPrivateKey())
 		any, _ := ptypes.MarshalAny(vote.GetMessage())
 		votes[i] = msg.CreateMessage(pb.Message_VOTE, any, ctx.peers[i])
 	}

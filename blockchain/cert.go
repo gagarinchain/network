@@ -49,7 +49,7 @@ func (qc *QuorumCertificate) GetHash() common.Hash {
 	return common.BytesToHash(crypto.Keccak256(bytes))
 }
 
-func (qc *QuorumCertificate) IsValid(hash common.Hash, committee []*crypto.PublicKey) (bool, error) {
+func (qc *QuorumCertificate) IsValid(qcHash common.Hash, committee []*crypto.PublicKey) (bool, error) {
 	calculated := qc.GetHash()
 
 	//Skip qc checks for genesis QC
@@ -57,7 +57,7 @@ func (qc *QuorumCertificate) IsValid(hash common.Hash, committee []*crypto.Publi
 		return true, nil
 	}
 
-	if !bytes.Equal(calculated.Bytes(), hash.Bytes()) {
+	if !bytes.Equal(calculated.Bytes(), qcHash.Bytes()) {
 		return false, errors.New("QC hash is not valid")
 	}
 

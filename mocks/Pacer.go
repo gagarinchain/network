@@ -81,6 +81,22 @@ func (_m *Pacer) GetNext() *networkcommon.Peer {
 	return r0
 }
 
+// GetPeers provides a mock function with given fields:
+func (_m *Pacer) GetPeers() []*networkcommon.Peer {
+	ret := _m.Called()
+
+	var r0 []*networkcommon.Peer
+	if rf, ok := ret.Get(0).(func() []*networkcommon.Peer); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*networkcommon.Peer)
+		}
+	}
+
+	return r0
+}
+
 // ProposerForHeight provides a mock function with given fields: blockHeight
 func (_m *Pacer) ProposerForHeight(blockHeight int32) *networkcommon.Peer {
 	ret := _m.Called(blockHeight)

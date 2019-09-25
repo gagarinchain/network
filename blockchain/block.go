@@ -239,7 +239,6 @@ func (h *Header) SetHash() {
 	h.hash = HashHeader(*h)
 }
 
-//We intentionally use this method on value not on pointer receiver, because we need a blockHeader here
 func HashHeader(h Header) common.Hash {
 	h.hash = common.BytesToHash(make([]byte, common.HashLength))
 	if h.IsGenesisBlock() {

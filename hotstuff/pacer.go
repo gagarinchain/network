@@ -507,3 +507,9 @@ func (p *StaticPacer) newEpoch(i int32) {
 		Payload: p.epoch.current,
 	})
 }
+
+func (p *StaticPacer) GetPeers() []*cmn.Peer {
+	cpy := make([]*cmn.Peer, len(p.committee))
+	copy(cpy, p.committee)
+	return cpy
+}

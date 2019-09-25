@@ -11,6 +11,7 @@ import (
 type ProposerForHeight interface {
 	ProposerForHeight(blockHeight int32) *Peer
 	GetBitmap(src map[common.Address]*crypto.Signature) (bitmap *big.Int)
+	GetPeers() []*Peer
 }
 
 type Peer struct {

@@ -124,7 +124,11 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 	log.Infof("Qcs new [%v], old[%v]", qc.QrefBlock().Height(), p.hqc.QrefBlock().Height())
 
 	if qc.QrefBlock().Height() > p.hqc.QrefBlock().Height() {
-
+		b, e := qc.IsValid(qc.GetHash(), comm.PeersToPubs(p.pacer.GetPeers()))
+		if !b || e != nil {
+			log.Error("Bad HQC", e)
+			return
+		}
 		log.Infof("Got new HQC block[%v], updating number [%v] -> [%v]",
 			qc.QrefBlock().Hash().Hex(), p.hqc.QrefBlock().Height(), qc.QrefBlock().Height())
 
@@ -303,12 +307,7 @@ func (p *Protocol) FinishQC(header *bc.Header) {
 		signsByAddress[k] = v.Signature
 	}
 	bitmap := p.pacer.GetBitmap(signsByAddress)
-
-	for _, v := range p.votes {
-		signs = append(signs, v.Signature)
-	}
 	aggregate := crypto.AggregateSignatures(bitmap, signs)
-
 	p.Update(bc.CreateQuorumCertificate(aggregate, header))
 	log.Debugf("Generated new QC for %v on height %v", header.Hash().Hex(), header.Height())
 }

@@ -49,7 +49,9 @@ func CreateVoteFromMessage(msg *msg.Message) (*Vote, error) {
 	msg.Source().SetAddress(a)
 	msg.Source().SetPublicKey(crypto.NewPublicKey(sign.Pub()))
 
-	return CreateVote(header, qc, msg.Source()), nil
+	vote := CreateVote(header, qc, msg.Source())
+	vote.Signature = sign
+	return vote, nil
 }
 
 func (v *Vote) GetMessage() *pb.VotePayload {
