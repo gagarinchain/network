@@ -348,7 +348,7 @@ func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot) (*Record, 
 	hash := common.BytesToHash(recPb.Snap)
 	s, f := snapshots[hash]
 	if !f {
-		return nil, fmt.Errorf("snapshot %v is not found in db", hash)
+		return nil, fmt.Errorf("snapshot %v is not found in db", hash.Hex())
 	}
 	return NewRecord(s, nil), nil
 }
@@ -357,14 +357,14 @@ func (r *Record) SetParentFromProto(recPb *pb.Record, records map[common.Hash]*R
 	parentHash := common.BytesToHash(recPb.Parent)
 	parent, f := records[parentHash]
 	if !f {
-		log.Errorf("record %v is not found in db", parentHash)
+		log.Errorf("parent record %v is not found in db", parentHash.Hex())
 	}
 	r.parent = parent
 
 	for _, shash := range recPb.Siblings {
 		sibl, f := records[common.BytesToHash(shash)]
 		if !f {
-			log.Errorf("record %v is not found in db", shash)
+			log.Errorf("sibling record %v is not found in db", common.Bytes2Hex(shash))
 		}
 		r.siblings = append(r.siblings, sibl)
 	}

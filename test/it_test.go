@@ -1185,15 +1185,16 @@ func initContext(t *testing.T) *TestContext {
 
 	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
 	config := &hotstuff.ProtocolConfig{
-		F:          10,
-		Delta:      1 * time.Second,
-		Blockchain: bc,
-		Me:         identity,
-		Srv:        srv,
-		Sync:       sync,
-		Validators: validators,
-		Committee:  peers,
-		Storage:    storage,
+		F:            10,
+		Delta:        1 * time.Second,
+		Blockchain:   bc,
+		Me:           identity,
+		Srv:          srv,
+		Sync:         sync,
+		Validators:   validators,
+		Committee:    peers,
+		Storage:      storage,
+		InitialState: hotstuff.DefaultState(bc),
 	}
 
 	matcher := func(msgType pb.Message_MessageType) func(m *msg.Message) bool {

@@ -301,13 +301,14 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 
 	f := 10
 	config := &hotstuff.ProtocolConfig{
-		F:          f,
-		Delta:      5 * time.Second,
-		Blockchain: bc,
-		Me:         me,
-		Srv:        srv,
-		Storage:    storage,
-		Committee:  peers,
+		F:            f,
+		Delta:        5 * time.Second,
+		Blockchain:   bc,
+		Me:           me,
+		Srv:          srv,
+		Storage:      storage,
+		Committee:    peers,
+		InitialState: hotstuff.DefaultState(bc),
 	}
 
 	for i := 0; i < f; i++ {

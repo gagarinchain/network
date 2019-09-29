@@ -78,7 +78,7 @@ func (pp *PacerPersister) PutCurrentView(currentView int32) error {
 	return pp.Storage.Put(gagarinchain.CurrentView, nil, epoch)
 }
 
-func (pp *PacerPersister) GetCurrentView(currentView int32) (int32, error) {
+func (pp *PacerPersister) GetCurrentView() (int32, error) {
 	value, err := pp.Storage.Get(gagarinchain.CurrentView, nil)
 	if err != nil {
 		return cmn.DefaultIntValue, err
@@ -120,16 +120,6 @@ func (p *StaticPacer) StateId() StateId {
 }
 
 func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
-	var initialEpoch int32 = -1
-	var initialView int32 = 0
-	if cfg.InitialState == nil ||
-		cfg.InitialState.Epoch == cmn.DefaultIntValue && cfg.InitialState.View == cmn.DefaultIntValue {
-		log.Info("Starting node from scratch, Storage is empty")
-	} else {
-		initialEpoch = cfg.InitialState.Epoch
-		initialView = cfg.InitialState.View
-	}
-
 	for i, c := range cfg.Committee {
 		if c == cfg.Me {
 			log.Infof("I am %dth %v proposer", i, cfg.Me.GetAddress().Hex())
@@ -146,7 +136,7 @@ func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
 			current int32
 			guard   *sync.RWMutex
 		}{
-			current: initialView,
+			current: cfg.InitialState.View,
 			guard:   &sync.RWMutex{},
 		},
 		epoch: struct {
@@ -155,8 +145,8 @@ func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
 			messageStorage map[common.Address]int32
 			voteStorage    map[common.Address]*crypto.Signature
 		}{
-			current:        initialEpoch,
-			toStart:        initialEpoch + 1,
+			current:        cfg.InitialState.Epoch,
+			toStart:        cfg.InitialState.Epoch + 1,
 			messageStorage: make(map[common.Address]int32),
 			voteStorage:    make(map[common.Address]*crypto.Signature),
 		},
@@ -175,6 +165,13 @@ func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
 		e := p.persister.PutCurrentEpoch(epoch)
 		if e != nil {
 			log.Error("Can'T persist new epoch")
+		}
+	})
+	p.SubscribeViewChange(ctx, func(event Event) {
+		view := event.Payload.(int32)
+		e := p.persister.PutCurrentView(view)
+		if e != nil {
+			log.Error("Can'T persist new view")
 		}
 	})
 }

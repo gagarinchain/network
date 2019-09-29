@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/phoreproject/bls/g1pubs"
 	"math/big"
 	"testing"
+	"time"
 )
 
 func TestBlsSignatureVerify(t *testing.T) {
@@ -19,15 +21,22 @@ func TestBlsSignatureVerify(t *testing.T) {
 
 func TestVerifyAggregate(t *testing.T) {
 	pubkeys := make([]*crypto.PublicKey, 0, 100)
+	g1pubkeys := make([]*g1pubs.PublicKey, 0, 100)
 	sigs := make([]*crypto.Signature, 0, 100)
 	msg := []byte("guldaaaaan")
+
+	now := time.Now()
 	for i := 0; i < 100; i++ {
 		priv, _ := crypto.GenerateKey()
 		pub := priv.PublicKey()
 		sig := crypto.Sign(msg, priv)
 		pubkeys = append(pubkeys, pub)
+		g1pubkeys = append(g1pubkeys, pub.V())
 		sigs = append(sigs, sig)
 	}
+	now2 := time.Now()
+	spew.Dump(now2.Sub(now))
+
 	lsh := big.NewInt(0).Lsh(big.NewInt(1), 100)
 	bitmap := lsh.Sub(lsh, big.NewInt(1))
 	aggSig := crypto.AggregateSignatures(bitmap, sigs)
@@ -36,6 +45,10 @@ func TestVerifyAggregate(t *testing.T) {
 	if !crypto.VerifyAggregate(msg, pubkeys, aggSig) {
 		t.Error("Signature did not verify")
 	}
+
+	now3 := time.Now()
+	spew.Dump(now3.Sub(now2))
+
 }
 
 func TestVerifyAggregateWithSpacesInCommittee(t *testing.T) {

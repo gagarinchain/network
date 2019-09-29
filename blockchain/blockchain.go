@@ -181,7 +181,7 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
 	for i := topHeight; i >= 0; i-- {
 		hashes, err := pchain.GetHeightIndexRecord(i)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("Can't load index", err)
 		}
 		for _, h := range hashes {
 			b, err := pblock.Load(h)
@@ -247,6 +247,9 @@ func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
 }
 
 func (bc *Blockchain) GetFork(height int32, headHash common.Hash) (res []*Block) {
+	bc.indexGuard.RLock()
+	defer bc.indexGuard.RUnlock()
+
 	head := bc.blocksByHash[headHash]
 	hash := headHash
 	res = make([]*Block, head.Height()-height+1)
@@ -311,6 +314,7 @@ func (bc *Blockchain) GetThreeChain(twoHash common.Hash) (zero *Block, one *Bloc
 }
 
 //move uncommitted chain with b as head to committed and analyze rejected forks
+//toCommit is ordered by height ascending
 func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error) {
 	orphans = treemap.NewWith(utils.Int32Comparator)
 
@@ -453,13 +457,6 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 		}
 	}
 
-	value, _ := bc.uncommittedTreeByHeight.Get(block.Header().Height())
-	if value == nil {
-		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
-			return err
-		}
-	}
-
 	if err := bc.addUncommittedBlock(block); err != nil {
 		return err
 	}
@@ -469,6 +466,13 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	}
 	if err := bc.chainPersister.PutHeightIndexRecord(block); err != nil {
 		return err
+	}
+
+	_, found := bc.uncommittedTreeByHeight.Get(block.Header().Height())
+	if !found {
+		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
+			return err
+		}
 	}
 
 	return nil
