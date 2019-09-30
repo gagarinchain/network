@@ -6,3 +6,5 @@ Network:
   MinPeerThreshold: 3
   ReconnectPeriod: 10000
   ConnectionTimeout: 3000
+Storage:
+  Dir: /var/folders/m7/c56_pk2n0dj4xbplcndc9d140000gn/T/

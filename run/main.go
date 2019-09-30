@@ -32,6 +32,9 @@ type Settings struct {
 		ReconnectPeriod   int `yaml:"ReconnectPeriod"`
 		ConnectionTimeout int `yaml:"ConnectionTimeout"`
 	} `yaml:"Network"`
+	Storage struct {
+		DataDir string `yaml:"DataDir"`
+	} `yaml:"Storage"`
 }
 
 func main() {
@@ -47,21 +50,31 @@ func main() {
 
 	logging.SetBackend(backendLeveled, backendFormatter)
 
-	// Parse options from the command line
-	ind := flag.Int("l", -1, "peer index")
-	flag.Parse()
-
-	if *ind == -1 {
-		log.Fatal("Please provide peer index with -l")
+	ind := -1
+	env, found := os.LookupEnv("GN_IND")
+	if found {
+		i, err := strconv.ParseInt(env, 10, 32)
+		if err != nil {
+			log.Debug("No GN_IND is found")
+		} else {
+			ind = int(i)
+		}
+	} else {
+		// Parse options from the command line
+		ind = *flag.Int("l", -1, "peer index")
+		flag.Parse()
+		if ind == -1 {
+			log.Fatal("Please provide peer index with -l")
+		}
 	}
 
 	s := readSettings()
 
-	index := strconv.Itoa(*ind)
+	index := strconv.Itoa(ind)
 	var loader cmn.CommitteeLoader = &cmn.CommitteeLoaderImpl{}
 	committee := loader.LoadPeerListFromFile("static/peers.json")
 	spew.Dump(committee)
-	peerKey, err := loader.LoadPeerFromFile("static/peer"+index+".json", committee[*ind])
+	peerKey, err := loader.LoadPeerFromFile("static/peer"+index+".json", committee[ind])
 
 	if err != nil {
 		log.Fatal("Could't load peer credentials")
@@ -70,12 +83,12 @@ func main() {
 	// Next we'll create the node config
 	cfg := &network.NodeConfig{
 		PrivateKey: peerKey,
-		Port:       9080 + uint16(*ind),
-		DataDir:    path.Join(os.TempDir(), strconv.Itoa(*ind)),
-		Committee:  committee[0:4],
+		Port:       9080,
+		DataDir:    path.Join(s.Storage.DataDir, strconv.Itoa(ind)),
+		Committee:  committee[0:s.Hotstuff.N],
 	}
 
-	ctx := CreateContext(cfg, committee[0:4], committee[*ind], s)
+	ctx := CreateContext(cfg, committee[0:s.Hotstuff.N], committee[ind], s)
 
 	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.
@@ -86,7 +99,12 @@ func main() {
 }
 
 func readSettings() (s *Settings) {
-	file, e := os.Open("static/settings.yaml")
+	settingsPath, found := os.LookupEnv("GN_SETTINGS")
+	if !found {
+		settingsPath = "static/settings.yaml"
+	}
+
+	file, e := os.Open(settingsPath)
 	if e != nil {
 		log.Error("Can't load settings, using default", e)
 	} else {
@@ -109,6 +127,9 @@ func readSettings() (s *Settings) {
 				ReconnectPeriod   int `yaml:"ReconnectPeriod"`
 				ConnectionTimeout int `yaml:"ConnectionTimeout"`
 			}{MinPeerThreshold: 3, ReconnectPeriod: 10000, ConnectionTimeout: 3000},
+			Storage: struct {
+				DataDir string `yaml:"DataDir"`
+			}{DataDir: os.TempDir()},
 		}
 	}
 	return
