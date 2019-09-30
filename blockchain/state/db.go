@@ -147,7 +147,12 @@ func (db *DBImpl) persist(pendingRecord *Record, parentRecord *Record) {
 	}
 	if parentRecord != nil {
 		if e := db.recordPersister.Put(parentRecord); e != nil {
-			log.Error("Can't persist parent record")
+			log.Error("Can't persist parent parent record")
+		}
+	}
+	if parentRecord != nil {
+		if e := db.snapPersister.Put(parentRecord.snap); e != nil {
+			log.Error("Can't persist parent snapshot")
 		}
 	}
 }

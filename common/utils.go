@@ -2,7 +2,6 @@ package common
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -22,15 +21,17 @@ func GenerateIdentities() {
 
 	for i := 0; i < 10; i++ {
 		pk, _ := crypto.GenerateKey()
-		pkbytes := crypto.FromECDSA(pk)
-		pkstring := hex.EncodeToString(pkbytes)
-		address := crypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey)).Hex()
+		pkbytes := pk.V().Serialize()
+		pubbytes := pk.PublicKey().Bytes()
+		pkstring := hex.EncodeToString(pkbytes[:])
+		pubstring := hex.EncodeToString(pubbytes[:])
+		address := crypto.PubkeyToAddress(pk.PublicKey())
 
 		privKey, _, _ := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 		id, _ := peer.IDFromPrivateKey(privKey)
 		b, _ := p2pcrypto.MarshalPrivateKey(privKey)
 
-		v := map[string]interface{}{"addr": address, "pk": pkstring, "id": id.Pretty(), "pkpeer": hex.EncodeToString(b)}
+		v := map[string]interface{}{"addr": address, "pk": pkstring, "pub": pubstring, "id": id.Pretty(), "pkpeer": hex.EncodeToString(b)}
 
 		marshal, _ := json.Marshal(v)
 		var out bytes.Buffer
@@ -48,7 +49,8 @@ func GenerateIdentities() {
 		multiaddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/908%d/p2p/%s", i, id.Pretty())
 
 		p := PeerData{
-			Address:      address,
+			Address:      address.Hex(),
+			Pub:          pubstring,
 			MultiAddress: multiaddr,
 		}
 

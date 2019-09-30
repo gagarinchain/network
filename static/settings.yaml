@@ -1,5 +1,5 @@
 Hotstuff:
-  N: 10
+  N: 4
   Delta: 5000
   BlockDelta: 10
 Network:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/mocks"
@@ -22,9 +23,9 @@ func TestSynchRequestBlock(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
-	toTest := blockchain.NewBlockService(srv)
+	toTest := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", common.Bytes2Hex(newBlock.Header().Hash().Bytes()))
@@ -51,9 +52,9 @@ func TestSynchRequestBlocksForHeight(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	me := generateIdentity(t, 0)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
@@ -89,9 +90,9 @@ func TestSynchRequestBlocksForWrongHeight(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	me := generateIdentity(t, 0)
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
@@ -120,10 +121,10 @@ func TestSynchRequestBlocksForHeightRange(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))
@@ -173,10 +174,10 @@ func TestSynchRequestBlocksForHeightRangePartiallyWithTimeout(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))
@@ -234,10 +235,10 @@ func TestSynchRequestBlocksForHeightRangeBreakingBlockchain(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))
@@ -279,10 +280,10 @@ func TestSyncFork(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))
@@ -319,10 +320,10 @@ func TestSyncForkIntegrityViolation(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))
@@ -354,10 +355,10 @@ func TestSyncForkPartial(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	me := generateIdentity(t, 0)
-	bsrv := blockchain.NewBlockService(srv)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator())
 	toTest := blockchain.CreateSynchronizer(me, bsrv, bc)
 
 	block11 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("newBlock11"))

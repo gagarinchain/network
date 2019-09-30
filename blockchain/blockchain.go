@@ -3,7 +3,6 @@ package blockchain
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -182,7 +181,7 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
 	for i := topHeight; i >= 0; i-- {
 		hashes, err := pchain.GetHeightIndexRecord(i)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("Can't load index", err)
 		}
 		for _, h := range hashes {
 			b, err := pblock.Load(h)
@@ -248,6 +247,9 @@ func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
 }
 
 func (bc *Blockchain) GetFork(height int32, headHash common.Hash) (res []*Block) {
+	bc.indexGuard.RLock()
+	defer bc.indexGuard.RUnlock()
+
 	head := bc.blocksByHash[headHash]
 	hash := headHash
 	res = make([]*Block, head.Height()-height+1)
@@ -312,6 +314,7 @@ func (bc *Blockchain) GetThreeChain(twoHash common.Hash) (zero *Block, one *Bloc
 }
 
 //move uncommitted chain with b as head to committed and analyze rejected forks
+//toCommit is ordered by height ascending
 func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error) {
 	orphans = treemap.NewWith(utils.Int32Comparator)
 
@@ -454,13 +457,6 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 		}
 	}
 
-	value, _ := bc.uncommittedTreeByHeight.Get(block.Header().Height())
-	if value == nil {
-		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
-			return err
-		}
-	}
-
 	if err := bc.addUncommittedBlock(block); err != nil {
 		return err
 	}
@@ -470,6 +466,13 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	}
 	if err := bc.chainPersister.PutHeightIndexRecord(block); err != nil {
 		return err
+	}
+
+	_, found := bc.uncommittedTreeByHeight.Get(block.Header().Height())
+	if !found {
+		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -634,25 +637,19 @@ func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
 	return block
 }
 
-func (bc *Blockchain) GetGenesisBlockSignedHash(key *ecdsa.PrivateKey) []byte {
+func (bc *Blockchain) GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature {
 	hash := bc.GetGenesisBlock().Header().Hash()
-	sig, e := crypto.Sign(hash.Bytes(), key)
-	if e != nil {
+	sig := crypto.Sign(hash.Bytes(), key)
+	if sig == nil {
 		log.Fatal("Can't sign genesis block")
 	}
 	return sig
 
 }
-func (bc *Blockchain) ValidateGenesisBlockSignature(signature []byte, address common.Address) bool {
+func (bc *Blockchain) ValidateGenesisBlockSignature(signature *crypto.Signature, address common.Address) bool {
 	hash := bc.GetGenesisBlock().Header().Hash()
-	pub, e := crypto.SigToPub(hash.Bytes(), signature)
-	if e != nil {
-		log.Error("bad epoch signature")
-		return false
-	}
-	a := crypto.PubkeyToAddress(*pub)
-
-	return a == address
+	signatureAddress := crypto.PubkeyToAddress(crypto.NewPublicKey(signature.Pub()))
+	return crypto.Verify(hash.Bytes(), signature) && bytes.Equal(address.Bytes(), signatureAddress.Bytes())
 }
 
 func (bc *Blockchain) GetTopCommittedBlock() *Block {

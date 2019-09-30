@@ -24,6 +24,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.0.4
 	github.com/multiformats/go-multihash v0.0.6
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
+	github.com/phoreproject/bls v0.0.0-20190821133044-da95d4798b09
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.3.0
 	github.com/syndtr/goleveldb v1.0.0

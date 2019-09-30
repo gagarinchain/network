@@ -1,9 +1,9 @@
 package blockchain
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	net "github.com/gagarinchain/network"
+	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -135,6 +135,8 @@ func (h *Header) Timestamp() time.Time {
 func (b *Block) QC() *QuorumCertificate {
 	return b.qc
 }
+
+//recalculate hash, since we add new field to block
 func (b *Block) SetQC(qc *QuorumCertificate) {
 	b.qc = qc
 	b.header.qcHash = qc.GetHash()
@@ -151,7 +153,7 @@ func CreateGenesisBlock() (zero *Block) {
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)),
 		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
-	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(make([]byte, 256), zeroHeader), txs: trie.New()}
+	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader), txs: trie.New()}
 
 	return zero
 }
@@ -176,7 +178,8 @@ func (h *Header) IsGenesisBlock() bool {
 
 func CreateBlockFromMessage(block *pb.Block) *Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
-	cert := CreateQuorumCertificate(block.Cert.GetSignatureAggregate(), CreateBlockHeaderFromMessage(block.Cert.Header))
+	aggrPb := block.Cert.GetSignatureAggregate()
+	cert := CreateQuorumCertificate(crypto.AggregateFromProto(aggrPb), CreateBlockHeaderFromMessage(block.Cert.Header))
 	var txs = trie.New()
 	for _, tpb := range block.Txs {
 		t, e := tx.CreateTransactionFromMessage(tpb)
@@ -236,7 +239,6 @@ func (h *Header) SetHash() {
 	h.hash = HashHeader(*h)
 }
 
-//We intentionally use this method on value not on pointer receiver, because we need a blockHeader here
 func HashHeader(h Header) common.Hash {
 	h.hash = common.BytesToHash(make([]byte, common.HashLength))
 	if h.IsGenesisBlock() {
@@ -251,20 +253,34 @@ func HashHeader(h Header) common.Hash {
 	return crypto.Keccak256Hash(bytes)
 }
 
-//returns 65 byte of header signature in [R || S || V] format
-func (h *Header) Sign(key *ecdsa.PrivateKey) []byte {
-	sig, err := crypto.Sign(h.hash.Bytes(), key)
-
-	if err != nil {
-		log.Error("Can't sign message", err)
+//returns 96 byte of header signature
+func (h *Header) Sign(key *crypto.PrivateKey) *crypto.Signature {
+	sig := crypto.Sign(h.hash.Bytes(), key)
+	if sig == nil {
+		log.Error("Can't sign message")
 	}
 
 	return sig
 }
 
-func IsValid(block *Block) (bool, error) {
-	if block == nil {
+type BlockValidator struct {
+	committee []*cmn.Peer
+}
+
+func NewBlockValidator(committee []*cmn.Peer) *BlockValidator {
+	return &BlockValidator{committee: committee}
+}
+
+func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
+	if entity == nil {
 		return false, errors.New("entity is nil")
+	}
+
+	block := entity.(*Block)
+
+	//Skip checks for genesis block
+	if block.Header().IsGenesisBlock() {
+		return true, nil
 	}
 
 	hash := HashHeader(*block.Header())
@@ -278,12 +294,13 @@ func IsValid(block *Block) (bool, error) {
 		log.Debugf("calculated %v, received %v", dataHash, block.Header().TxHash())
 		return false, errors.New("data hash is not valid")
 	}
+	return block.QC().IsValid(block.Header().QCHash(), cmn.PeersToPubs(b.committee))
+}
 
-	qcHash := block.QC().GetHash()
-	//TODO updated genesis block now will fail this validation, it is an error probably, we can't load genesis block
-	if qcHash != block.Header().QCHash() {
-		return false, errors.New("QC hash is not valid")
-	}
+func (b *BlockValidator) Supported(mType pb.Message_MessageType) bool {
+	return mType == pb.Message_BLOCK_RESPONSE
+}
 
-	return true, nil
+func (b *BlockValidator) GetId() interface{} {
+	return "Block"
 }

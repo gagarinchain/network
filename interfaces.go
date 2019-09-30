@@ -41,6 +41,9 @@ const TopCommittedHeight = ResourceType(0x4)
 const CurrentTopHeight = ResourceType(0x5)
 const Snapshot = ResourceType(0x6)
 const Record = ResourceType(0x7)
+const VHeight = ResourceType(0x8)
+const LastExecutedBlock = ResourceType(0x9)
+const HQC = ResourceType(0xa)
 
 type Storage interface {
 	Put(rtype ResourceType, key []byte, value []byte) error

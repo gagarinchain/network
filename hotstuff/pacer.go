@@ -7,8 +7,10 @@ import (
 	"github.com/gagarinchain/network"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
+	"math/big"
 	"sync"
 	"time"
 )
@@ -76,7 +78,7 @@ func (pp *PacerPersister) PutCurrentView(currentView int32) error {
 	return pp.Storage.Put(gagarinchain.CurrentView, nil, epoch)
 }
 
-func (pp *PacerPersister) GetCurrentView(currentView int32) (int32, error) {
+func (pp *PacerPersister) GetCurrentView() (int32, error) {
 	value, err := pp.Storage.Get(gagarinchain.CurrentView, nil)
 	if err != nil {
 		return cmn.DefaultIntValue, err
@@ -102,7 +104,7 @@ type StaticPacer struct {
 		current        int32
 		toStart        int32
 		messageStorage map[common.Address]int32
-		voteStorage    map[common.Address][]byte
+		voteStorage    map[common.Address]*crypto.Signature
 	}
 
 	execution struct {
@@ -118,16 +120,6 @@ func (p *StaticPacer) StateId() StateId {
 }
 
 func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
-	var initialEpoch int32 = -1
-	var initialView int32 = 0
-	if cfg.InitialState == nil ||
-		cfg.InitialState.Epoch == cmn.DefaultIntValue && cfg.InitialState.View == cmn.DefaultIntValue {
-		log.Info("Starting node from scratch, Storage is empty")
-	} else {
-		initialEpoch = cfg.InitialState.Epoch
-		initialView = cfg.InitialState.View
-	}
-
 	for i, c := range cfg.Committee {
 		if c == cfg.Me {
 			log.Infof("I am %dth %v proposer", i, cfg.Me.GetAddress().Hex())
@@ -144,19 +136,19 @@ func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
 			current int32
 			guard   *sync.RWMutex
 		}{
-			current: initialView,
+			current: cfg.InitialState.View,
 			guard:   &sync.RWMutex{},
 		},
 		epoch: struct {
 			current        int32
 			toStart        int32
 			messageStorage map[common.Address]int32
-			voteStorage    map[common.Address][]byte
+			voteStorage    map[common.Address]*crypto.Signature
 		}{
-			current:        initialEpoch,
-			toStart:        initialEpoch + 1,
+			current:        cfg.InitialState.Epoch,
+			toStart:        cfg.InitialState.Epoch + 1,
 			messageStorage: make(map[common.Address]int32),
-			voteStorage:    make(map[common.Address][]byte),
+			voteStorage:    make(map[common.Address]*crypto.Signature),
 		},
 		stateId: Bootstrapped,
 	}
@@ -173,6 +165,13 @@ func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
 		e := p.persister.PutCurrentEpoch(epoch)
 		if e != nil {
 			log.Error("Can'T persist new epoch")
+		}
+	})
+	p.SubscribeViewChange(ctx, func(event Event) {
+		view := event.Payload.(int32)
+		e := p.persister.PutCurrentView(view)
+		if e != nil {
+			log.Error("Can'T persist new view")
 		}
 	})
 }
@@ -397,6 +396,7 @@ func (p *StaticPacer) StartEpoch(ctx context.Context) {
 	m, e := epoch.GetMessage()
 	if e != nil {
 		log.Error("Can'T create Epoch message", e)
+		return
 	}
 	go p.protocol.srv.Broadcast(ctx, m)
 }
@@ -417,7 +417,7 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 	}
 
 	if epoch.genesisSignature != nil {
-		res := p.protocol.blockchain.ValidateGenesisBlockSignature(epoch.genesisSignature, epoch.sender.GetAddress())
+		res := p.protocol.blockchain.ValidateGenesisBlockSignature(epoch.genesisSignature, epoch.Sender().GetAddress())
 		if !res {
 			p.protocol.equivocate(epoch.sender)
 			return fmt.Errorf("peer %v sent wrong genesis block signature", epoch.sender.GetAddress().Hex())
@@ -461,17 +461,32 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 	if int(max.c) == (p.f/3)*2+1 {
 		log.Debugf("Received 2 * F/3 + 1 start epoch messages, starting new epoch")
 		if max.n == 0 {
-			//Simply concatenate votes for now
-			var aggregate []byte
+			var signs []*crypto.Signature
+			bitmap := p.GetBitmap(p.epoch.voteStorage)
+
 			for _, v := range p.epoch.voteStorage {
-				aggregate = append(aggregate, v...)
+				signs = append(signs, v)
 			}
+			aggregate := crypto.AggregateSignatures(bitmap, signs)
 			p.protocol.FinishGenesisQC(aggregate)
 		}
 		p.newEpoch(max.n)
 	}
 
 	return nil
+}
+
+func (p *StaticPacer) GetBitmap(src map[common.Address]*crypto.Signature) *big.Int {
+	bitmap := big.NewInt(0)
+	n := 0
+	for i, c := range p.Committee() {
+		if _, f := src[c.GetAddress()]; f {
+			bitmap.SetBit(bitmap, i, 1)
+			n++
+		}
+	}
+
+	return bitmap
 }
 
 func (p *StaticPacer) newEpoch(i int32) {
@@ -488,4 +503,10 @@ func (p *StaticPacer) newEpoch(i int32) {
 		T:       EpochStarted,
 		Payload: p.epoch.current,
 	})
+}
+
+func (p *StaticPacer) GetPeers() []*cmn.Peer {
+	cpy := make([]*cmn.Peer, len(p.committee))
+	copy(cpy, p.committee)
+	return cpy
 }

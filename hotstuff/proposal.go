@@ -1,7 +1,6 @@
 package hotstuff
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	bc "github.com/gagarinchain/network/blockchain"
@@ -16,12 +15,12 @@ type Proposal struct {
 	Sender   *comm.Peer
 	NewBlock *bc.Block
 	//We should not allow to change header if we want signature to be consistent with block
-	Signature []byte
+	Signature *crypto.Signature
 	HQC       *bc.QuorumCertificate
 }
 
 func (p *Proposal) GetMessage() *pb.ProposalPayload {
-	return &pb.ProposalPayload{Cert: p.HQC.GetMessage(), Block: p.NewBlock.GetMessage(), Signature: p.Signature}
+	return &pb.ProposalPayload{Cert: p.HQC.GetMessage(), Block: p.NewBlock.GetMessage(), Signature: p.Signature.ToProto()}
 
 }
 
@@ -29,7 +28,7 @@ func CreateProposal(newBlock *bc.Block, hqc *bc.QuorumCertificate, peer *comm.Pe
 	return &Proposal{Sender: peer, NewBlock: newBlock, HQC: hqc}
 }
 
-func (p *Proposal) Sign(key *ecdsa.PrivateKey) {
+func (p *Proposal) Sign(key *crypto.PrivateKey) {
 	p.Signature = p.NewBlock.Header().Sign(key)
 }
 
@@ -45,14 +44,16 @@ func CreateProposalFromMessage(msg *msg.Message) (*Proposal, error) {
 	block := bc.CreateBlockFromMessage(pp.Block)
 	qc := bc.CreateQuorumCertificateFromMessage(pp.Cert)
 
-	pub, e := crypto.SigToPub(bc.HashHeader(*block.Header()).Bytes(), pp.Signature)
-
-	if e != nil {
+	sign := crypto.SignatureFromProto(pp.Signature)
+	res := crypto.Verify(bc.HashHeader(*block.Header()).Bytes(), sign)
+	if !res {
 		return nil, errors.New("bad signature")
 	}
-	a := crypto.PubkeyToAddress(*pub)
+
+	a := crypto.PubkeyToAddress(crypto.NewPublicKey(sign.Pub()))
 
 	msg.Source().SetAddress(a)
+	msg.Source().SetPublicKey(crypto.NewPublicKey(sign.Pub()))
 
 	return CreateProposal(block, qc, msg.Source()), nil
 }

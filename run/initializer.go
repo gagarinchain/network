@@ -6,7 +6,6 @@ import (
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common"
-	common2 "github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
@@ -67,22 +66,22 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher)
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
-	bsrv := blockchain.NewBlockService(hotstuffSrv)
+	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee))
 	db := state.NewStateDB(storage)
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
-		Storage:      storage,
-		BlockService: bsrv,
-		Pool:         pool,
-		Db:           db,
-		Delta:        time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
+		BlockPerister:  &blockchain.BlockPersister{Storage: storage},
+		ChainPersister: &blockchain.BlockchainPersister{Storage: storage},
+		BlockService:   bsrv,
+		Pool:           pool,
+		Db:             db,
+		Storage:        storage,
+		Delta:          time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
 	})
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
-	initialState := &hotstuff.InitialState{
-		View:  int32(0),
-		Epoch: int32(0),
-	}
+	initialState := getInitialState(storage, bc)
+
 	config := &hotstuff.ProtocolConfig{
 		F:            s.Hotstuff.N,
 		Delta:        time.Duration(s.Hotstuff.Delta) * time.Millisecond,
@@ -96,11 +95,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Storage:      storage,
 	}
 
-	var custodians []common2.Address
-	for _, c := range committee {
-		custodians = append(custodians, c.GetAddress())
-	}
-	txService := blockchain.NewService(blockchain.NewTransactionValidator(custodians), pool, hotstuffSrv, bc, me)
+	txService := blockchain.NewService(blockchain.NewTransactionValidator(committee), pool, hotstuffSrv, bc, me)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
@@ -119,6 +114,43 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		txService:         txService,
 		txChan:            txChan,
 	}
+}
+
+func getInitialState(storage net.Storage, bc *blockchain.Blockchain) *hotstuff.InitialState {
+	initialState := &hotstuff.InitialState{
+		View:              int32(0),
+		Epoch:             int32(-1),
+		VHeight:           0,
+		LastExecutedBlock: bc.GetGenesisBlock().Header(),
+		HQC:               bc.GetGenesisBlock().QC(),
+	}
+	persister := &hotstuff.PacerPersister{Storage: storage}
+	p := &hotstuff.ProtocolPersister{Storage: storage}
+	epoch, e1 := persister.GetCurrentEpoch()
+	view, e2 := persister.GetCurrentView()
+	vheight, e3 := p.GetVHeight()
+	last, e4 := p.GetLastExecutedBlockHash()
+	hqc, e5 := p.GetHQC()
+	if e1 != nil {
+		log.Debug("no epoch is stored")
+	} else if e2 != nil {
+		log.Debug("no view is stored")
+	} else if e3 != nil {
+		log.Debug("no vheight is stored")
+	} else if e4 != nil {
+		log.Debug("no last executed block is stored")
+	} else if e5 != nil {
+		log.Debug("no hqc is stored")
+	} else {
+		initialState = &hotstuff.InitialState{
+			View:              view,
+			Epoch:             epoch,
+			VHeight:           vheight,
+			LastExecutedBlock: bc.GetBlockByHash(last).Header(),
+			HQC:               hqc,
+		}
+	}
+	return initialState
 }
 
 func filterSelf(peers []*common.Peer, self *common.Peer) (res []*common.Peer) {

@@ -3,10 +3,12 @@ package blockchain
 import (
 	"bytes"
 	"errors"
+	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/tx"
+	"github.com/gogo/protobuf/proto"
 	"math/big"
 )
 
@@ -20,10 +22,10 @@ var (
 )
 
 type TransactionValidator struct {
-	committee []common.Address
+	committee []*cmn.Peer
 }
 
-func NewTransactionValidator(committee []common.Address) *TransactionValidator {
+func NewTransactionValidator(committee []*cmn.Peer) *TransactionValidator {
 	return &TransactionValidator{committee: committee}
 }
 
@@ -60,11 +62,20 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 		if !v.validateFee(t) {
 			return false, FeeNotValid
 		}
-		pub, e := crypto.SigToPub(crypto.Keccak256(t.To().Bytes()), t.Data())
-		if e != nil {
+
+		sPb := &pb.Signature{}
+		if err := proto.Unmarshal(t.Data(), sPb); err != nil {
+			return false, err
+		}
+		sign := crypto.SignatureFromProto(sPb)
+		if sign == nil {
 			return false, CustodianProofNotValid
 		}
-		a := crypto.PubkeyToAddress(*pub)
+		b := crypto.Verify(crypto.Keccak256(t.To().Bytes()), sign)
+		if !b {
+			return false, CustodianProofNotValid
+		}
+		a := crypto.PubkeyToAddress(crypto.NewPublicKey(sign.Pub()))
 
 		if !bytes.Equal(a.Bytes(), t.From().Bytes()) {
 			return false, CustodianProofNotValid
@@ -77,25 +88,26 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 			return false, FeeNotValid
 		}
 
-		if len(t.Data()) < 65 {
+		if len(t.Data()) < 96 {
 			return false, AggregateProofNotValid
 		}
 
-		addresses := map[common.Address]struct{}{}
-		for _, a := range v.committee {
-			addresses[a] = struct{}{}
+		aggrPb := &pb.SignatureAggregate{}
+		if err := proto.Unmarshal(t.Data(), aggrPb); err != nil {
+			return false, err
+		}
+		aggregate := crypto.AggregateFromProto(aggrPb)
+
+		if aggregate.N() < 2*len(v.committee)/3+1 {
+			return false, AggregateProofNotValid
+		}
+		var pubs []*crypto.PublicKey
+		for _, p := range v.committee {
+			pubs = append(pubs, p.PublicKey())
 		}
 
-		provers, e := t.RecoverProver()
-		if e != nil {
-			return false, e
-		}
-
-		for _, p := range provers {
-			delete(addresses, p)
-		}
-
-		if len(addresses) >= len(v.committee)/3+1 {
+		isValid := aggregate.IsValid(crypto.Keccak256(t.To().Bytes()), pubs)
+		if !isValid {
 			return false, AggregateProofNotValid
 		}
 	}

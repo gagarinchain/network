@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"encoding/hex"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
@@ -15,39 +14,12 @@ import (
 	"github.com/op/go-logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"strconv"
+	"math/big"
 	"testing"
 	"time"
 )
 
 var log = logging.MustGetLogger("hotstuff")
-
-func TestKey(t *testing.T) {
-	hash := "0x42696f016ed5365c8c1b31b25e8218ea6dd1c9fe76c8e4e7a7d448089736b88a"
-	sign := []byte{180, 225, 109, 238, 46, 101, 134, 179, 210, 125, 23, 104, 21, 242, 26, 113, 174, 170, 185, 14, 23,
-		126, 203, 3, 8, 16, 192, 205, 66, 64, 206, 2, 89, 104, 19, 74, 198, 75, 128, 154, 137, 138, 107, 151, 26, 60,
-		33, 235, 4, 180, 183, 173, 107, 14, 220, 221, 3, 219, 45, 174, 129, 195, 249, 27, 1}
-
-	bytes, _ := hex.DecodeString(hash[2:])
-	log.Debug(len(bytes))
-	log.Debug(len(sign))
-	key, _ := crypto.SigToPub(bytes, sign)
-	recovered := crypto.PubkeyToAddress(*key).Hex()
-
-	log.Debug(recovered)
-}
-func TestKeySerialize(t *testing.T) {
-	pk, _ := crypto.GenerateKey()
-	pkbytes := crypto.FromECDSA(pk)
-	pkstring := hex.EncodeToString(pkbytes)
-	log.Debug(pkstring)
-
-	fromString, _ := hex.DecodeString(pkstring)
-	key, _ := crypto.ToECDSA(fromString)
-
-	assert.Equal(t, pk, key)
-
-}
 
 func TestProposalSignature(t *testing.T) {
 	bc, _, cfg, _ := initProtocol(t)
@@ -118,12 +90,29 @@ func TestProtocolProposeOnGenesisBlockchainVoteForSelfProposal(t *testing.T) {
 
 }
 
-func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
+func TestProtocolUpdateWithHigherRankBroken(t *testing.T) {
 	bc, p, _, _ := initProtocol(t)
 
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
-	newQC := blockchain.CreateQuorumCertificate([]byte("New QC"), newBlock.Header())
+	newQC := blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock.Header())
+	if e := bc.AddBlock(newBlock); e != nil {
+		t.Error(e)
+	}
+
+	p.Update(newQC)
+	hqc := p.HQC()
+
+	assert.Equal(t, bc.GetGenesisCert(), hqc)
+}
+
+func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
+	bc, p, cfg, _ := initProtocol(t)
+
+	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
+	log.Info("Head ", newBlock.Header().Hash().Hex())
+
+	newQC := createValidQC(newBlock, cfg)
 	if e := bc.AddBlock(newBlock); e != nil {
 		t.Error(e)
 	}
@@ -134,13 +123,25 @@ func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
 	assert.Equal(t, newQC, hqc)
 }
 
+func createValidQC(newBlock *blockchain.Block, cfg *hotstuff.ProtocolConfig) *blockchain.QuorumCertificate {
+	m := newBlock.Header().Hash().Bytes()
+	var signs []*crypto.Signature
+	for _, v := range cfg.Committee {
+		sign := crypto.Sign(m, v.GetPrivateKey())
+		signs = append(signs, sign)
+	}
+	aggregate := crypto.AggregateSignatures(big.NewInt(1<<len(cfg.Committee)-1), signs)
+	newQC := blockchain.CreateQuorumCertificate(aggregate, newBlock.Header())
+	return newQC
+}
+
 func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
-	bc, p, _, _ := initProtocol(t)
+	bc, p, cfg, _ := initProtocol(t)
 
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
-	newQC := blockchain.CreateQuorumCertificate([]byte("New QC"), newBlock.Header())
+	newQC := createValidQC(newBlock, cfg)
 	if e := bc.AddBlock(newBlock); e != nil {
 		t.Error(e)
 	}
@@ -234,7 +235,7 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestOnReceiveVote(t *testing.T) {
+func TestQCUpdateOnVotesCollectFinish(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t, 1)
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
@@ -250,13 +251,10 @@ func TestOnReceiveVote(t *testing.T) {
 		msgChan <- (args[1]).(*msg.Message)
 	})
 
-	for _, vote := range votes[:(cfg.F/3)*2] {
+	for _, vote := range votes {
 		if err := p.OnReceiveVote(context.Background(), vote); err != nil {
 			t.Error("failed OnReceive", err)
 		}
-	}
-	if e := p.OnReceiveVote(context.Background(), votes[(cfg.F/3)*2]); e != nil {
-		t.Error("failed OnReceive", e)
 	}
 
 	assert.Equal(t, newBlock.Header().Hash(), p.HQC().QrefBlock().Hash())
@@ -271,7 +269,10 @@ func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Bloc
 	votes := make([]*hotstuff.Vote, count)
 
 	for i := 0; i < count; i++ {
-		votes[i] = hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), generateIdentity(t, i))
+		peer := generateIdentity(t, i)
+		vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), peer)
+		vote.Sign(peer.GetPrivateKey())
+		votes[i] = vote
 	}
 
 	return votes
@@ -294,21 +295,23 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate([]byte("valid"), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	peers := make([]*common.Peer, 10)
 
+	f := 10
 	config := &hotstuff.ProtocolConfig{
-		F:          10,
-		Delta:      5 * time.Second,
-		Blockchain: bc,
-		Me:         me,
-		Srv:        srv,
-		Storage:    storage,
-		Committee:  peers,
+		F:            f,
+		Delta:        5 * time.Second,
+		Blockchain:   bc,
+		Me:           me,
+		Srv:          srv,
+		Storage:      storage,
+		Committee:    peers,
+		InitialState: hotstuff.DefaultState(bc),
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < f; i++ {
 		peers[i] = generateIdentity(t, i)
 	}
 
@@ -322,20 +325,14 @@ func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.
 	pacer.On("GetNext").Return(peers[2])
 	pacer.On("SubscribeProtocolEvents", mock.AnythingOfType("chan hotstuff.Event"))
 	pacer.On("FireEvent", mock.AnythingOfType("hotstuff.Event"))
+	pacer.On("GetBitmap", mock.AnythingOfType("map[common.Address]*crypto.Signature")).Return(big.NewInt(1<<((f/3)*2+1)-1), 0)
+	pacer.On("GetPeers").Return(peers)
 
 	p := hotstuff.CreateProtocol(config)
 	eventChan := make(chan hotstuff.Event)
 	pacer.SubscribeProtocolEvents(eventChan)
 
 	return bc, p, config, eventChan
-}
-
-func generateIdentity(t *testing.T, ind int) *common.Peer {
-	loader := &common.CommitteeLoaderImpl{}
-	committee := loader.LoadPeerListFromFile("../static/peers.json")
-	_, _ = loader.LoadPeerFromFile("../static/peer"+strconv.Itoa(ind)+".json", committee[ind])
-
-	return committee[ind]
 }
 
 func mustAddr(t *testing.T, s string) ma.Multiaddr {
