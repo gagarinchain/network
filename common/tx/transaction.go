@@ -268,7 +268,7 @@ func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
 		big.NewInt(msg.GetFee()),
 		msg.GetData(),
 	)
-
+	tx.signature = sign
 	return tx, nil
 }
 

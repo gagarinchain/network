@@ -97,6 +97,13 @@ func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []*tx.Tra
 		sort.Sort(sort.Reverse(tx.ByFeeAndNonce(part)))
 		index = last
 		go func(txs chan []*tx.Transaction) {
+			//we can panic on closed channel writing
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("panic occurred: ", r)
+					return
+				}
+			}()
 			select {
 			case txs <- part:
 			case <-ctx.Done():

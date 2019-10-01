@@ -1,7 +1,7 @@
 Hotstuff:
   N: 4
-  Delta: 5000
-  BlockDelta: 10
+  Delta: 10000
+  BlockDelta: 1000
 Network:
   MinPeerThreshold: 3
   ReconnectPeriod: 10000
