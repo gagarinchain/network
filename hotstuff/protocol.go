@@ -1,6 +1,7 @@
 package hotstuff
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"

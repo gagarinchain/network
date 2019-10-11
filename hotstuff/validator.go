@@ -36,11 +36,6 @@ func (ev *EpochStartValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("signature is not valid, unknown peer")
 	}
 
-	b, e := vote.HQC.IsValid(vote.HQC.GetHash(), common.PeersToPubs(p.committee))
-	if !b || e != nil {
-		return false, e
-	}
-
 	return true, nil
 }
 
