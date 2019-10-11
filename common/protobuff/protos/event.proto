@@ -1,0 +1,23 @@
+syntax = "proto3";
+option go_package = "pb";
+
+import "google/protobuf/any.proto";
+
+message Event {
+    EventType type = 1;
+    google.protobuf.Any payload = 2;
+
+    enum EventType {
+        RESERVED = 0;
+        BLOCK_ADDED   = 1;
+        EPOCH_STARTED   = 2;
+        VIEW_CHANGED   = 3;
+    }
+}
+
+message EpochStartedPayload {
+    int32 epoch = 1;
+}
+message ViewChangedPayload {
+    int32 view = 1;
+}

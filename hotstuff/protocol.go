@@ -1,6 +1,7 @@
 package hotstuff
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -173,7 +174,8 @@ func (p *Protocol) GetPref() *bc.Block {
 func (p *Protocol) CheckCommit() bool {
 	log.Info("Check commit for", p.hqc.QrefBlock().Hash().Hex())
 	zero, one, two := p.blockchain.GetThreeChain(p.hqc.QrefBlock().Hash())
-	if two.Header().Parent() == one.Header().Hash() && one.Header().Parent() == zero.Header().Hash() {
+	if bytes.Equal(two.Header().Parent().Bytes(), one.Header().Hash().Bytes()) &&
+		bytes.Equal(one.Header().Parent().Bytes(), zero.Header().Hash().Bytes()) {
 		log.Debugf("Committing block %v height %v", zero.Header().Hash().Hex(), zero.Height())
 		toCommit, _, err := p.blockchain.OnCommit(zero)
 		if err != nil {
@@ -257,11 +259,12 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 		}
 		m := msg.CreateMessage(pb.Message_VOTE, any, p.me)
 		go p.srv.SendMessage(ctx, p.pacer.GetNext(), m)
-	}
 
-	p.pacer.FireEvent(Event{
-		T: Voted,
-	})
+		p.pacer.FireEvent(Event{
+			T:       Voted,
+			Payload: vote,
+		})
+	}
 	return nil
 }
 
@@ -339,8 +342,8 @@ func (p *Protocol) CheckConsensus() bool {
 	return false
 }
 
-//We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block
-//determined by it."
+//We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block determined by it."
+//In later versions of protocol this block is called SafeBlock, block on which we have locked certificate, simply 2-chain block.
 func (p *Protocol) OnPropose(ctx context.Context) {
 	if !p.pacer.GetCurrent().Equals(p.me) {
 		log.Debug("Not my turn to propose, skipping")

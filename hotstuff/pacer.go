@@ -50,6 +50,7 @@ const (
 	ChangedView         EventType = iota
 )
 
+// We intentionally duplicated subset of common.Events here, simply to isolate protocol logic
 type Event struct {
 	Payload EventPayload
 	T       EventType
@@ -205,6 +206,7 @@ func (p *StaticPacer) Run(ctx context.Context, hotstuffChan chan *msg.Message, e
 
 	msgChan := hotstuffChan
 	for {
+		//We null hotstuffChan to prevent protocol from handling messages during epoch start phase.
 		if p.stateId == StartingEpoch {
 			msgChan = nil
 		} else {
@@ -334,15 +336,18 @@ func (p *StaticPacer) notifyProtocolEvent(event Event) {
 	}
 }
 
-func (p *StaticPacer) subscribeEvent(ctx context.Context, eventType EventType, handler EventHandler) {
+func (p *StaticPacer) subscribeEvent(ctx context.Context, types map[EventType]interface{}, handler EventHandler) {
 	events := make(chan Event)
 	p.SubscribeProtocolEvents(events)
 	go func() {
 		for {
 			select {
 			case e, ok := <-events:
-				if ok && e.T == eventType {
-					handler(e)
+				if ok {
+					_, contains := types[e.T]
+					if contains {
+						handler(e)
+					}
 				}
 			case <-ctx.Done():
 				log.Debug("SubscribeEvent is done", ctx.Err())
@@ -352,12 +357,16 @@ func (p *StaticPacer) subscribeEvent(ctx context.Context, eventType EventType, h
 	}()
 }
 
+func (p *StaticPacer) SubscribeEvents(ctx context.Context, handler EventHandler, types map[EventType]interface{}) {
+	p.subscribeEvent(ctx, types, handler)
+}
+
 func (p *StaticPacer) SubscribeEpochChange(ctx context.Context, handler EventHandler) {
-	p.subscribeEvent(ctx, EpochStarted, handler)
+	p.subscribeEvent(ctx, map[EventType]interface{}{EpochStarted: struct{}{}}, handler)
 }
 
 func (p *StaticPacer) SubscribeViewChange(ctx context.Context, handler EventHandler) {
-	p.subscribeEvent(ctx, ChangedView, handler)
+	p.subscribeEvent(ctx, map[EventType]interface{}{ChangedView: struct{}{}}, handler)
 }
 
 func (p *StaticPacer) GetCurrentView() int32 {

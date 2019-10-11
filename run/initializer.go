@@ -7,19 +7,21 @@ import (
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/message"
+	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
-
 	"time"
 )
 
 type Context struct {
+	me                *common.Peer
 	node              *network.Node
 	blockProtocol     *blockchain.BlockProtocol
 	hotStuff          *hotstuff.Protocol
 	pacer             *hotstuff.StaticPacer
 	srv               network.Service
 	txService         *blockchain.TxService
+	eventBuss         *network.GagarinEventBus
 	hotstuffChan      chan *message.Message
 	epochChan         chan *message.Message
 	blockProtocolChan chan *message.Message
@@ -64,7 +66,10 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	log.Infof("This is my id %v", node.Host.ID().Pretty())
 	pool := blockchain.NewTransactionPool()
 
-	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher)
+	events := make(chan *common.Event)
+	bus := network.NewGagarinEventBus(events)
+
+	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher, bus)
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee))
 	db := state.NewStateDB(storage)
@@ -76,6 +81,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Db:             db,
 		Storage:        storage,
 		Delta:          time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
+		EventBus:       bus,
 	})
 	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
@@ -103,6 +109,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	log.Debugf("%+v\n", p)
 	bc.SetProposerGetter(pacer)
 	return &Context{
+		me:                me,
 		node:              node,
 		blockProtocol:     protocol,
 		hotStuff:          p,
@@ -113,6 +120,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		blockProtocolChan: blockChan,
 		txService:         txService,
 		txChan:            txChan,
+		eventBuss:         bus,
 	}
 }
 
@@ -205,5 +213,30 @@ END:
 	}
 END_BP:
 	c.pacer.Bootstrap(rootCtx, c.hotStuff)
+	c.pacer.SubscribeEvents(
+		rootCtx,
+		func(event hotstuff.Event) {
+			if event.T == hotstuff.EpochStarted {
+				epoch := event.Payload.(int32)
+				vMsg := &pb.EpochStartedPayload{Epoch: epoch}
+				ev := &common.Event{T: common.EpochStarted, Payload: vMsg}
+				c.eventBuss.FireEvent(ev)
+			}
+			if event.T == hotstuff.ChangedView {
+				view := event.Payload.(int32)
+				vMsg := &pb.ViewChangedPayload{View: view}
+				ev := &common.Event{T: common.ChangedView, Payload: vMsg}
+				c.eventBuss.FireEvent(ev)
+			}
+		},
+		map[hotstuff.EventType]interface{}{
+			hotstuff.EpochStarted: struct{}{},
+			hotstuff.ChangedView:  struct{}{},
+		})
+	go func() {
+		for {
+			c.eventBuss.Run(rootCtx)
+		}
+	}()
 	go c.pacer.Run(rootCtx, c.hotstuffChan, c.epochChan)
 }
