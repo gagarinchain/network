@@ -82,6 +82,7 @@ type Protocol struct {
 	f                 int
 	blockchain        *bc.Blockchain
 	vheight           int32
+	lastVote          *msg.Message
 	votes             map[common.Address]*Vote
 	lastExecutedBlock *bc.Header
 	hqc               *bc.QuorumCertificate
@@ -257,15 +258,22 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 		if e != nil {
 			log.Error(e)
 		}
-		m := msg.CreateMessage(pb.Message_VOTE, any, p.me)
-		go p.srv.SendMessage(ctx, p.pacer.GetNext(), m)
-
-		p.pacer.FireEvent(Event{
-			T:       Voted,
-			Payload: vote,
-		})
+		p.lastVote = msg.CreateMessage(pb.Message_VOTE, any, p.me)
+		p.Vote(ctx)
 	}
 	return nil
+}
+
+}
+
+//Votes with last vote
+func (p *Protocol) Vote(ctx context.Context) {
+	if p.lastVote != nil {
+		go p.srv.SendMessage(ctx, p.pacer.GetNext(), p.lastVote)
+	}
+	p.pacer.FireEvent(Event{
+		T: Voted,
+	})
 }
 
 func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {

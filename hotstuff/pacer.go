@@ -260,20 +260,9 @@ func (p *StaticPacer) FireEvent(event Event) {
 			p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, p.delta)
 			p.stateId = Voting
 			p.protocol.OnPropose(p.execution.ctx)
-		case Voting: //we are timed out during voting, change view and go on progress
-			log.Info("Timed out during voting phase, possibly received no proposal in time, force view change or start new epoch")
-			i := int(p.GetCurrentView()) % len(p.committee)
-			if i == 0 {
-				log.Info("Starting new epoch")
-				p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, 4*p.delta)
-				p.stateId = StartingEpoch
-				p.StartEpoch(p.execution.ctx)
-			} else {
-				log.Info("Start new round, collect votes")
-				p.OnNextView()
-				p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, p.delta)
-				p.stateId = Proposing
-			}
+		case Voting: //we received no valid proposal during delta, current proposer equivocated, let's resend last successful vote to next proposer
+			log.Info("Timed out during voting phase, resending last successful vote")
+			p.protocol.Vote(p.execution.ctx)
 		default:
 			log.Errorf("Unknown transition %v %v", event, p.stateId)
 		}
