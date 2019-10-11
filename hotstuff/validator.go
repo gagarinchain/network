@@ -36,6 +36,11 @@ func (ev *EpochStartValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("signature is not valid, unknown peer")
 	}
 
+	b, e := vote.HQC.IsValid(vote.HQC.GetHash(), common.PeersToPubs(p.committee))
+	if !b || e != nil {
+		return false, e
+	}
+
 	return true, nil
 }
 
@@ -70,6 +75,11 @@ func (p *ProposalValidator) IsValid(entity interface{}) (bool, error) {
 	}
 	if !contains {
 		return false, errors.New("signature is not valid, unknown peer")
+	}
+
+	b, e := proposal.HQC.IsValid(proposal.HQC.GetHash(), common.PeersToPubs(p.committee))
+	if !b || e != nil {
+		return false, e
 	}
 
 	hash := blockchain.HashHeader(*proposal.NewBlock.Header())
@@ -114,6 +124,11 @@ func (p *VoteValidator) IsValid(entity interface{}) (bool, error) {
 	}
 	if !contains {
 		return false, errors.New("signature is not valid, unknown peer")
+	}
+
+	b, e := vote.HQC.IsValid(vote.HQC.GetHash(), common.PeersToPubs(p.committee))
+	if !b || e != nil {
+		return false, e
 	}
 
 	return true, nil
