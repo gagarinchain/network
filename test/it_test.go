@@ -154,6 +154,39 @@ func TestScenario1c(t *testing.T) {
 	assert.Equal(t, int32(1), payload.Block.GetCert().GetHeader().GetHeight())
 }
 
+//Scenario 1d:
+//Start new epoch
+//Replica
+//Receive proposal, vote
+//Next proposer don't propose
+//Send last vote again and again and again
+func TestScenario1d(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
+	defer f()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(6)
+
+	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+
+	p := ctx.createProposal(newBlock, 1)
+	ctx.hotstuffChan <- p
+
+	vote1 := <-ctx.voteChan
+	vote2 := <-ctx.voteChan
+	vote3 := <-ctx.voteChan
+
+	assert.Equal(t, vote1.Message, vote2.Message)
+	assert.Equal(t, vote2.Message, vote3.Message)
+	assert.Equal(t, ctx.peers[2], vote1.to)
+	assert.Equal(t, ctx.peers[3], vote2.to)
+	assert.Equal(t, ctx.peers[4], vote3.to)
+
+}
+
 //Scenario 2:
 //Start new epoch
 //Replica
@@ -1042,7 +1075,7 @@ type TestContext struct {
 	bsrv         blockchain.BlockService
 	pool         blockchain.TransactionPool
 	eventChan    chan hotstuff.Event
-	voteChan     chan *msg.Message
+	voteChan     chan *DirectMessage
 	startChan    chan *msg.Message
 	proposalChan chan *msg.Message
 	me           *common.Peer
@@ -1054,6 +1087,11 @@ type TestContext struct {
 	seed         map[common2.Address]*state.Account
 	stateDB      state.DB
 	txService    *blockchain.TxService
+}
+
+type DirectMessage struct {
+	*msg.Message
+	to *common.Peer
 }
 
 func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.Message {
@@ -1216,11 +1254,11 @@ func initContext(t *testing.T) *TestContext {
 		sentTxChan <- (args[1]).(*msg.Message)
 	})
 
-	voteChan := make(chan *msg.Message)
+	voteChan := make(chan *DirectMessage)
 	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*common.Peer"), mock.MatchedBy(matcher(pb.Message_VOTE))).
 		Return(make(chan *msg.Message), nil).
 		Run(func(args mock.Arguments) {
-			voteChan <- (args[2]).(*msg.Message)
+			voteChan <- &DirectMessage{Message: (args[2]).(*msg.Message), to: (args[1]).(*common.Peer)}
 		})
 
 	blockChan := make(chan *blockchain.Block)

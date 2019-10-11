@@ -468,20 +468,16 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 		return err
 	}
 
-	_, found := bc.uncommittedTreeByHeight.Get(block.Header().Height())
-	if !found {
-		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
 func (bc *Blockchain) addUncommittedBlock(block *Block) error {
-	value, _ := bc.uncommittedTreeByHeight.Get(block.Header().Height())
-	if value == nil {
+	value, found := bc.uncommittedTreeByHeight.Get(block.Header().Height())
+	if !found {
 		value = make([]*Block, 0)
+		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
+			return err
+		}
 	}
 
 	value = append(value.([]*Block), block)
