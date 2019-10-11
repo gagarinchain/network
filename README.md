@@ -1,4 +1,7 @@
 # Gagarin.Network
+## FAQ 
+[Go to link](FAQ.md)
+## Network
 Network expose 2 different ports 9080 for network communication between peers and 9180 for websocket communication
 ### Common shell commands
 * generates protobuf classes
