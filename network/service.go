@@ -86,7 +86,13 @@ func CreateService(ctx context.Context, node *Node, dispatcher msg.Dispatcher, t
 }
 
 func (s *ServiceImpl) SendMessage(ctx context.Context, peer *common.Peer, m *msg.Message) {
-	s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, m, false)
+	resp, err := s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, m, false)
+	select {
+	case <-resp:
+		log.Debugf("sent successfully to %v", peer.GetAddress().Hex())
+	case e := <-err:
+		log.Errorf("error (%v) sending message to %v", e.Error(), peer.GetAddress().Hex())
+	}
 }
 
 func (s *ServiceImpl) SendResponse(ctx context.Context, m *msg.Message) {
@@ -110,6 +116,18 @@ func (s *ServiceImpl) SendRequest(ctx context.Context, peer *common.Peer, req *m
 func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *msg.Message, withResponse bool) (resp chan *msg.Message, err chan error) {
 	resp = make(chan *msg.Message)
 	err = make(chan error)
+
+	//we should handle loop messages in a special way, since self dialing is not allowed now, but will be implemented in the future
+	//https://github.com/libp2p/go-libp2p/issues/328#issuecomment-465264415
+	if s.node.GetPeerInfo().ID == pid {
+		log.Debug("Sending message to self")
+		go func() {
+			s.dispatcher.Dispatch(req)
+		}()
+		close(resp)
+		return resp, err
+	}
+
 	go func(ctx context.Context, pid peer.ID, m *msg.Message, withResponse bool) {
 		message, e := s.sendRequestSync(ctx, pid, m, withResponse)
 		if e != nil {

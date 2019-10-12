@@ -201,6 +201,7 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 	log.Infof("Qcs new [%v], old[%v]", qc.QrefBlock().Height(), p.hqc.QrefBlock().Height())
 
 	if qc.QrefBlock().Height() > p.hqc.QrefBlock().Height() {
+		//TODO Remove this check, since we validate QC in validator
 		b, e := qc.IsValid(qc.GetHash(), comm.PeersToPubs(p.pacer.GetPeers()))
 		if !b || e != nil {
 			log.Error("Bad HQC", e)
@@ -211,7 +212,7 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 
 		p.hqc = qc
 		if err := p.persister.PutHQC(qc); err != nil {
-			log.Error(e)
+			log.Error(err)
 			return
 		}
 		p.CheckCommit()
@@ -280,6 +281,7 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 	log.Debugf("Received vote for block on height [%v]", vote.Header.Height())
 	p.Update(vote.HQC)
 
+	//TODO mb we don't need this check
 	if p.me.GetAddress() != p.pacer.GetCurrent().GetAddress() && p.me.GetAddress() != p.pacer.GetNext().GetAddress() {
 		return errors.New(fmt.Sprintf("Got unexpected vote from [%v], i'm not proposer now", vote.Sender.GetAddress().Hex()))
 	}
@@ -291,7 +293,7 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 		//check whether peer voted previously for block with higher number
 		if stored.Header.Height() > vote.Header.Height() {
 			p.equivocate(vote.Sender)
-			return errors.New("peer voted for block with lower height")
+			return errors.New("peer voted for block with higher height")
 		}
 		if stored.Header.Height() == vote.Header.Height() &&
 			stored.Header.Hash() != vote.Header.Hash() {
@@ -327,23 +329,13 @@ func (p *Protocol) CheckConsensus() bool {
 	}
 
 	bestStat := &stat{}
-	secondBestStat := &stat{}
-
 	for _, v := range stats {
 		if v.score > bestStat.score {
 			bestStat = v
-			secondBestStat = &stat{}
-		} else if v.score == bestStat.score {
-			secondBestStat = v
 		}
 	}
 
-	if secondBestStat.score >= (p.f/3)*2+1 {
-		panic(fmt.Sprintf("at list two blocks [%v], [%v]  got consensus score, reload chain than go on",
-			bestStat.header, secondBestStat.header))
-	}
-
-	if bestStat.score >= (p.f/3)*2+1 {
+	if bestStat.score >= 2*(p.f/3)+1 && bestStat.header.Height() > p.HQC().QrefBlock().Height() {
 		return true
 	}
 
@@ -396,8 +388,10 @@ func (p *Protocol) FinishQC(header *bc.Header) {
 	signsByAddress := make(map[common.Address]*crypto.Signature)
 
 	for k, v := range p.votes {
-		signs = append(signs, v.Signature)
-		signsByAddress[k] = v.Signature
+		if bytes.Equal(v.Header.Hash().Bytes(), header.Hash().Bytes()) {
+			signs = append(signs, v.Signature)
+			signsByAddress[k] = v.Signature
+		}
 	}
 	bitmap := p.pacer.GetBitmap(signsByAddress)
 	aggregate := crypto.AggregateSignatures(bitmap, signs)
