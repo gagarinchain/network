@@ -184,6 +184,7 @@ func (p *Protocol) CheckCommit() bool {
 			return false
 		}
 		p.lastExecutedBlock = toCommit[len(toCommit)-1].Header()
+
 		if err := p.persister.PutLastExecutedBlockHash(p.lastExecutedBlock.Hash()); err != nil {
 			log.Error(err)
 			return false
@@ -263,8 +264,6 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 		p.Vote(ctx)
 	}
 	return nil
-}
-
 }
 
 //Votes with last vote

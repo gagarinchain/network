@@ -12,6 +12,7 @@ message Event {
         BLOCK_ADDED   = 1;
         EPOCH_STARTED   = 2;
         VIEW_CHANGED   = 3;
+        COMMITTED   = 4;
     }
 }
 
@@ -20,4 +21,7 @@ message EpochStartedPayload {
 }
 message ViewChangedPayload {
     int32 view = 1;
+}
+message CommittedPayload{
+    bytes hash = 1;
 }

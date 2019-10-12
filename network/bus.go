@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common"
+	cmn "github.com/gagarinchain/network/common/eth/common"
 	msg "github.com/gagarinchain/network/common/message"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	protoio "github.com/gogo/protobuf/io"
@@ -112,6 +113,16 @@ func (n *GagarinEventBus) notify(ctx context.Context, req *common.Event) error {
 		}
 		event = &pb.Event{
 			Type:    pb.Event_VIEW_CHANGED,
+			Payload: any,
+		}
+	case common.Committed:
+		payload := req.Payload.(cmn.Hash)
+		any, e := ptypes.MarshalAny(&pb.CommittedPayload{Hash: payload.Bytes()})
+		if e != nil {
+			log.Error(e)
+		}
+		event = &pb.Event{
+			Type:    pb.Event_COMMITTED,
 			Payload: any,
 		}
 	}

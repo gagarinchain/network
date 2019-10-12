@@ -395,6 +395,13 @@ func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Ma
 		}
 	}
 
+	for _, k := range toCommit {
+		bc.bus.FireEvent(&cmn.Event{
+			Payload: k.Header().Hash(),
+			T:       cmn.Committed,
+		})
+	}
+
 	//remove committed transactions from the pool
 	for _, b := range toCommit {
 		it := b.Txs()
