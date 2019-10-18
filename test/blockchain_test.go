@@ -289,8 +289,8 @@ func TestOnCommit(t *testing.T) {
 
 func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	storage, _ := cmn.NewStorage("", nil)
-	bpersister := &bch.BlockPersister{storage}
-	cpersister := &bch.BlockchainPersister{storage}
+	bpersister := &bch.BlockPersister{Storage: storage}
+	cpersister := &bch.BlockchainPersister{Storage: storage}
 
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	genesisBlock := bc.GetGenesisBlock()
