@@ -2,6 +2,7 @@ Hotstuff:
   N: 4
   Delta: 10000
   BlockDelta: 1000
+  SeedPath:	static/seed.json
 Network:
   MinPeerThreshold: 3
   ReconnectPeriod: 10000

@@ -86,46 +86,61 @@ func (i *orderedIterator) HasNext() bool {
 	return i.state < len(i.txs)
 }
 
+//For drain to work correctly we must guarantee that pending transactions are never reordered and are only appended
 func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []*tx.Transaction) {
+	//this channel is used by child goroutines to write result if it's work
 	chunks = make(chan []*tx.Transaction)
+	//this channel which is used by child goroutines in tick to  notify main about job finishing.
+	//when routine is done it is safe to close channel
+	done := make(chan bool)
+	//ticker to notify head routine it's time to start new child
 	ticker := time.NewTicker(Interval)
-	index := 0
 
-	tick := func(pending []*tx.Transaction) {
+	tick := func(pending []*tx.Transaction, index int) int {
 		last := len(pending)
-		part := tp.pending[index:last]
+		part := make([]*tx.Transaction, len(tp.pending[index:last]))
+		copy(part, tp.pending[index:last])
 		sort.Sort(sort.Reverse(tx.ByFeeAndNonce(part)))
-		index = last
 		go func(txs chan []*tx.Transaction) {
-			//we can panic on closed channel writing
-			defer func() {
-				if r := recover(); r != nil {
-					log.Error("panic occurred: ", r)
-					return
-				}
-			}()
 			select {
 			case txs <- part:
+				done <- true //notify we ended work
 			case <-ctx.Done():
 				log.Warning("Cancelled writing part")
+				done <- true //notify we ended work
 				return
 			}
 		}(chunks)
+
+		return last
 	}
 
-	tick(tp.pending)
-	go func() {
+	index := 0
+	tp.lock.RLock()
+	index = tick(tp.pending, index)
+	tp.lock.RUnlock()
+	trigger := ticker.C
+	go func(trigger <-chan time.Time, index int) {
+		working := 1
 		for {
 			select {
-			case <-ticker.C:
-				tick(tp.pending)
-			case <-ctx.Done():
+			case <-done:
+				working--
+			case <-trigger:
+				working++
+				tp.lock.RLock()
+				index = tick(tp.pending, index)
+				tp.lock.RUnlock()
+			case <-ctx.Done(): //should be careful we can spin-wait here
 				log.Warning("Cancelled writing chunks")
-				close(chunks)
-				return
+				trigger = nil //prevent starting new tasks
+				if working <= 0 {
+					close(chunks)
+					return
+				}
 			}
 		}
-	}()
+	}(trigger, index)
 
 	return
 }

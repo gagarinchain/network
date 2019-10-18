@@ -628,9 +628,6 @@ func (bc *Blockchain) collectTransactions(s *state.Record, txs *trie.FixedLength
 	for chunk := range chunks {
 		for _, t := range chunk {
 			log.Debugf("tx hash %v", t.Hash().Hex())
-			if s.IsApplicable(t) != nil {
-				continue
-			}
 			if s.ApplyTransaction(t) != nil {
 				continue
 			}

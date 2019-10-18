@@ -113,14 +113,15 @@ func (r *Record) Update(address common.Address, account *Account) error {
 		r.snap.Put(address, account)
 		delete(r.forUpdate, address)
 	} else { //trying to update
-		log.Warning("Updating value that was not previously acquired for update, inserting it anyway")
+		log.Warningf("Updating account %v that was not previously acquired for update, inserting it anyway", address.Hex())
+		r.lookupAccountAndAddNodes(address)
 		r.snap.Put(address, account)
 	}
 
 	return nil
 }
 
-//LookUp all needed for proof calculation nodes in all known snapshots and adds them to current record state tree
+//LookUp all needed for proof calculation nodes in all known snapshots and add them to current record state tree
 func (r *Record) lookupAccountAndAddNodes(address common.Address) {
 	path := sparse.GetPath(address.Big(), 256)
 	relativePath := sparse.GetRelativePath(path) //nodes we need to calculate proof
@@ -132,23 +133,29 @@ func (r *Record) lookupAccountAndAddNodes(address common.Address) {
 
 //LookUp recursively all state tree to find toLookup nodes, returns found ids and its values in state smt
 func lookUp(record *Record, toLookup []*sparse.NodeId) (ids []*sparse.NodeId, hashes []common.Hash) {
-	reduced := toLookup
+	var reduced []*sparse.NodeId
 	for _, id := range toLookup {
-		bytes, found := record.snap.trie.GetById(id) //todo probably should hide under snapshot this trie manipulation
+		b, found := record.snap.trie.GetById(id) //todo probably should hide under snapshot this trie manipulation
 		if found {
 			ids = append(ids, id)
-			hashes = append(hashes, common.BytesToHash(bytes))
+			hashes = append(hashes, common.BytesToHash(b))
 		} else {
 			reduced = append(reduced, id)
 		}
 	}
 
-	parent := record.parent
-	if parent == nil { //we are done if we iterated all known states
+	if record == record.parent {
+		log.Error("Self reference in records")
 		return
 	}
-	return lookUp(parent, reduced)
 
+	parent := record.parent
+	if parent == nil || reduced == nil { //we are done if we iterated all known states
+		return
+	}
+	retIds, retHashes := lookUp(parent, reduced)
+
+	return append(ids, retIds...), append(hashes, retHashes...)
 }
 
 func (r *Record) Proof(address common.Address) (proof *sparse.Proof) {

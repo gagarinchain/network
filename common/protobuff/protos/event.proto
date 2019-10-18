@@ -5,7 +5,8 @@ import "google/protobuf/any.proto";
 
 message Event {
     EventType type = 1;
-    google.protobuf.Any payload = 2;
+    bytes id = 2;
+    google.protobuf.Any payload = 3;
 
     enum EventType {
         RESERVED = 0;
@@ -13,6 +14,19 @@ message Event {
         EPOCH_STARTED   = 2;
         VIEW_CHANGED   = 3;
         COMMITTED   = 4;
+        ACCOUNT   = 5;
+        BLOCK   = 6;
+    }
+}
+
+message Request {
+    RequestType type = 1;
+    bytes id = 2;
+    google.protobuf.Any payload = 3;
+
+    enum RequestType {
+        ACCOUNT = 0;
+        BLOCK = 1;
     }
 }
 
@@ -22,6 +36,17 @@ message EpochStartedPayload {
 message ViewChangedPayload {
     int32 view = 1;
 }
-message CommittedPayload{
+message CommittedPayload {
     bytes hash = 1;
+}
+message AccountRequestPayload {
+    bytes address = 1;
+    bytes block = 2;
+}
+message AccountResponsePayload {
+    bytes address = 1;
+    bytes block = 2;
+    uint64 nonce = 3;
+    uint64 value = 4;
+    repeated bytes proof = 5;
 }
