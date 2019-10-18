@@ -22,6 +22,7 @@ type BlockchainConfig struct {
 	Db             state.DB
 	Storage        gagarinchain.Storage
 	Delta          time.Duration
+	EventBus       cmn.EventBus
 }
 
 type SeedData struct {

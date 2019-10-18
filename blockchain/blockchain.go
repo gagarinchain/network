@@ -107,6 +107,7 @@ type Blockchain struct {
 	blockPersister          *BlockPersister
 	chainPersister          *BlockchainPersister
 	delta                   time.Duration
+	bus                     cmn.EventBus
 }
 
 func (bc *Blockchain) SetProposerGetter(proposerGetter cmn.ProposerForHeight) {
@@ -121,6 +122,9 @@ var log = logging.MustGetLogger("blockchain")
 
 func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 	zero := CreateGenesisBlock()
+	if cfg.EventBus == nil {
+		cfg.EventBus = &cmn.NullBus{}
+	}
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
@@ -133,6 +137,7 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 		blockPersister:          cfg.BlockPerister,
 		chainPersister:          cfg.ChainPersister,
 		delta:                   cfg.Delta,
+		bus:                     cfg.EventBus,
 	}
 
 	var s *state.Snapshot
@@ -160,6 +165,9 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
 		return CreateBlockchainFromGenesisBlock(cfg)
 	}
 
+	if cfg.EventBus == nil {
+		cfg.EventBus = &cmn.NullBus{}
+	}
 	blockchain := &Blockchain{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
@@ -171,6 +179,7 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
 		blockPersister:          pblock,
 		chainPersister:          pchain,
 		delta:                   cfg.Delta,
+		bus:                     cfg.EventBus,
 	}
 
 	topCommittedHeight, err := pchain.GetTopCommittedHeight()
@@ -386,6 +395,13 @@ func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Ma
 		}
 	}
 
+	for _, k := range toCommit {
+		bc.bus.FireEvent(&cmn.Event{
+			Payload: k.Header().Hash(),
+			T:       cmn.Committed,
+		})
+	}
+
 	//remove committed transactions from the pool
 	for _, b := range toCommit {
 		it := b.Txs()
@@ -467,6 +483,11 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	if err := bc.chainPersister.PutHeightIndexRecord(block); err != nil {
 		return err
 	}
+
+	bc.bus.FireEvent(&cmn.Event{
+		T:       cmn.BlockAdded,
+		Payload: block.GetMessage(),
+	})
 
 	return nil
 }
@@ -606,6 +627,7 @@ func (bc *Blockchain) collectTransactions(s *state.Record, txs *trie.FixedLength
 	i := 0
 	for chunk := range chunks {
 		for _, t := range chunk {
+			log.Debugf("tx hash %v", t.Hash().Hex())
 			if s.IsApplicable(t) != nil {
 				continue
 			}
@@ -620,6 +642,8 @@ func (bc *Blockchain) collectTransactions(s *state.Record, txs *trie.FixedLength
 			}
 		}
 	}
+
+	log.Debugf("Collected %v txs", i)
 }
 
 func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {

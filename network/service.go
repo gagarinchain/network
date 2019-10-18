@@ -44,6 +44,7 @@ type TopicListener interface {
 }
 
 const Libp2pProtocol protocol.ID = "/Libp2pProtocol/1.0.0"
+const GagarinProtocol protocol.ID = "/gagarin/1.0.0"
 const HotstuffTopic string = "/hotstuff"
 const TransactionTopic string = "/tx"
 
@@ -54,6 +55,7 @@ type ServiceImpl struct {
 	dispatcher       msg.Dispatcher
 	hotstuffListener TopicListener
 	txListener       TopicListener
+	bus              *GagarinEventBus
 }
 
 type TopicListenerImpl struct {
@@ -66,7 +68,7 @@ func NewTopicListenerImpl(node *Node, topicName string, dispatcher msg.Dispatche
 	return &TopicListenerImpl{node: node, topicName: topicName, dispatcher: dispatcher}
 }
 
-func CreateService(ctx context.Context, node *Node, dispatcher msg.Dispatcher, txDispatcher msg.Dispatcher) Service {
+func CreateService(ctx context.Context, node *Node, dispatcher msg.Dispatcher, txDispatcher msg.Dispatcher, bus *GagarinEventBus) Service {
 	listener := NewTopicListenerImpl(node, HotstuffTopic, dispatcher)
 	txListener := NewTopicListenerImpl(node, TransactionTopic, txDispatcher)
 
@@ -75,9 +77,11 @@ func CreateService(ctx context.Context, node *Node, dispatcher msg.Dispatcher, t
 		hotstuffListener: listener,
 		txListener:       txListener,
 		dispatcher:       dispatcher,
+		bus:              bus,
 	}
 
 	impl.node.Host.SetStreamHandler(Libp2pProtocol, impl.handleNewStreamWithContext(ctx))
+	impl.node.Host.SetStreamHandler(GagarinProtocol, impl.handleGagarinWithContext(ctx))
 	return impl
 }
 
@@ -239,6 +243,11 @@ func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context) network.St
 		s.handleNewMessage(ctx, stream)
 	}
 }
+func (s *ServiceImpl) handleGagarinWithContext(ctx context.Context) network.StreamHandler {
+	return func(stream network.Stream) {
+		s.bus.handleNewMessage(ctx, s, stream)
+	}
+}
 
 func (s *ServiceImpl) Bootstrap(ctx context.Context) (chan int, chan error) {
 	statusChan := make(chan int)
@@ -271,7 +280,6 @@ func (s *ServiceImpl) Bootstrap(ctx context.Context) (chan int, chan error) {
 
 func randomSubsetOfIds(ids []peer.ID, max int) (out []peer.ID) {
 	n := IntMin(max, len(ids))
-	log.Info(n)
 	for _, val := range rand.Perm(len(ids)) {
 		out = append(out, ids[val])
 		if len(out) >= n {

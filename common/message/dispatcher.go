@@ -44,7 +44,7 @@ func (d *HotstuffDispatcher) Dispatch(msg *Message) {
 		case pb.Message_HELLO_RESPONSE:
 			fallthrough
 		case pb.Message_BLOCK_RESPONSE:
-			log.Warningf("Received message %d, without request, ignoring", msg.Type.String())
+			log.Warningf("Received message %v, without request, ignoring", msg.Type.String())
 		}
 	}()
 }
@@ -52,6 +52,7 @@ func (d *HotstuffDispatcher) Dispatch(msg *Message) {
 func (d *TxDispatcher) Dispatch(msg *Message) {
 	go func() {
 		if msg.Type == pb.Message_TRANSACTION {
+			log.Debugf("received transaction from %v", msg.source.GetPeerInfo().ID.Pretty())
 			d.txChan <- msg
 		}
 	}()

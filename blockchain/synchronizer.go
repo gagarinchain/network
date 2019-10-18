@@ -35,6 +35,7 @@ func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc *Blockchain) Synchr
 func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high int32, peer *comm.Peer) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(int(high - low))
+	log.Info("Requesting %v blocks", int(high-low))
 
 	type Exec struct {
 		blocks []*Block
@@ -64,6 +65,7 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 
 	}
 	wg.Wait()
+	log.Info("Received %v blocks", len(exec.blocks))
 	if err := ctx.Err(); err != nil {
 		return err
 	}
