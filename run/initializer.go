@@ -73,7 +73,9 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee))
 	db := state.NewStateDB(storage)
+	seed := blockchain.SeedFromFile(s.Hotstuff.SeedPath)
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
+		Seed:           seed,
 		BlockPerister:  &blockchain.BlockPersister{Storage: storage},
 		ChainPersister: &blockchain.BlockchainPersister{Storage: storage},
 		BlockService:   bsrv,
@@ -87,6 +89,9 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
 	initialState := getInitialState(storage, bc)
+	reqDispatcher := blockchain.NewRequestHandler(bc, db)
+	bus.AddHandler(pb.Request_ACCOUNT, reqDispatcher.HandleAccountRequest)
+	bus.AddHandler(pb.Request_BLOCK, reqDispatcher.HandleBlockRequest)
 
 	config := &hotstuff.ProtocolConfig{
 		F:            s.Hotstuff.N,

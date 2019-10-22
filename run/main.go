@@ -23,9 +23,10 @@ var log = logging.MustGetLogger("main")
 
 type Settings struct {
 	Hotstuff struct {
-		N          int `yaml:"N"`
-		Delta      int `yaml:"Delta"`
-		BlockDelta int `yaml:"BlockDelta"`
+		N          int    `yaml:"N"`
+		Delta      int    `yaml:"Delta"`
+		BlockDelta int    `yaml:"BlockDelta"`
+		SeedPath   string `yaml:"SeedPath"`
 	} `yaml:"Hotstuff"`
 	Network struct {
 		MinPeerThreshold  int `yaml:"MinPeerThreshold"`
@@ -43,11 +44,10 @@ func main() {
 	// all loggers with:
 	golog.SetAllLoggers(gologging.INFO)
 
-	backend := logging.NewLogBackend(os.Stderr, "", 0)
+	backend := logging.NewLogBackend(os.Stdout, "", 0)
 	backendFormatter := logging.NewBackendFormatter(backend, stdoutLogFormat)
 	backendLeveled := logging.AddModuleLevel(backend)
 	backendLeveled.SetLevel(logging.INFO, "")
-
 	logging.SetBackend(backendLeveled, backendFormatter)
 
 	ind := -1
@@ -118,10 +118,11 @@ func readSettings() (s *Settings) {
 	if s == nil {
 		s = &Settings{
 			Hotstuff: struct {
-				N          int `yaml:"N"`
-				Delta      int `yaml:"Delta"`
-				BlockDelta int `yaml:"BlockDelta"`
-			}{N: 10, Delta: 5000, BlockDelta: 10},
+				N          int    `yaml:"N"`
+				Delta      int    `yaml:"Delta"`
+				BlockDelta int    `yaml:"BlockDelta"`
+				SeedPath   string `yaml:"SeedPath"`
+			}{N: 10, Delta: 5000, BlockDelta: 10, SeedPath: "static/seed.json"},
 			Network: struct {
 				MinPeerThreshold  int `yaml:"MinPeerThreshold"`
 				ReconnectPeriod   int `yaml:"ReconnectPeriod"`

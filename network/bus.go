@@ -2,25 +2,38 @@ package network
 
 import (
 	"context"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common"
 	cmn "github.com/gagarinchain/network/common/eth/common"
-	msg "github.com/gagarinchain/network/common/message"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	protoio "github.com/gogo/protobuf/io"
 	"github.com/golang/protobuf/ptypes"
 	ctxio "github.com/jbenet/go-context/io"
 	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"io"
+	"sync"
 )
 
 type GagarinEventBus struct {
-	stream network.Stream
-	events chan *common.Event
+	streams map[peer.ID]network.Stream
+	sl      sync.RWMutex
+
+	events   chan *common.Event
+	handlers map[pb.Request_RequestType]Handler
 }
 
+type Handler func(req *pb.Request) *pb.Event
+
 func NewGagarinEventBus(events chan *common.Event) *GagarinEventBus {
-	return &GagarinEventBus{events: events}
+	return &GagarinEventBus{
+		events:   events,
+		sl:       sync.RWMutex{},
+		streams:  make(map[peer.ID]network.Stream),
+		handlers: make(map[pb.Request_RequestType]Handler),
+	}
+}
+func (n *GagarinEventBus) AddHandler(t pb.Request_RequestType, h Handler) {
+	n.handlers[t] = h
 }
 
 func (n *GagarinEventBus) FireEvent(event *common.Event) {
@@ -34,11 +47,16 @@ func (n *GagarinEventBus) handleNewMessage(ctx context.Context, s *ServiceImpl, 
 	cr := ctxio.NewReader(ctx, stream)
 	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)
 
-	n.stream = stream
+	n.sl.Lock()
+	if _, f := n.streams[stream.Conn().RemotePeer()]; !f {
+		n.streams[stream.Conn().RemotePeer()] = stream
+	}
+	n.sl.Unlock()
 
 	for {
-		m := &pb.Message{}
-		err := r.ReadMsg(m)
+		log.Debug("reading")
+		req := &pb.Request{}
+		err := r.ReadMsg(req)
 		if err != nil {
 			if err != io.EOF {
 				if err := stream.Reset(); err != nil {
@@ -52,24 +70,51 @@ func (n *GagarinEventBus) handleNewMessage(ctx context.Context, s *ServiceImpl, 
 					log.Error("error closing stream", err)
 				}
 			}
-			n.stream = nil
+			n.sl.Lock()
+			delete(n.streams, stream.Conn().RemotePeer())
+			n.sl.Unlock()
+
 			return
 		}
 
-		info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
-		p := common.CreatePeer(nil, nil, &info)
-		fromProto := msg.CreateMessageFromProto(m, p, stream)
-		spew.Dump(fromProto)
+		//info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
+		//p := common.CreatePeer(nil, nil, &info)
+		log.Debug(req)
+		n.dispatch(req, stream)
 	}
+}
+
+func (n *GagarinEventBus) dispatch(req *pb.Request, stream network.Stream) {
+	h, f := n.handlers[req.Type]
+
+	if !f {
+		log.Errorf("No handler is found for %v", req.Type)
+		return
+	}
+
+	resp := h(req)
+	log.Debug(resp)
+	writer := protoio.NewDelimitedWriter(stream)
+	if e := writer.WriteMsg(resp); e != nil {
+		//TODO mb close stream here
+		log.Error("Error while notify", e)
+	}
+
 }
 
 func (n *GagarinEventBus) Run(ctx context.Context) {
 	for {
 		select {
 		case e := <-n.events:
-			if err := n.notify(ctx, e); err != nil {
-				log.Error("error while notify", err)
-				continue
+			if errs := n.notify(ctx, e); errs != nil && len(errs) > 0 {
+				n.sl.Lock()
+				for p, e := range errs {
+					delete(n.streams, p)
+					log.Error("error while notify", e)
+					continue
+
+				}
+				n.sl.Unlock()
 			}
 		case <-ctx.Done():
 			log.Info("Stopped EventBus")
@@ -77,12 +122,25 @@ func (n *GagarinEventBus) Run(ctx context.Context) {
 	}
 }
 
-func (n *GagarinEventBus) notify(ctx context.Context, req *common.Event) error {
-	if n.stream == nil {
+func (n *GagarinEventBus) notify(ctx context.Context, req *common.Event) map[peer.ID]error {
+	if n.streams == nil {
 		return nil
 	}
-	writer := protoio.NewDelimitedWriter(n.stream)
+	errors := make(map[peer.ID]error)
+	n.sl.RLock()
+	for _, v := range n.streams {
+		e := n.notifyPeer(req, v)
+		if e != nil {
+			errors[v.Conn().RemotePeer()] = e
+		}
+	}
+	n.sl.RUnlock()
 
+	return errors
+}
+
+func (n *GagarinEventBus) notifyPeer(req *common.Event, stream network.Stream) error {
+	writer := protoio.NewDelimitedWriter(stream)
 	var event *pb.Event
 	switch req.T {
 	case common.BlockAdded:
@@ -128,6 +186,7 @@ func (n *GagarinEventBus) notify(ctx context.Context, req *common.Event) error {
 	}
 
 	if e := writer.WriteMsg(event); e != nil {
+		//TODO mb close stream here
 		return e
 	}
 	return nil
