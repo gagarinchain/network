@@ -10,6 +10,7 @@ import (
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
+	"path"
 	"time"
 )
 
@@ -73,7 +74,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee))
 	db := state.NewStateDB(storage)
-	seed := blockchain.SeedFromFile(s.Hotstuff.SeedPath)
+	seed := blockchain.SeedFromFile(path.Join(s.Static.Dir, "seed.json"))
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
 		Seed:           seed,
 		BlockPerister:  &blockchain.BlockPersister{Storage: storage},

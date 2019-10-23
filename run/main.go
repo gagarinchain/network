@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"github.com/davecgh/go-spew/spew"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/network"
 	golog "github.com/ipfs/go-log"
@@ -12,6 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 )
 
@@ -23,10 +23,9 @@ var log = logging.MustGetLogger("main")
 
 type Settings struct {
 	Hotstuff struct {
-		N          int    `yaml:"N"`
-		Delta      int    `yaml:"Delta"`
-		BlockDelta int    `yaml:"BlockDelta"`
-		SeedPath   string `yaml:"SeedPath"`
+		N          int `yaml:"N"`
+		Delta      int `yaml:"Delta"`
+		BlockDelta int `yaml:"BlockDelta"`
 	} `yaml:"Hotstuff"`
 	Network struct {
 		MinPeerThreshold  int `yaml:"MinPeerThreshold"`
@@ -36,6 +35,9 @@ type Settings struct {
 	Storage struct {
 		DataDir string `yaml:"DataDir"`
 	} `yaml:"Storage"`
+	Static struct {
+		Dir string `yaml:"Dir"`
+	} `yaml:"Static"`
 }
 
 func main() {
@@ -44,10 +46,11 @@ func main() {
 	// all loggers with:
 	golog.SetAllLoggers(gologging.INFO)
 
-	backend := logging.NewLogBackend(os.Stdout, "", 0)
+	backend := logging.NewLogBackend(os.Stderr, "", 0)
 	backendFormatter := logging.NewBackendFormatter(backend, stdoutLogFormat)
 	backendLeveled := logging.AddModuleLevel(backend)
 	backendLeveled.SetLevel(logging.INFO, "")
+
 	logging.SetBackend(backendLeveled, backendFormatter)
 
 	ind := -1
@@ -72,9 +75,10 @@ func main() {
 
 	index := strconv.Itoa(ind)
 	var loader cmn.CommitteeLoader = &cmn.CommitteeLoaderImpl{}
-	committee := loader.LoadPeerListFromFile("static/peers.json")
-	spew.Dump(committee)
-	peerKey, err := loader.LoadPeerFromFile("static/peer"+index+".json", committee[ind])
+	peersPath := filepath.Join(s.Static.Dir, "peers.json")
+	peerPath := path.Join(s.Static.Dir, "peer"+index+".json")
+	committee := loader.LoadPeerListFromFile(peersPath)
+	peerKey, err := loader.LoadPeerFromFile(peerPath, committee[ind])
 
 	if err != nil {
 		log.Fatal("Could't load peer credentials")
@@ -118,11 +122,10 @@ func readSettings() (s *Settings) {
 	if s == nil {
 		s = &Settings{
 			Hotstuff: struct {
-				N          int    `yaml:"N"`
-				Delta      int    `yaml:"Delta"`
-				BlockDelta int    `yaml:"BlockDelta"`
-				SeedPath   string `yaml:"SeedPath"`
-			}{N: 10, Delta: 5000, BlockDelta: 10, SeedPath: "static/seed.json"},
+				N          int `yaml:"N"`
+				Delta      int `yaml:"Delta"`
+				BlockDelta int `yaml:"BlockDelta"`
+			}{N: 10, Delta: 5000, BlockDelta: 10},
 			Network: struct {
 				MinPeerThreshold  int `yaml:"MinPeerThreshold"`
 				ReconnectPeriod   int `yaml:"ReconnectPeriod"`
@@ -131,6 +134,9 @@ func readSettings() (s *Settings) {
 			Storage: struct {
 				DataDir string `yaml:"DataDir"`
 			}{DataDir: os.TempDir()},
+			Static: struct {
+				Dir string `yaml:"Dir"`
+			}{Dir: "/Users/dabasov/Projects/gagarin/network/static"},
 		}
 	}
 	return
