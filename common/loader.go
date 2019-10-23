@@ -11,7 +11,6 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/phoreproject/bls/g1pubs"
 	"io/ioutil"
-	"os"
 )
 
 type CommitteeLoader interface {
@@ -33,14 +32,11 @@ type CommitteeLoaderImpl struct {
 }
 
 func (c *CommitteeLoaderImpl) LoadPeerListFromFile(filePath string) (res []*Peer) {
-	file, e := os.Open(filePath)
+	byteValue, e := ioutil.ReadFile(filePath)
 	if e != nil {
 		log.Fatal("Can't load committee list", e)
 		return nil
 	}
-	defer file.Close()
-
-	byteValue, _ := ioutil.ReadAll(file)
 
 	var data CommitteeData
 	if err := json.Unmarshal(byteValue, &data); err != nil {
