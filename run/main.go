@@ -46,6 +46,10 @@ func main() {
 	// all loggers with:
 	golog.SetAllLoggers(gologging.INFO)
 
+	// Declare all flags and parse options the command line:
+	peerIndexFlag := flag.Int("l", -1, "peer index")
+	flag.Parse()
+
 	backend := logging.NewLogBackend(os.Stderr, "", 0)
 	backendFormatter := logging.NewBackendFormatter(backend, stdoutLogFormat)
 	backendLeveled := logging.AddModuleLevel(backend)
@@ -63,9 +67,7 @@ func main() {
 			ind = int(i)
 		}
 	} else {
-		// Parse options from the command line
-		ind = *flag.Int("l", -1, "peer index")
-		flag.Parse()
+		ind = *peerIndexFlag
 		if ind == -1 {
 			log.Fatal("Please provide peer index with -l")
 		}
