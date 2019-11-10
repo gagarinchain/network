@@ -14,7 +14,11 @@ import (
 )
 
 type BlockService interface {
+	// Requests blocks at with a specific hash from a specific peer.
+	// If peer == nil, will request the same from a random peer.
 	RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error)
+	// Requests blocks at a specific height from a specific peer.
+	// If peer == nil, will request the same from a random peer.
 	RequestBlocksAtHeight(ctx context.Context, height int32, peer *com.Peer) (resp chan *Block, err chan error)
 	RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error)
 }
@@ -29,11 +33,11 @@ func NewBlockService(srv network.Service, validator gagarinchain.Validator) *Blo
 }
 
 func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error) {
-	return s.requestBlock(ctx, hash, -1, nil)
+	return s.requestBlock(ctx, hash, -1, peer)
 }
 
 func (s *BlockServiceImpl) RequestBlocksAtHeight(ctx context.Context, height int32, peer *com.Peer) (resp chan *Block, err chan error) {
-	return s.requestBlock(ctx, common.Hash{}, height, nil)
+	return s.requestBlock(ctx, common.Hash{}, height, peer)
 }
 
 //we can pass rather hash or block level here. if we want to omit height parameter must pass -1.
