@@ -23,6 +23,9 @@ type BlockProtocol struct {
 
 var Version int32 = 1
 
+// We won't allow batches bigger than this (the server-side limit).
+const RequestBlockHeaderBatchSizeLimit = 100
+
 func CreateBlockProtocol(srv network.Service, bc *Blockchain, sync Synchronizer) *BlockProtocol {
 	return &BlockProtocol{srv: srv, bc: bc, sync: sync, stop: make(chan int)}
 }
@@ -148,6 +151,47 @@ func createBlockResponse(blocks []*Block) (*pb.BlockResponsePayload, error) {
 	return &pb.BlockResponsePayload{Response: p}, nil
 }
 
+func (p *BlockProtocol) OnBlockHeaderBatchRequest(ctx context.Context, req *msg.Message) error {
+	payload := req.GetPayload()
+	reqPayload := &pb.BlockHeaderBatchRequestPayload{}
+	if err := ptypes.UnmarshalAny(payload, reqPayload); err != nil {
+		return err
+	}
+
+	low := reqPayload.Low
+	high := reqPayload.High
+	batchSize := low - high
+
+	if batchSize < 1 {
+		return fmt.Errorf("invalid low..high batch range: (%d, %d]", low, high)
+	} else if batchSize > RequestBlockHeaderBatchSizeLimit {
+		return fmt.Errorf("invalid low..high batch range: (%d, %d], "+
+			"maximum batch size is %d", low, high, RequestBlockHeaderBatchSizeLimit)
+	}
+
+	headers := make([]*pb.BlockHeader, 0, batchSize) // Preallocate a slice of batchSize size.
+
+	for h := low + 1; h <= high; h++ {
+		blocks := p.bc.GetBlockByHeight(h)
+		for _, block := range blocks {
+			headers = append(headers, block.header.GetMessage())
+		}
+	}
+
+	resPayload := &pb.BlockHeaderBatchResponsePayload{Headers: headers}
+
+	any, e := ptypes.MarshalAny(resPayload)
+	if e != nil {
+		return e
+	}
+
+	resMessage := msg.CreateMessage(pb.Message_BLOCK_HEADER_BATCH_RESPONSE, any, nil)
+	resMessage.SetStream(req.Stream())
+	p.srv.SendResponse(ctx, resMessage)
+
+	return nil
+}
+
 func (p *BlockProtocol) OnHello(ctx context.Context, m *msg.Message) error {
 	log.Debug("processing hello message")
 	if m.GetType() != pb.Message_HELLO_REQUEST {
@@ -206,6 +250,8 @@ func (p *BlockProtocol) handleMessage(ctx context.Context, m *msg.Message) error
 		return p.OnHello(ctx, m)
 	case pb.Message_BLOCK_REQUEST:
 		return p.OnBlockRequest(ctx, m)
+	case pb.Message_BLOCK_HEADER_BATCH_REQUEST:
+		return p.OnBlockHeaderBatchRequest(ctx, m)
 	}
 	return nil
 }

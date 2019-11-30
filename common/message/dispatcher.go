@@ -41,6 +41,8 @@ func (d *HotstuffDispatcher) Dispatch(msg *Message) {
 			fallthrough
 		case pb.Message_BLOCK_REQUEST:
 			d.blockProtocolChan <- msg
+		case pb.Message_BLOCK_HEADER_BATCH_REQUEST:
+			d.blockProtocolChan <- msg
 		case pb.Message_HELLO_RESPONSE:
 			fallthrough
 		case pb.Message_BLOCK_RESPONSE:

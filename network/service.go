@@ -5,14 +5,14 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common"
 	msg "github.com/gagarinchain/network/common/message"
-	"github.com/gagarinchain/network/common/protobuff"
+	pb "github.com/gagarinchain/network/common/protobuff"
 	protoio "github.com/gogo/protobuf/io"
 	"github.com/gogo/protobuf/proto"
 	"github.com/jbenet/go-context/io"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
-	"github.com/libp2p/go-libp2p-pubsub"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"io"
 	"math/rand"
 )
@@ -26,6 +26,8 @@ type Service interface {
 
 	SendResponse(ctx context.Context, msg *msg.Message)
 
+	//Send message to a specific peer.
+	//If peer == nil, behaves like SendRequestToRandomPeer().
 	SendRequest(ctx context.Context, peer *common.Peer, msg *msg.Message) (resp chan *msg.Message, err chan error)
 
 	//Send message to a random peer
@@ -110,7 +112,11 @@ func (s *ServiceImpl) SendResponse(ctx context.Context, m *msg.Message) {
 }
 
 func (s *ServiceImpl) SendRequest(ctx context.Context, peer *common.Peer, req *msg.Message) (resp chan *msg.Message, err chan error) {
-	return s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, req, true)
+	if peer == nil {
+		return s.SendRequestToRandomPeer(ctx, req)
+	} else {
+		return s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, req, true)
+	}
 }
 
 func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *msg.Message, withResponse bool) (resp chan *msg.Message, err chan error) {

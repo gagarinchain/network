@@ -20,6 +20,9 @@ type BlockService interface {
 	// Requests blocks at a specific height from a specific peer.
 	// If peer == nil, will request the same from a random peer.
 	RequestBlocksAtHeight(ctx context.Context, height int32, peer *com.Peer) (resp chan *Block, err chan error)
+	// Requests block headers at (low, high] height, all in one batch, from a specific peer.
+	// If peer == nil, will request the same from a random peer.
+	RequestBlockHeaderBatch(ctx context.Context, low int32, high int32, peer *com.Peer) (resp chan *Header, err chan error)
 	RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error)
 }
 
@@ -123,6 +126,61 @@ func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, h
 
 func (s *BlockServiceImpl) RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *com.Peer) (resp chan *Block, err chan error) {
 	return s.requestBlock(ctx, hash, lowHeight, peer)
+}
+
+func (s *BlockServiceImpl) RequestBlockHeaderBatch(ctx context.Context, low int32, high int32, peer *com.Peer) (resp chan *Header, err chan error) {
+	if low >= high {
+		panic(fmt.Errorf("invalid low..high range: (%d, %d]", low, high))
+	}
+
+	err = make(chan error)
+	resp = make(chan *Header)
+	payload := &pb.BlockHeaderBatchRequestPayload{Low: low, High: high}
+	any, e := ptypes.MarshalAny(payload)
+
+	if e != nil {
+		err <- e
+		return resp, err
+	}
+
+	msg := message.CreateMessage(pb.Message_BLOCK_HEADER_BATCH_REQUEST, any, nil)
+
+	var m *message.Message
+	go func() {
+		rc, ec := s.srv.SendRequest(ctx, peer, msg)
+		select {
+		case m = <-rc:
+		case e := <-ec:
+			err <- e
+			return
+		}
+
+		if m.Type != pb.Message_BLOCK_HEADER_BATCH_RESPONSE {
+			err <- errors.New(fmt.Sprintf("Received message of type %v, but expected %v",
+				m.Type.String(), pb.Message_BLOCK_HEADER_BATCH_RESPONSE.String()))
+			return
+		}
+
+		rp := &pb.BlockHeaderBatchResponsePayload{}
+		if e := ptypes.UnmarshalAny(m.Payload, rp); e != nil {
+			err <- e
+			return
+		}
+
+		for _, headerM := range rp.Headers {
+			header := CreateBlockHeaderFromMessage(headerM)
+
+			log.Infof("Received new block header batch: (%v, %v]", low, high)
+
+			// TODO: Validate headers when received. [!!!]
+
+			resp <- header
+		}
+
+		close(resp)
+	}()
+
+	return resp, err
 }
 
 func ReadBlocksWithErrors(blockChan chan *Block, errChan chan error) (blocks []*Block, err error) {

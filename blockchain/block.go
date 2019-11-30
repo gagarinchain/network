@@ -103,6 +103,12 @@ func (h ByHeight) Len() int           { return len(h) }
 func (h ByHeight) Less(i, j int) bool { return h[i].Height() < h[j].Height() }
 func (h ByHeight) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
+type ByHeaderHeight []*Header
+
+func (h ByHeaderHeight) Len() int           { return len(h) }
+func (h ByHeaderHeight) Less(i, j int) bool { return h[i].Height() < h[j].Height() }
+func (h ByHeaderHeight) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
 func (b *Block) Header() *Header {
 	return b.header
 }

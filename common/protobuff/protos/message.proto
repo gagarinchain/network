@@ -8,14 +8,16 @@ message Message {
     google.protobuf.Any payload = 3;
 
     enum MessageType {
-        HELLO_REQUEST   = 0;
-        HELLO_RESPONSE   = 1;
-        EPOCH_START   = 2;
-        VOTE    = 3;
+        HELLO_REQUEST = 0;
+        HELLO_RESPONSE = 1;
+        EPOCH_START = 2;
+        VOTE = 3;
         PROPOSAL = 4;
         BLOCK_REQUEST = 5;
         BLOCK_RESPONSE = 6;
         TRANSACTION = 7;
+        BLOCK_HEADER_BATCH_REQUEST = 8;
+        BLOCK_HEADER_BATCH_RESPONSE = 9;
     }
 }
 
@@ -70,13 +72,24 @@ message BlockResponsePayload {
     }
 }
 
+// Requests a batch of block headers at (low, high] height.
+message BlockHeaderBatchRequestPayload {
+    int32 low = 1;
+    int32 high = 2;
+}
+
+message BlockHeaderBatchResponsePayload {
+    // Could be empty if no blocks found at the specified height.
+    repeated BlockHeader headers = 1;
+}
+
 message Error {
     ErrorCode code = 1;
-    string    desc = 2;
+    string desc = 2;
 
     enum ErrorCode {
-        NOT_FOUND   = 0;
-        BAD_REQUEST    = 1;
+        NOT_FOUND = 0;
+        BAD_REQUEST = 1;
     }
 }
 message QuorumCertificate {
@@ -101,7 +114,7 @@ message BlockHeader {
     bytes dataHash = 4;
     bytes txHash = 5;
     bytes stateHash = 6;
-    int32 height = 7;
+    int32 height = 7; //TODO: convert height to int64 everywhere
     int64 timestamp = 8;
 }
 
@@ -110,7 +123,7 @@ message BlockData {
 }
 
 message Transaction {
-    Type  type = 1;
+    Type type = 1;
     bytes to = 2;
     uint64 nonce = 3;
     int64 value = 4;
