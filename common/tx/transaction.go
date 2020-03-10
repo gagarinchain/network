@@ -22,6 +22,7 @@ const (
 	Settlement              Type = iota
 	Agreement               Type = iota
 	Proof                   Type = iota
+	Redeem                  Type = iota
 )
 
 type Iterator interface {
@@ -183,6 +184,8 @@ func (tx *Transaction) GetMessage() *pb.Transaction {
 		txType = pb.Transaction_AGREEMENT
 	case Proof:
 		txType = pb.Transaction_PROOF
+	case Redeem:
+		txType = pb.Transaction_REDEEM
 	}
 
 	return &pb.Transaction{
@@ -258,12 +261,14 @@ func CreateTransactionFromMessage(msg *pb.Transaction) (*Transaction, error) {
 		txType = Agreement
 	case pb.Transaction_PROOF:
 		txType = Proof
+	case pb.Transaction_REDEEM:
+		txType = Redeem
 	}
 
 	tx := CreateTransaction(txType,
 		common.BytesToAddress(msg.GetTo()),
 		a,
-		uint64(msg.GetNonce()),
+		msg.GetNonce(),
 		big.NewInt(msg.GetValue()),
 		big.NewInt(msg.GetFee()),
 		msg.GetData(),

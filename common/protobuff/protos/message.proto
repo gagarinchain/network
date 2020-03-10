@@ -124,5 +124,6 @@ message Transaction {
         SETTLEMENT = 2;
         AGREEMENT = 3;
         PROOF = 4;
+        REDEEM = 5;
     }
 }

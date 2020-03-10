@@ -123,17 +123,15 @@ func (s *BlockServiceImpl) RequestFork(ctx context.Context, lowHeight int32, has
 
 func ReadBlocksWithErrors(blockChan chan *Block, errChan chan error) (blocks []*Block, err error) {
 	for blockChan != nil {
-		for blockChan != nil {
-			select {
-			case b, ok := <-blockChan:
-				if !ok {
-					blockChan = nil
-				} else {
-					blocks = append(blocks, b)
-				}
-			case err := <-errChan:
-				return nil, err
+		select {
+		case b, ok := <-blockChan:
+			if !ok {
+				blockChan = nil
+			} else {
+				blocks = append(blocks, b)
 			}
+		case err := <-errChan:
+			return nil, err
 		}
 	}
 
