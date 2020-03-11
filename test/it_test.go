@@ -674,6 +674,56 @@ func TestScenario6d(t *testing.T) {
 	assert.Equal(t, block6.Header(), ctx.bc.GetBlockByHeight(6)[0].Header())
 }
 
+//Scenario 6e: Fork Cleanup
+//Start new epoch
+//Replica
+//Receive fork Gc<-B1c<-B2<-B3<-B4
+//Receive proposal fork B21<-B32<-B42-B52
+func TestScenario6e(t *testing.T) {
+	ctx := initContext(t)
+
+	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
+	defer f()
+
+	ctx.StartFirstEpoch()
+	ctx.setMe(8)
+
+	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	proposal1 := ctx.createProposal(block1, 1)
+	ctx.hotstuffChan <- proposal1
+	qcb1 := ctx.createQC(block1)
+	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	proposal2 := ctx.createProposal(block2, 2)
+	ctx.hotstuffChan <- proposal2
+	qcb2 := ctx.createQC(block2)
+	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	proposal3 := ctx.createProposal(block3, 3)
+	ctx.hotstuffChan <- proposal3
+	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	proposal4 := ctx.createProposal(block4, 4)
+	ctx.hotstuffChan <- proposal4
+
+	block21 := ctx.bc.NewBlock(block2, qcb2, []byte("block 21"))
+	block32 := ctx.bc.NewBlock(block21, qcb2, []byte("block 32"))
+	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+	proposal := ctx.createProposal(block52, 5)
+	ctx.hotstuffChan <- proposal
+
+	ctx.blockChan <- block21
+	ctx.blockChan <- block32
+	ctx.blockChan <- block42
+	close(ctx.blockChan)
+
+	ctx.waitRounds(timeout, 6)
+
+	assert.Equal(t, int32(4), ctx.protocol.Vheight())
+	assert.Equal(t, block1.Header(), ctx.bc.GetTopCommittedBlock().Header())
+	assert.Nil(t, ctx.bc.GetBlockByHash(block32.Header().Hash()))
+	assert.Nil(t, ctx.bc.GetBlockByHash(block42.Header().Hash()))
+}
+
 //Scenario 7a: Propose block with transaction
 func TestScenario7a(t *testing.T) {
 	ctx := initContext(t)
@@ -766,7 +816,8 @@ func TestScenario7c(t *testing.T) {
 	qcb2 := ctx.createQC(block2)
 
 	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
-	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	qc3 := ctx.createQC(block3)
+	block4 := ctx.bc.NewBlock(block3, qc3, []byte("block 4"))
 	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
@@ -781,6 +832,7 @@ func TestScenario7c(t *testing.T) {
 	_, _, err := ctx.bc.OnCommit(block1)
 
 	assert.NoError(t, err)
+	assert.Equal(t, block3.Signature(), qc3.SignatureAggregate())
 }
 
 //Scenario 7d: Forks switching and blocks with transactions (release states etc)

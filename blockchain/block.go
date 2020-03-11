@@ -13,11 +13,16 @@ import (
 	"time"
 )
 
+var (
+	NoBlockFoundError = errors.New("no block is found")
+)
+
 type Block struct {
-	header *Header
-	qc     *QuorumCertificate
-	txs    *trie.FixedLengthHexKeyMerkleTrie
-	data   []byte
+	header    *Header
+	qc        *QuorumCertificate
+	signature *crypto.SignatureAggregate
+	txs       *trie.FixedLengthHexKeyMerkleTrie
+	data      []byte
 }
 
 type BlockPersister struct {
@@ -32,6 +37,12 @@ func (bp *BlockPersister) Persist(b *Block) error {
 
 	return bp.Storage.Put(net.Block, b.Header().Hash().Bytes(), bytes)
 }
+func (bp *BlockPersister) Update(b *Block) error {
+	if bp.Contains(b.Header().hash) {
+		return bp.Persist(b)
+	}
+	return NoBlockFoundError
+}
 
 func (bp *BlockPersister) Load(hash common.Hash) (b *Block, er error) {
 	value, er := bp.Storage.Get(net.Block, hash.Bytes())
@@ -39,7 +50,7 @@ func (bp *BlockPersister) Load(hash common.Hash) (b *Block, er error) {
 		return nil, er
 	}
 	if value == nil {
-		return nil, errors.New("empty value found")
+		return nil, NoBlockFoundError
 	}
 	block := &pb.Block{}
 	er = proto.Unmarshal(value, block)
@@ -142,6 +153,15 @@ func (b *Block) SetQC(qc *QuorumCertificate) {
 	b.header.qcHash = qc.GetHash()
 	b.header.SetHash()
 }
+
+func (b *Block) Signature() *crypto.SignatureAggregate {
+	return b.signature
+}
+func (b *Block) SetSignature(s *crypto.SignatureAggregate) {
+	b.signature = s
+	b.pruneTxSignatures()
+}
+
 func (b *Block) QRef() *Header {
 	return b.QC().QrefBlock()
 }
@@ -189,7 +209,12 @@ func CreateBlockFromMessage(block *pb.Block) *Block {
 		}
 		txs.InsertOrUpdate([]byte(t.HashKey().Hex()), t.Serialized())
 	}
-	return &Block{header: header, qc: cert, data: block.Data.Data, txs: txs}
+
+	var signature *crypto.SignatureAggregate
+	if block.SignatureAggregate != nil {
+		signature = crypto.AggregateFromProto(block.SignatureAggregate)
+	}
+	return &Block{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs}
 }
 
 func (b *Block) GetMessage() *pb.Block {
@@ -206,7 +231,17 @@ func (b *Block) GetMessage() *pb.Block {
 		}
 	}
 
-	return &pb.Block{Header: b.Header().GetMessage(), Cert: qc, Data: &pb.BlockData{Data: b.Data()}, Txs: txs}
+	var sign *pb.SignatureAggregate
+	if b.signature != nil {
+		sign = b.signature.ToProto()
+	}
+
+	return &pb.Block{Header: b.Header().GetMessage(), Cert: qc, SignatureAggregate: sign,
+		Data: &pb.BlockData{Data: b.Data()}, Txs: txs}
+}
+
+func (b *Block) pruneTxSignatures() {
+	//TODO implement method, NB: when pruning signatures we will break tx identity due to breaking HashKey
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {

@@ -219,7 +219,11 @@ func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
-	block = bc.blocksByHash[hash]
+	return bc.getBlockByHash(hash)
+}
+
+func (bc *Blockchain) getBlockByHash(hash common.Hash) *Block {
+	block := bc.blocksByHash[hash]
 
 	if block == nil {
 		block, er := bc.blockPersister.Load(hash)
@@ -466,6 +470,10 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 		return errors.New(fmt.Sprintf("block with hash [%v] don't have parent loaded to blockchain", block.Header().Hash().Hex()))
 	}
 
+	if block.QC() != nil {
+		bc.updateBlockSignature(block)
+	}
+
 	//todo remove this hack by handling genesis in special way
 	if block.Height() != 0 {
 		if err := bc.applyTransactionsAndValidate(block); err != nil {
@@ -490,6 +498,20 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	})
 
 	return nil
+}
+
+func (bc *Blockchain) updateBlockSignature(sibling *Block) {
+	if sibling.Height() == 0 {
+		return
+	}
+	qrefHash := sibling.QC().QrefBlock().Hash()
+	qrefBlock := bc.getBlockByHash(qrefHash)
+
+	qrefBlock.SetSignature(sibling.QC().SignatureAggregate())
+
+	if err := bc.blockPersister.Update(qrefBlock); err != nil {
+		log.Error("error while block signature update", err)
+	}
 }
 
 func (bc *Blockchain) addUncommittedBlock(block *Block) error {
@@ -526,13 +548,25 @@ func (bc *Blockchain) RemoveBlock(block *Block) error {
 		nextHeight := value.([]*Block)
 		for _, next := range nextHeight {
 			if block.Header().Parent().Big() == next.Header().Hash().Big() {
-				return errors.New(fmt.Sprintf("block [%v] has sibling [%v] on next level", block.header.Hash().Hex(), next.Header().Hash().Hex()))
+				return errors.New(fmt.Sprintf("block [%v] has sibling [%v] on next level",
+					block.header.Hash().Hex(), next.Header().Hash().Hex()))
 			}
 		}
 	}
 
 	delete(bc.blocksByHash, block.Header().Hash())
-	bc.uncommittedTreeByHeight.Remove(block.Header().Hash())
+
+	onHeight, found := bc.uncommittedTreeByHeight.Get(block.Height())
+	if found {
+		thisHeight := onHeight.([]*Block)
+		for i, b := range thisHeight {
+			if b.Header().Hash().Big() == block.Header().Hash().Big() {
+				thisHeight = append(thisHeight[:i], thisHeight[i+1:]...)
+				bc.uncommittedTreeByHeight.Put(block.Height(), thisHeight)
+				break
+			}
+		}
+	}
 
 	return nil
 }

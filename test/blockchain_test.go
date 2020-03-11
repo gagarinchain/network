@@ -287,6 +287,28 @@ func TestOnCommit(t *testing.T) {
 	assert.Equal(t, block21.Height(), val)
 }
 
+func TestSignatureUpdate(t *testing.T) {
+	storage, _ := cmn.NewStorage("", nil)
+	bpersister := &bch.BlockPersister{storage}
+	cpersister := &bch.BlockchainPersister{storage}
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
+	genesisBlock := bc.GetGenesisBlock()
+	genesisBlock.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header()))
+	_ = bc.AddBlock(genesisBlock)
+
+	block10 := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
+
+	block20 := bc.NewBlock(block10, bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), block10.Header()), []byte("block 0<-0"))
+
+	_ = bc.AddBlock(block10)
+	_ = bc.AddBlock(block20)
+
+	assert.Equal(t, bc.GetGenesisBlock().Signature(), crypto.EmptyAggregateSignatures())
+	assert.Equal(t, bc.GetBlockByHash(block10.Header().Hash()).Signature(), crypto.EmptyAggregateSignatures())
+	assert.Nil(t, bc.GetBlockByHash(block20.Header().Hash()).Signature())
+
+}
+
 func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	storage, _ := cmn.NewStorage("", nil)
 	bpersister := &bch.BlockPersister{Storage: storage}

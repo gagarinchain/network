@@ -87,8 +87,9 @@ message QuorumCertificate {
 message Block {
     BlockHeader header = 1;
     QuorumCertificate cert = 2;
-    BlockData data = 3;
-    repeated Transaction txs = 4;
+    SignatureAggregate signatureAggregate = 3;
+    BlockData data = 4;
+    repeated Transaction txs = 5;
 }
 message Blocks {
     repeated Block blocks = 1;
