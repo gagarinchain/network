@@ -740,7 +740,7 @@ func TestScenario7a(t *testing.T) {
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
 	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
-	assert.Equal(t, "0xc09dbb115a750bfbe498c614115640bd9c2791e84960f99d3e546ece5b487608", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x5398ef0b268066eac506627bd5a04ce23d4fec3a6464fd7f6c2308316387196a", proposal.NewBlock.Header().TxHash().Hex())
 	assert.Equal(t, "0x7509e1371b6d9293bac6ed2e32661978a23d9ff4352f661bdfcb31c3370922b5", proposal.NewBlock.Header().StateHash().Hex())
 
 }
@@ -762,7 +762,7 @@ func TestScenario7aa(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0x44f73c5f778c3763a60560bb3a8da9f1eeae6bf7356ee6d62b775166b19a8f7b", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x49db1423dfd577d276e08a3e9ce09e9cb49991322c1840d3f0a23b1aa23c80a1", proposal.NewBlock.Header().TxHash().Hex())
 	assert.Equal(t, "0x51de6155ccb435024a7874b4f933efacad07e49cf0776738d706ff3b52211df7", proposal.NewBlock.Header().StateHash().Hex())
 	assert.Equal(t, 2, proposal.NewBlock.TxsCount())
 

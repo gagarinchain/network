@@ -241,7 +241,15 @@ func (b *Block) GetMessage() *pb.Block {
 }
 
 func (b *Block) pruneTxSignatures() {
-	//TODO implement method, NB: when pruning signatures we will break tx identity due to breaking HashKey
+	var txs = trie.New()
+	iterator := b.Txs()
+	for iterator.HasNext() {
+		next := iterator.Next()
+		next.DropSignature()
+		txs.InsertOrUpdate([]byte(next.HashKey().Hex()), next.Serialized())
+
+	}
+	b.txs = txs
 }
 
 func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
@@ -300,10 +308,11 @@ func (h *Header) Sign(key *crypto.PrivateKey) *crypto.Signature {
 
 type BlockValidator struct {
 	committee []*cmn.Peer
+	txVal     *TransactionValidator
 }
 
-func NewBlockValidator(committee []*cmn.Peer) *BlockValidator {
-	return &BlockValidator{committee: committee}
+func NewBlockValidator(committee []*cmn.Peer, txVal *TransactionValidator) *BlockValidator {
+	return &BlockValidator{committee: committee, txVal: txVal}
 }
 
 func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
@@ -329,7 +338,28 @@ func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
 		log.Debugf("calculated %v, received %v", dataHash, block.Header().TxHash())
 		return false, errors.New("data hash is not valid")
 	}
-	return block.QC().IsValid(block.Header().QCHash(), cmn.PeersToPubs(b.committee))
+
+	valid, e := block.QC().IsValid(block.Header().QCHash(), cmn.PeersToPubs(b.committee))
+	if !valid {
+		return valid, e
+	}
+
+	if block.Signature() != nil {
+		if !block.Signature().IsValid(block.Header().Hash().Bytes(), cmn.PeersToPubs(b.committee)) {
+			return false, errors.New("block signature is not valid")
+		}
+	} else {
+		iterator := block.Txs()
+		for iterator.HasNext() {
+			next := iterator.Next()
+			isValid, e := b.txVal.IsValid(next)
+			if !isValid {
+				return isValid, e
+			}
+		}
+	}
+
+	return true, nil
 }
 
 func (b *BlockValidator) Supported(mType pb.Message_MessageType) bool {

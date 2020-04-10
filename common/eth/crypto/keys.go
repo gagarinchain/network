@@ -61,6 +61,9 @@ func (s *Signature) Pub() *g1pubs.PublicKey {
 }
 
 func (s *Signature) ToProto() *pb.Signature {
+	if s.IsEmpty() {
+		return &pb.Signature{}
+	}
 	pkBytes := s.Pub().Serialize()
 	signBytes := s.Sign().Serialize()
 	return &pb.Signature{
@@ -70,6 +73,9 @@ func (s *Signature) ToProto() *pb.Signature {
 }
 
 func (s *Signature) ToStorageProto() *pb.Sign {
+	if s.IsEmpty() {
+		return &pb.Sign{}
+	}
 	pkBytes := s.Pub().Serialize()
 	signBytes := s.Sign().Serialize()
 	return &pb.Sign{
@@ -90,6 +96,8 @@ func NewSignature(pk *g1pubs.PublicKey, sign *g1pubs.Signature) *Signature {
 }
 
 func NewSignatureFromBytes(pk []byte, sign []byte) *Signature {
+	if len(pk) == 0 {
+	}
 	pkBytes := bls12_381.ToBytes48(pk)
 	key, e := g1pubs.DeserializePublicKey(pkBytes)
 	if e != nil {

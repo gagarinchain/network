@@ -52,7 +52,7 @@ func (tx *Transaction) Serialized() []byte {
 }
 
 func (tx *Transaction) HashKey() common.Hash {
-	if bytes.Equal(tx.hashKey.Bytes(), common.Hash{}.Bytes()) { //noy initialized
+	if bytes.Equal(tx.hashKey.Bytes(), common.Hash{}.Bytes()) { //not initialized
 		tx.hashKey = tx.CalculateHashKey()
 	}
 	return tx.hashKey
@@ -305,11 +305,30 @@ func Hash(msg pb.Transaction) common.Hash {
 	return crypto.Keccak256Hash(bytes)
 }
 
-//we actually can't simply use hash of pb.Transaction as a key, because we can have the same message with signature excluded (we don't have TO field)
+//we actually can't simply use hash of pb.Transaction as a key, because we can have the same message with signature excluded (we don't have FROM field)
 //that mean that we have to use hash of message with signature for key and hash of message without signature for signing, what seems like mess
 func (tx *Transaction) CalculateHashKey() common.Hash {
 	tx.hashKey = common.Hash{}
-	m := tx.serialize()
+
+	pbtx := &pb.Tx{
+		Type:  int32(tx.txType),
+		From:  tx.from.Bytes(),
+		To:    tx.to.Bytes(),
+		Nonce: tx.nonce,
+		Value: tx.value.Bytes(),
+		Fee:   tx.fee.Bytes(),
+		Data:  tx.data,
+	}
+
+	m, e := proto.Marshal(pbtx)
+	if e != nil {
+		log.Error("can't marshal tx", e)
+		return common.Hash{}
+	}
 
 	return crypto.Keccak256Hash(m)
+}
+
+func (tx *Transaction) DropSignature() {
+	tx.signature = crypto.EmptySignature()
 }

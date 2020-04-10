@@ -500,18 +500,19 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	return nil
 }
 
-func (bc *Blockchain) updateBlockSignature(sibling *Block) {
-	if sibling.Height() == 0 {
+func (bc *Blockchain) updateBlockSignature(b *Block) {
+	if b.Height() == 0 {
 		return
 	}
-	qrefHash := sibling.QC().QrefBlock().Hash()
+	qrefHash := b.QC().QrefBlock().Hash()
 	qrefBlock := bc.getBlockByHash(qrefHash)
 
-	qrefBlock.SetSignature(sibling.QC().SignatureAggregate())
+	qrefBlock.SetSignature(b.QC().SignatureAggregate())
 
 	if err := bc.blockPersister.Update(qrefBlock); err != nil {
 		log.Error("error while block signature update", err)
 	}
+
 }
 
 func (bc *Blockchain) addUncommittedBlock(block *Block) error {

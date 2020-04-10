@@ -422,13 +422,6 @@ func (p *Protocol) validateMessage(entity interface{}, messageType pb.Message_Me
 
 	return nil
 }
-func (p *Protocol) validate(proposal *Proposal) error {
-	if proposal.NewBlock == nil {
-		return errors.New("proposed block can'T be empty")
-	}
-
-	return nil
-}
 
 func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 	switch m.Type {
