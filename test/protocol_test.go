@@ -260,12 +260,12 @@ func TestQCUpdateOnVotesCollectFinish(t *testing.T) {
 	assert.Equal(t, newBlock.Header().Hash(), p.HQC().QrefBlock().Hash())
 }
 
-func createVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) *hotstuff.Vote {
+func createVote(bc blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) *hotstuff.Vote {
 	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), generateIdentity(t, 2))
 	return vote
 }
 
-func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) []*hotstuff.Vote {
+func createVotes(count int, bc blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) []*hotstuff.Vote {
 	votes := make([]*hotstuff.Vote, count)
 
 	for i := 0; i < count; i++ {
@@ -278,7 +278,7 @@ func createVotes(count int, bc *blockchain.Blockchain, newBlock *blockchain.Bloc
 	return votes
 }
 
-func initProtocol(t *testing.T, inds ...int) (*blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig, chan hotstuff.Event) {
+func initProtocol(t *testing.T, inds ...int) (blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig, chan hotstuff.Event) {
 	var ind int
 	if inds != nil {
 		ind = inds[0]

@@ -16,14 +16,14 @@ import (
 //Now we don't use same stream to send response, it means that we pass peer id to open new stream to this peer when sending response, this scheme is redundant too
 type BlockProtocol struct {
 	srv  network.Service
-	bc   *Blockchain
+	bc   Blockchain
 	sync Synchronizer
 	stop chan int
 }
 
 var Version int32 = 1
 
-func CreateBlockProtocol(srv network.Service, bc *Blockchain, sync Synchronizer) *BlockProtocol {
+func CreateBlockProtocol(srv network.Service, bc Blockchain, sync Synchronizer) *BlockProtocol {
 	return &BlockProtocol{srv: srv, bc: bc, sync: sync, stop: make(chan int)}
 }
 
@@ -93,7 +93,7 @@ func (p *BlockProtocol) SendHello(ctx context.Context) error {
 
 	if h.GetTopBlockHeight() > p.bc.GetTopHeight() {
 		//log.Info("loading absent blocks from %v to %v, peer %v", p.bc.GetTopHeight(), h.GetTopBlockHeight(), resp.Source().GetPeerInfo().ID.Pretty())
-		if err := p.sync.RequestBlocks(ctx, p.bc.GetTopHeight(), h.GetTopBlockHeight(), resp.Source()); err != nil {
+		if err := p.sync.LoadBlocks(ctx, p.bc.GetTopHeight(), h.GetTopBlockHeight(), resp.Source()); err != nil {
 			return err
 		}
 	}
@@ -108,44 +108,29 @@ func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) er
 		return err
 	}
 
-	var blocks []*Block
-	if br.GetHeight() != -1 && br.GetHash() != nil {
-		blocks = p.bc.GetFork(br.GetHeight(), common.BytesToHash(br.GetHash()))
-	} else if br.GetHash() != nil { //requesting exact
-		hash := common.BytesToHash(br.GetHash())
-		blocks = append(blocks, p.bc.GetBlockByHash(hash))
-	} else if br.GetHeight() != -1 { //requesting by height
-		blocks = append(blocks, p.bc.GetBlockByHeight(br.GetHeight())...)
-	}
+	hash := common.BytesToHash(br.GetHash())
+	block := p.bc.GetBlockByHash(hash)
 
-	resp, e := createBlockResponse(blocks)
-	if e != nil {
-		return e
-	}
+	resp := createBlockResponse(block)
 
 	any, e := ptypes.MarshalAny(resp)
 	if e != nil {
 		return e
 	}
-	block := msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil)
-	block.SetStream(req.Stream())
-	p.srv.SendResponse(ctx, block)
+	b := msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, nil)
+	b.SetStream(req.Stream())
+	p.srv.SendResponse(ctx, b)
 	return nil
 }
 
-func createBlockResponse(blocks []*Block) (*pb.BlockResponsePayload, error) {
-	var bs []*pb.Block
-	if len(blocks) == 0 {
+func createBlockResponse(block *Block) *pb.BlockResponsePayload {
+	if block == nil {
 		e := &pb.Error{Code: pb.Error_NOT_FOUND, Desc: "Not found"}
-		return &pb.BlockResponsePayload{Response: &pb.BlockResponsePayload_ErrorCode{ErrorCode: e}}, nil
+		return &pb.BlockResponsePayload{Response: &pb.BlockResponsePayload_ErrorCode{ErrorCode: e}}
 	}
-
-	for _, b := range blocks {
-		bs = append(bs, b.GetMessage())
-	}
-	i := &pb.Blocks{Blocks: bs}
-	p := &pb.BlockResponsePayload_Blocks{Blocks: i}
-	return &pb.BlockResponsePayload{Response: p}, nil
+	pblock := block.GetMessage()
+	p := &pb.BlockResponsePayload_Block{Block: pblock}
+	return &pb.BlockResponsePayload{Response: p}
 }
 
 func (p *BlockProtocol) OnHello(ctx context.Context, m *msg.Message) error {

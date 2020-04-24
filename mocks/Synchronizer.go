@@ -12,8 +12,8 @@ type Synchronizer struct {
 	mock.Mock
 }
 
-// RequestBlocks provides a mock function with given fields: ctx, low, high, peer
-func (_m *Synchronizer) RequestBlocks(ctx context.Context, low int32, high int32, peer *common.Peer) error {
+// LoadBlocks provides a mock function with given fields: ctx, low, high, peer
+func (_m *Synchronizer) LoadBlocks(ctx context.Context, low int32, high int32, peer *common.Peer) error {
 	ret := _m.Called(ctx, low, high, peer)
 
 	var r0 error
@@ -26,13 +26,13 @@ func (_m *Synchronizer) RequestBlocks(ctx context.Context, low int32, high int32
 	return r0
 }
 
-// RequestFork provides a mock function with given fields: ctx, hash, peer
-func (_m *Synchronizer) RequestFork(ctx context.Context, hash ethcommon.Hash, peer *common.Peer) error {
-	ret := _m.Called(ctx, hash, peer)
+// LoadFork provides a mock function with given fields: ctx, headHeight, head, peer
+func (_m *Synchronizer) LoadFork(ctx context.Context, headHeight int32, head ethcommon.Hash, peer *common.Peer) error {
+	ret := _m.Called(ctx, headHeight, head, peer)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, ethcommon.Hash, *common.Peer) error); ok {
-		r0 = rf(ctx, hash, peer)
+	if rf, ok := ret.Get(0).(func(context.Context, int32, ethcommon.Hash, *common.Peer) error); ok {
+		r0 = rf(ctx, headHeight, head, peer)
 	} else {
 		r0 = ret.Error(0)
 	}

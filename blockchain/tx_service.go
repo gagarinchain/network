@@ -16,11 +16,11 @@ type TxService struct {
 	validator net.Validator
 	txPool    TransactionPool
 	netserv   network.Service
-	bc        *Blockchain
+	bc        Blockchain
 	me        *common.Peer
 }
 
-func NewService(validator net.Validator, txPool TransactionPool, netserv network.Service, bc *Blockchain, me *common.Peer) *TxService {
+func NewService(validator net.Validator, txPool TransactionPool, netserv network.Service, bc Blockchain, me *common.Peer) *TxService {
 	return &TxService{validator: validator, txPool: txPool, netserv: netserv, bc: bc, me: me}
 }
 

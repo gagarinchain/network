@@ -3,7 +3,6 @@ package blockchain
 import (
 	"errors"
 	net "github.com/gagarinchain/network"
-	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -113,6 +112,12 @@ type ByHeight []*Block
 func (h ByHeight) Len() int           { return len(h) }
 func (h ByHeight) Less(i, j int) bool { return h[i].Height() < h[j].Height() }
 func (h ByHeight) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+type HeadersByHeight []*Header
+
+func (h HeadersByHeight) Len() int           { return len(h) }
+func (h HeadersByHeight) Less(i, j int) bool { return h[i].Height() < h[j].Height() }
+func (h HeadersByHeight) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (b *Block) Header() *Header {
 	return b.header
@@ -304,68 +309,4 @@ func (h *Header) Sign(key *crypto.PrivateKey) *crypto.Signature {
 	}
 
 	return sig
-}
-
-type BlockValidator struct {
-	committee []*cmn.Peer
-	txVal     *TransactionValidator
-}
-
-func NewBlockValidator(committee []*cmn.Peer, txVal *TransactionValidator) *BlockValidator {
-	return &BlockValidator{committee: committee, txVal: txVal}
-}
-
-func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
-	if entity == nil {
-		return false, errors.New("entity is nil")
-	}
-
-	block := entity.(*Block)
-
-	//Skip checks for genesis block
-	if block.Header().IsGenesisBlock() {
-		return true, nil
-	}
-
-	hash := HashHeader(*block.Header())
-	if block.Header().Hash() != hash {
-		log.Debugf("calculated %v, received %v", hash, block.Header().Hash())
-		return false, errors.New("block hash is not valid")
-	}
-
-	dataHash := crypto.Keccak256(block.Data())
-	if common.BytesToHash(dataHash) != block.Header().DataHash() {
-		log.Debugf("calculated %v, received %v", dataHash, block.Header().TxHash())
-		return false, errors.New("data hash is not valid")
-	}
-
-	valid, e := block.QC().IsValid(block.Header().QCHash(), cmn.PeersToPubs(b.committee))
-	if !valid {
-		return valid, e
-	}
-
-	if block.Signature() != nil {
-		if !block.Signature().IsValid(block.Header().Hash().Bytes(), cmn.PeersToPubs(b.committee)) {
-			return false, errors.New("block signature is not valid")
-		}
-	} else {
-		iterator := block.Txs()
-		for iterator.HasNext() {
-			next := iterator.Next()
-			isValid, e := b.txVal.IsValid(next)
-			if !isValid {
-				return isValid, e
-			}
-		}
-	}
-
-	return true, nil
-}
-
-func (b *BlockValidator) Supported(mType pb.Message_MessageType) bool {
-	return mType == pb.Message_BLOCK_RESPONSE
-}
-
-func (b *BlockValidator) GetId() interface{} {
-	return "Block"
 }

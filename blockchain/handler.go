@@ -8,11 +8,11 @@ import (
 )
 
 type RequestHandler struct {
-	bc *Blockchain
+	bc Blockchain
 	db state.DB
 }
 
-func NewRequestHandler(bc *Blockchain, db state.DB) *RequestHandler {
+func NewRequestHandler(bc Blockchain, db state.DB) *RequestHandler {
 	return &RequestHandler{bc: bc, db: db}
 }
 

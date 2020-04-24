@@ -72,7 +72,9 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher, bus)
 	storage, _ := common.NewStorage(cfg.DataDir, nil)
-	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee))
+	txValidator := blockchain.NewTransactionValidator(committee)
+	headerValidator := &blockchain.HeaderValidator{}
+	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee, txValidator, headerValidator), headerValidator)
 	db := state.NewStateDB(storage)
 	seed := blockchain.SeedFromFile(path.Join(s.Static.Dir, "seed.json"))
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
@@ -86,7 +88,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Delta:          time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
 		EventBus:       bus,
 	})
-	synchr := blockchain.CreateSynchronizer(me, bsrv, bc)
+	synchr := blockchain.CreateSynchronizer(me, bsrv, bc, -1, 20, 3, 3, 5)
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
 	initialState := getInitialState(storage, bc)
@@ -107,7 +109,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Storage:      storage,
 	}
 
-	txService := blockchain.NewService(blockchain.NewTransactionValidator(committee), pool, hotstuffSrv, bc, me)
+	txService := blockchain.NewService(txValidator, pool, hotstuffSrv, bc, me)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer
@@ -130,7 +132,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	}
 }
 
-func getInitialState(storage net.Storage, bc *blockchain.Blockchain) *hotstuff.InitialState {
+func getInitialState(storage net.Storage, bc blockchain.Blockchain) *hotstuff.InitialState {
 	initialState := &hotstuff.InitialState{
 		View:              int32(0),
 		Epoch:             int32(-1),

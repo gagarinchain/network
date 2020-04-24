@@ -130,3 +130,123 @@ func (v *TransactionValidator) Supported(mType pb.Message_MessageType) bool {
 func (v *TransactionValidator) GetId() interface{} {
 	return "TransactionValidator"
 }
+
+type BlockValidator struct {
+	committee       []*cmn.Peer
+	headerValidator *HeaderValidator
+	txVal           *TransactionValidator
+}
+
+func NewBlockValidator(committee []*cmn.Peer, txVal *TransactionValidator, headerValidator *HeaderValidator) *BlockValidator {
+	return &BlockValidator{committee: committee, txVal: txVal, headerValidator: headerValidator}
+}
+
+//TODO add txhash validation
+func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
+	if entity == nil {
+		return false, errors.New("entity is nil")
+	}
+
+	block := entity.(*Block)
+
+	isValid, e := b.headerValidator.IsValid(block.Header())
+
+	if e != nil || !isValid {
+		return isValid, e
+	}
+
+	//Skip checks for genesis block
+	if block.Header().IsGenesisBlock() {
+		return true, nil
+	}
+
+	dataHash := crypto.Keccak256(block.Data())
+	if common.BytesToHash(dataHash) != block.Header().DataHash() {
+		log.Debugf("calculated %v, received %v", dataHash, block.Header().TxHash())
+		return false, errors.New("data hash is not valid")
+	}
+
+	valid, e := block.QC().IsValid(block.Header().QCHash(), cmn.PeersToPubs(b.committee))
+	if !valid {
+		return valid, e
+	}
+
+	if block.Signature() != nil {
+		if !block.Signature().IsValid(block.Header().Hash().Bytes(), cmn.PeersToPubs(b.committee)) {
+			return false, errors.New("block signature is not valid")
+		}
+	} else {
+		iterator := block.Txs()
+		for iterator.HasNext() {
+			next := iterator.Next()
+			isValid, e := b.txVal.IsValid(next)
+			if !isValid {
+				return isValid, e
+			}
+		}
+	}
+
+	return true, nil
+}
+
+func (b *BlockValidator) Supported(mType pb.Message_MessageType) bool {
+	return mType == pb.Message_BLOCK_RESPONSE
+}
+
+func (b *BlockValidator) GetId() interface{} {
+	return "Block"
+}
+
+type HeaderValidator struct {
+}
+
+func (b *HeaderValidator) IsValid(entity interface{}) (bool, error) {
+	if entity == nil {
+		return false, errors.New("entity is nil")
+	}
+
+	header := entity.(*Header)
+
+	if header.Height() < 0 {
+		return false, errors.New("header height is negative")
+	}
+	if len(header.Hash().Bytes()) != 32 {
+		return false, errors.New("header hash length is not valid")
+	}
+	if len(header.Parent().Bytes()) != 32 {
+		return false, errors.New("header parent hash length is not valid")
+	}
+	if len(header.QCHash().Bytes()) != 32 {
+		return false, errors.New("header QC hash length is not valid")
+	}
+	if len(header.DataHash().Bytes()) != 32 {
+		return false, errors.New("header data hash length is not valid")
+	}
+	if len(header.StateHash().Bytes()) != 32 {
+		return false, errors.New("header state hash length is not valid")
+	}
+	//if len(header.TxHash().Bytes()) != 32 {
+	//	return false, errors.New("header state hash length is not valid")
+	//}
+
+	//Skip checks for genesis block
+	if header.IsGenesisBlock() {
+		return true, nil
+	}
+
+	hash := HashHeader(*header)
+	if header.Hash() != hash {
+		log.Debugf("calculated %v, received %v", hash, header.Hash())
+		return false, errors.New("block hash is not valid")
+	}
+
+	return true, nil
+}
+
+func (b *HeaderValidator) Supported(mType pb.Message_MessageType) bool {
+	return mType == pb.Message_HEADERS_RESPONSE
+}
+
+func (b *HeaderValidator) GetId() interface{} {
+	return "Header"
+}

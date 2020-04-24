@@ -49,7 +49,7 @@ type HQCHandler interface {
 type ProtocolConfig struct {
 	F            int
 	Delta        time.Duration
-	Blockchain   *bc.Blockchain
+	Blockchain   bc.Blockchain
 	Me           *comm.Peer
 	Srv          network.Service
 	Sync         bc.Synchronizer
@@ -68,7 +68,7 @@ type InitialState struct {
 	HQC               *bc.QuorumCertificate
 }
 
-func DefaultState(bc *bc.Blockchain) *InitialState {
+func DefaultState(bc bc.Blockchain) *InitialState {
 	return &InitialState{
 		View:              int32(0),
 		Epoch:             int32(-1),
@@ -80,7 +80,7 @@ func DefaultState(bc *bc.Blockchain) *InitialState {
 
 type Protocol struct {
 	f                 int
-	blockchain        *bc.Blockchain
+	blockchain        bc.Blockchain
 	vheight           int32
 	lastVote          *msg.Message
 	votes             map[common.Address]*Vote
@@ -242,7 +242,15 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 		return err
 	}
 
-	if proposal.NewBlock.Header().Height() > p.vheight && p.blockchain.IsSibling(proposal.NewBlock.Header(), p.GetPref().Header()) {
+	if proposal.NewBlock.Header().Height() <= p.vheight {
+		log.Infof("Received proposal for block [%v] with lower or equal number [%v] from proposer [%v], skipping it",
+			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex())
+	} else if !p.blockchain.IsSibling(proposal.NewBlock.Header(), p.GetPref().Header()) {
+		log.Infof("Received proposal for block [%v] with higher number [%v] from proposer [%v], "+
+			"but it does not extend Pref block [%v] with number [%v] skipping it",
+			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex(),
+			p.GetPref().Header().Hash().Hex(), p.GetPref().Header().Height())
+	} else {
 		log.Infof("Received proposal for block [%v] with higher number [%v] from proposer [%v], voting for it",
 			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex())
 
@@ -304,7 +312,12 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 	p.votes[addr] = vote
 
 	if p.CheckConsensus() {
-		p.blockchain.GetBlockByHashOrLoad(ctx, vote.Header.Hash())
+		if !p.blockchain.Contains(vote.Header.Hash()) {
+			e := p.sync.LoadFork(ctx, vote.Header.Height(), vote.Header.Hash(), vote.Sender)
+			if e != nil {
+				log.Error(e)
+			}
+		}
 		p.FinishQC(vote.Header)
 		p.pacer.FireEvent(Event{
 			T: VotesCollected,
@@ -450,8 +463,12 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 
 		parent := pr.NewBlock.Header().Parent()
 		if !p.blockchain.Contains(parent) {
-			log.Debugf("Requesting for fork starting at block %v at height %v", parent.Hex(), pr.NewBlock.Height()-1)
-			err := p.sync.RequestFork(ctx, parent, pr.Sender)
+			log.Debugf("Requesting for fork starting at proposal parent block %v at height %v", parent.Hex(), pr.NewBlock.Height())
+			err := p.sync.LoadFork(ctx, pr.NewBlock.Header().Height()-1, pr.NewBlock.Header().Parent(), pr.Sender)
+			if err != nil {
+				return err
+			}
+			err = p.blockchain.AddBlock(pr.NewBlock)
 			if err != nil {
 				return err
 			}

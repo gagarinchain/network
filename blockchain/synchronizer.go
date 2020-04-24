@@ -1,60 +1,238 @@
 package blockchain
 
 import (
+	"bytes"
 	"context"
-	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	comm "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/pkg/errors"
 	"sort"
 	"sync"
+	"time"
 )
 
 type Synchronizer interface {
 	//Requesting blocks (low, high]
-	RequestBlocks(ctx context.Context, low int32, high int32, peer *comm.Peer) error
-	RequestFork(ctx context.Context, hash common.Hash, peer *comm.Peer) error
+	LoadBlocks(ctx context.Context, low int32, high int32, peer *comm.Peer) error
+	LoadFork(ctx context.Context, headHeight int32, head common.Hash, peer *comm.Peer) error
 }
 
 type SynchronizerImpl struct {
-	me   *comm.Peer
-	bsrv BlockService
-	bc   *Blockchain
+	me                  *comm.Peer
+	bsrv                BlockService
+	bc                  Blockchain
+	timeout             time.Duration
+	headersLimit        int32
+	depthLimit          int32
+	headersAttemptCount int32
+	blocksParallelLimit int32
 }
 
-func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc *Blockchain) Synchronizer {
+const DefaultTimeout = 50 * time.Millisecond
+const DepthLimitConst = 4
+
+var (
+	DepthLimitExceeded    = errors.New("depth headersLimit exceeded")
+	BatchLoadError        = errors.New("failed to load batch")
+	HeadNotFoundError     = errors.New("failed to load head")
+	LowHeightHeadersError = errors.New("the lowest height block has higher height")
+)
+
+//creates synchronizer
+//to ommit depthLimit set -1
+//to ommit timeout set -1
+func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc Blockchain, timeout time.Duration, headersLimit int32,
+	headersAttemptCount int32, blocksParallelLimit int32, depthLimit int32) Synchronizer {
+	if depthLimit == -1 {
+		depthLimit = DepthLimitConst
+	}
+	if timeout == -1 {
+		timeout = DefaultTimeout
+	}
 	return &SynchronizerImpl{
-		me:   me,
-		bsrv: bsrv,
-		bc:   bc,
+		me:                  me,
+		bsrv:                bsrv,
+		bc:                  bc,
+		timeout:             timeout,
+		depthLimit:          depthLimit,
+		headersLimit:        headersLimit,
+		headersAttemptCount: headersAttemptCount,
+		blocksParallelLimit: blocksParallelLimit,
 	}
 }
 
-//TODO make kind of parallel batch loading here
-func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high int32, peer *comm.Peer) error {
+//Loads blocks from bottom up excluding lowest height and including highest (low;high]
+//We filter and omit orphans, so we add only chains starting from common blockchain block upto highest loaded not guaranteed to be #high
+func (s *SynchronizerImpl) LoadBlocks(ctx context.Context, low int32, high int32, peer *comm.Peer) error {
+	return s.loadBlocks(ctx, low, high, -1, nil, peer)
+}
+
+// Request blocks (low, high]
+func (s *SynchronizerImpl) loadBlocks(ctx context.Context, low int32, high int32, headHeight int32, head *common.Hash, peer *comm.Peer) error {
+	log.Debugf("Requesting blocks (%v:%v]", low, high)
+	//cut requested interval into headersLimit chunks
+	for i := low; i < high; {
+		chunkLow := i
+		chunkHigh := chunkLow + s.headersLimit
+		if high < chunkHigh {
+			chunkHigh = high
+		}
+
+		success := false
+		var headers []*Header
+		//try headersAttemptCount times to load headers batch and all blocks, then add them to bc
+		for j := 0; j < int(s.headersAttemptCount); j++ {
+			log.Debugf("Attempt %v", j)
+			h, e := s.requestHeadersBatch(ctx, chunkLow, chunkHigh, headHeight, head, 0, peer)
+			headers = h
+			if e != nil {
+				log.Error(e)
+				continue
+			}
+
+			sort.Sort(HeadersByHeight(headers))
+			for k := 0; k < len(headers); k += int(s.blocksParallelLimit) {
+				l := k
+				h := k + int(s.blocksParallelLimit)
+				if h >= len(headers) {
+					h = len(headers)
+				}
+				blocks, e := s.requestBlocks(ctx, headers[l:h], peer)
+				if e != nil {
+					goto END
+				}
+				e = s.addBlocksTransactional(blocks)
+				if e != nil {
+					goto END
+				}
+			}
+			success = true
+			break
+		END:
+			continue
+		}
+
+		if !success || headers == nil {
+			return BatchLoadError
+		}
+
+		topHeightLoaded := headers[len(headers)-1].Height()
+		i = topHeightLoaded
+	}
+	return nil
+}
+
+func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, high int32, headHeight int32, head *common.Hash, depth int32, peer *comm.Peer) ([]*Header, error) {
+	log.Debugf("Requesting headers for %v:%v, attempt %v", low, high, depth)
+	if depth > s.depthLimit || low < 0 {
+		return nil, DepthLimitExceeded
+	}
+
+	timeout, _ := context.WithTimeout(ctx, s.timeout)
+	headers, e := s.bsrv.RequestHeaders(timeout, low, high, peer)
+	if e != nil {
+		return nil, e
+	}
+
+	sort.Sort(HeadersByHeight(headers))
+	root := headers[0]
+
+	log.Debugf("Root at height %v", root.Height())
+	parent := s.bc.GetBlockByHash(root.Parent())
+	//find if we have parent of lowest block in the blockchain
+	if parent == nil { //we loaded chunk with parent not loaded previously, reload lower fork headers and add them to this chunk
+		previousHead, e := s.requestHeadersBatch(ctx, low-s.headersLimit, low, headHeight, head, depth+1, peer)
+		if e != nil {
+			return nil, e
+		}
+
+		headers = append(headers, previousHead...)
+		sort.Sort(HeadersByHeight(headers))
+		root := headers[0]
+		parent = s.bc.GetBlockByHash(root.Parent())
+
+	}
+
+	parentSiblingMapping := make(map[common.Hash]*Header)
+	for _, h := range headers {
+		parentSiblingMapping[h.parent] = h
+	}
+
+	//determine chain heads
+	var heads []*Header
+	for _, h := range headers {
+		if h.Height() == headers[0].Height() {
+			heads = append(heads, h)
+		}
+	}
+
+	//filter siblings
+	var filtered []*Header
+	for _, head := range heads {
+		current := head
+		found := true
+		for found {
+			filtered = append(filtered, current)
+			current, found = parentSiblingMapping[current.Hash()]
+		}
+	}
+	if filtered == nil {
+		return nil, BatchLoadError
+	}
+
+	//try to find head of fork in loaded chain
+	sort.Sort(HeadersByHeight(filtered))
+	headers = filtered
+	headFound := true
+	if head != nil && headers[0].Height() <= headHeight && headers[len(headers)-1].Height() >= headHeight {
+		headFound = false
+		for _, h := range headers {
+			if bytes.Equal(h.Hash().Bytes(), head.Bytes()) {
+				headFound = true
+				break
+			}
+		}
+	}
+	if !headFound {
+		return nil, HeadNotFoundError
+	}
+
+	if headers[0].Height() > low+1 {
+		return nil, LowHeightHeadersError
+	}
+
+	return headers, e
+}
+
+func (s *SynchronizerImpl) requestBlocks(ctx context.Context, headers []*Header, peer *comm.Peer) ([]*Block, error) {
 	wg := &sync.WaitGroup{}
-	wg.Add(int(high - low))
-	log.Info("Requesting %v blocks", int(high-low))
+	amount := len(headers)
+	wg.Add(amount)
+	log.Infof("Requesting %v blocks", amount)
 
 	type Exec struct {
 		blocks []*Block
+		errors []error
 		lock   *sync.Mutex
 	}
 
 	exec := &Exec{
 		blocks: nil,
+		errors: nil,
 		lock:   &sync.Mutex{},
 	}
 
-	for i := low + 1; i <= high; i++ {
-		go func(group *sync.WaitGroup, ind int32, exec *Exec) {
-			blocks, e := ReadBlocksWithErrors(s.bsrv.RequestBlocksAtHeight(ctx, ind, peer))
+	for i := 0; i < amount; i++ {
+		go func(group *sync.WaitGroup, ind int, exec *Exec) {
+			timeout, _ := context.WithTimeout(ctx, s.timeout)
+			log.Debugf("Requesting block at %v", headers[ind].Height())
+			b, e := s.bsrv.RequestBlock(timeout, headers[ind].Hash(), peer)
 			if e != nil {
-				log.Error("Can't read blocks", e)
-			}
-
-			for _, b := range blocks {
+				log.Error("Can't read block", e)
+				exec.lock.Lock()
+				exec.errors = append(exec.errors, e)
+				exec.lock.Unlock()
+			} else {
 				exec.lock.Lock()
 				exec.blocks = append(exec.blocks, b)
 				exec.lock.Unlock()
@@ -65,86 +243,30 @@ func (s *SynchronizerImpl) RequestBlocks(ctx context.Context, low int32, high in
 
 	}
 	wg.Wait()
-	log.Info("Received %v blocks", len(exec.blocks))
-	if err := ctx.Err(); err != nil {
-		return err
+
+	if len(exec.errors) > 0 {
+		log.Errorf("Received %v errors", len(exec.errors))
+		return nil, exec.errors[0]
 	}
 
-	if len(exec.blocks) == 0 {
-		return errors.New("No blocks received")
-	}
-
-	sort.Sort(ByHeight(exec.blocks))
-
-	if exec.blocks[0].Height() != low+1 {
-		return errors.New("Tail of fork is not expected")
-	}
-	if exec.blocks[len(exec.blocks)-1].Height() != high {
-		return errors.New("Head of fork is not expected")
-	}
-
-	parent := exec.blocks[0]
-	for i := 1; i < len(exec.blocks); i++ {
-		block := exec.blocks[i]
-		if block.Height()-parent.Height() > 1 {
-			return errors.New("fork integrity violation for fork block " + string(i))
-		}
-	}
-
-	return s.addBlocksTransactional(exec.blocks)
+	log.Infof("Received %v blocks", len(exec.blocks))
+	return exec.blocks, nil
 }
 
-//Request all blocks starting at top committed block (not included), which all replicas must have (not sure that all, but 2 *f + 1)
-//and all forks must include and ending with block with given hash
-func (s *SynchronizerImpl) RequestFork(ctx context.Context, hash common.Hash, peer *comm.Peer) error {
-	//we never request genesis block here, cause it will break block validity
-	requestedHeight := max(s.bc.GetTopCommittedBlock().Header().Height()+1, 1)
-	resp, err := s.bsrv.RequestFork(ctx, requestedHeight, hash, peer)
-	blocks, e := ReadBlocksWithErrors(resp, err)
-	if e != nil {
-		return e
-	}
-	if len(blocks) == 0 {
-		return errors.New("No blocks received")
-	}
-	sort.Sort(ByHeight(blocks))
+//Request all blocks starting at top committed block (not included) in blockchain, which all replicas must have (not sure that all, but 2 *f + 1)
+//We filter and omit orphans, so we add only chains starting from common blockchain block upto highest loaded not guaranteed to be #high
+func (s *SynchronizerImpl) LoadFork(ctx context.Context, headHeight int32, head common.Hash, peer *comm.Peer) error {
+	topCommited := s.bc.GetTopCommittedBlock()
 
-	//Check fork integrity
-	parent := s.bc.GetTopCommittedBlock()
-	for i, b := range blocks {
-		if b.Header().Parent() != parent.Header().Hash() || b.Header().Height()-parent.Header().Height() != 1 {
-			for _, v := range blocks {
-				log.Debugf(spew.Sdump(v.Header()))
-			}
-
-			log.Debugf("Blocks parent %v, parent hash %v", b.Header().Parent().Hex(), parent.header.hash.Hex())
-			log.Debugf("Height difference %d", b.Header().Height()-parent.Header().Height())
-			return fmt.Errorf("fork integrity violation for fork block [%v] %d in fork", b.Header().Hash().Hex(), i)
-		}
-		parent = b
-	}
-
-	//Check blockchain head is what we requested
-	log.Debug(blocks)
-	if blocks[len(blocks)-1].Header().Hash() != hash {
-		return errors.New("Head of fork is not expected")
-	}
-
-	return s.addBlocksTransactional(blocks)
-}
-
-func max(a int32, b int32) int32 {
-	if a > b {
-		return a
-	} else {
-		return b
-	}
+	return s.loadBlocks(ctx, topCommited.Height(), headHeight, headHeight, &head, peer)
 }
 
 func (s *SynchronizerImpl) addBlocksTransactional(blocks []*Block) error {
 	errorIndex := -1
 	var err error
+	sort.Sort(ByHeight(blocks))
 	for i, b := range blocks {
+		log.Debugf("Adding block %v", b.Height())
 		if err = s.bc.AddBlock(b); err != nil {
 			errorIndex = i
 			log.Infof("Error adding block [%v]", b.Header().Hash().Hex())
@@ -156,6 +278,7 @@ func (s *SynchronizerImpl) addBlocksTransactional(blocks []*Block) error {
 		toCleanUp := blocks[:errorIndex+1]
 		sort.Sort(sort.Reverse(ByHeight(toCleanUp)))
 		for _, b := range toCleanUp {
+			log.Debugf("Removing block %v", b.Height())
 			if err := s.bc.RemoveBlock(b); err != nil {
 				log.Fatal(err)
 				panic("Can't delete added previously block, reload blockchain")

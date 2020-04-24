@@ -29,6 +29,7 @@ type Service interface {
 	SendRequest(ctx context.Context, peer *common.Peer, msg *msg.Message) (resp chan *msg.Message, err chan error)
 
 	//Send message to a random peer
+	//TODO return peer that was chosen
 	SendRequestToRandomPeer(ctx context.Context, req *msg.Message) (resp chan *msg.Message, err chan error)
 
 	//Broadcast message to all peers
@@ -124,7 +125,6 @@ func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *ms
 		go func() {
 			s.dispatcher.Dispatch(req)
 		}()
-		close(resp)
 		return resp, err
 	}
 
@@ -132,9 +132,7 @@ func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *ms
 		message, e := s.sendRequestSync(ctx, pid, m, withResponse)
 		if e != nil {
 			err <- e
-			close(resp)
 		} else if !withResponse {
-			close(resp)
 		} else {
 			resp <- message
 		}

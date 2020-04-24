@@ -40,6 +40,16 @@ func MockGoodBlockValidator() gagarinchain.Validator {
 
 }
 
+func MockGoodHeaderValidator() gagarinchain.Validator {
+	proposer := &mocks.Validator{}
+	proposer.On("IsValid", mock.AnythingOfType("*blockchain.Header")).Return(true, nil)
+	proposer.On("Supported", mock.AnythingOfType("pb.Message_MessageType")).Return(true)
+	proposer.On("GetId").Return("Id")
+
+	return proposer
+
+}
+
 func mockCommittee(t *testing.T) []*common.Peer {
 	p1, _ := crypto.GenerateKey()
 	p2, _ := crypto.GenerateKey()

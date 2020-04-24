@@ -14,75 +14,46 @@ type BlockService struct {
 }
 
 // RequestBlock provides a mock function with given fields: ctx, hash, peer
-func (_m *BlockService) RequestBlock(ctx context.Context, hash common.Hash, peer *networkcommon.Peer) (chan *blockchain.Block, chan error) {
+func (_m *BlockService) RequestBlock(ctx context.Context, hash common.Hash, peer *networkcommon.Peer) (*blockchain.Block, error) {
 	ret := _m.Called(ctx, hash, peer)
 
-	var r0 chan *blockchain.Block
-	if rf, ok := ret.Get(0).(func(context.Context, common.Hash, *networkcommon.Peer) chan *blockchain.Block); ok {
+	var r0 *blockchain.Block
+	if rf, ok := ret.Get(0).(func(context.Context, common.Hash, *networkcommon.Peer) *blockchain.Block); ok {
 		r0 = rf(ctx, hash, peer)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(chan *blockchain.Block)
+			r0 = ret.Get(0).(*blockchain.Block)
 		}
 	}
 
-	var r1 chan error
-	if rf, ok := ret.Get(1).(func(context.Context, common.Hash, *networkcommon.Peer) chan error); ok {
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, common.Hash, *networkcommon.Peer) error); ok {
 		r1 = rf(ctx, hash, peer)
 	} else {
-		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(chan error)
-		}
+		r1 = ret.Error(1)
 	}
 
 	return r0, r1
 }
 
-// RequestBlocksAtHeight provides a mock function with given fields: ctx, height, peer
-func (_m *BlockService) RequestBlocksAtHeight(ctx context.Context, height int32, peer *networkcommon.Peer) (chan *blockchain.Block, chan error) {
-	ret := _m.Called(ctx, height, peer)
+// RequestHeaders provides a mock function with given fields: ctx, low, high, peer
+func (_m *BlockService) RequestHeaders(ctx context.Context, low int32, high int32, peer *networkcommon.Peer) ([]*blockchain.Header, error) {
+	ret := _m.Called(ctx, low, high, peer)
 
-	var r0 chan *blockchain.Block
-	if rf, ok := ret.Get(0).(func(context.Context, int32, *networkcommon.Peer) chan *blockchain.Block); ok {
-		r0 = rf(ctx, height, peer)
+	var r0 []*blockchain.Header
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32, *networkcommon.Peer) []*blockchain.Header); ok {
+		r0 = rf(ctx, low, high, peer)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(chan *blockchain.Block)
+			r0 = ret.Get(0).([]*blockchain.Header)
 		}
 	}
 
-	var r1 chan error
-	if rf, ok := ret.Get(1).(func(context.Context, int32, *networkcommon.Peer) chan error); ok {
-		r1 = rf(ctx, height, peer)
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, int32, int32, *networkcommon.Peer) error); ok {
+		r1 = rf(ctx, low, high, peer)
 	} else {
-		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(chan error)
-		}
-	}
-
-	return r0, r1
-}
-
-// RequestFork provides a mock function with given fields: ctx, lowHeight, hash, peer
-func (_m *BlockService) RequestFork(ctx context.Context, lowHeight int32, hash common.Hash, peer *networkcommon.Peer) (chan *blockchain.Block, chan error) {
-	ret := _m.Called(ctx, lowHeight, hash, peer)
-
-	var r0 chan *blockchain.Block
-	if rf, ok := ret.Get(0).(func(context.Context, int32, common.Hash, *networkcommon.Peer) chan *blockchain.Block); ok {
-		r0 = rf(ctx, lowHeight, hash, peer)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(chan *blockchain.Block)
-		}
-	}
-
-	var r1 chan error
-	if rf, ok := ret.Get(1).(func(context.Context, int32, common.Hash, *networkcommon.Peer) chan error); ok {
-		r1 = rf(ctx, lowHeight, hash, peer)
-	} else {
-		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(chan error)
-		}
+		r1 = ret.Error(1)
 	}
 
 	return r0, r1

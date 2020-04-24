@@ -90,7 +90,33 @@ func (bp *BlockchainPersister) GetHeightIndexRecord(height int32) (hashes []comm
 	return hashes, nil
 }
 
-type Blockchain struct {
+type Blockchain interface {
+	GetBlockByHash(hash common.Hash) (block *Block)
+	GetBlockByHeight(height int32) (res []*Block)
+	GetFork(height int32, headHash common.Hash) (res []*Block)
+
+	Contains(hash common.Hash) bool
+	GetThreeChain(twoHash common.Hash) (zero *Block, one *Block, two *Block)
+	OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error)
+	GetHead() *Block
+	GetHeadRecord() *state.Record
+	GetTopHeight() int32
+	GetTopHeightBlocks() []*Block
+	AddBlock(block *Block) error
+	RemoveBlock(block *Block) error
+	GetGenesisBlock() *Block
+	GetGenesisCert() *QuorumCertificate
+	IsSibling(sibling *Header, ancestor *Header) bool
+	NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block
+	PadEmptyBlock(head *Block) *Block
+	GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature
+	ValidateGenesisBlockSignature(signature *crypto.Signature, address common.Address) bool
+	GetTopCommittedBlock() *Block
+	UpdateGenesisBlockQC(certificate *QuorumCertificate)
+	SetProposerGetter(proposerGetter cmn.ProposerForHeight)
+}
+
+type BlockchainImpl struct {
 	indexGuard *sync.RWMutex
 	//index for storing blocks by their hash
 	blocksByHash map[common.Hash]*Block
@@ -100,7 +126,6 @@ type Blockchain struct {
 	//indexes for storing block arrays according to their height, while not committed head may contain forks,
 	//<int32, []*Block>
 	uncommittedTreeByHeight *treemap.Map
-	blockService            BlockService
 	txPool                  TransactionPool
 	stateDB                 state.DB
 	proposerGetter          cmn.ProposerForHeight
@@ -110,27 +135,22 @@ type Blockchain struct {
 	bus                     cmn.EventBus
 }
 
-func (bc *Blockchain) SetProposerGetter(proposerGetter cmn.ProposerForHeight) {
+func (bc *BlockchainImpl) SetProposerGetter(proposerGetter cmn.ProposerForHeight) {
 	bc.proposerGetter = proposerGetter
-}
-
-func (bc *Blockchain) BlockService(blockService BlockService) {
-	bc.blockService = blockService
 }
 
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
+func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) Blockchain {
 	zero := CreateGenesisBlock()
 	if cfg.EventBus == nil {
 		cfg.EventBus = &cmn.NullBus{}
 	}
-	blockchain := &Blockchain{
+	blockchain := &BlockchainImpl{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
-		blockService:            cfg.BlockService,
 		txPool:                  cfg.Pool,
 		stateDB:                 cfg.Db,
 		proposerGetter:          cfg.ProposerGetter,
@@ -154,7 +174,7 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *Blockchain {
 	return blockchain
 }
 
-func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
+func CreateBlockchainFromStorage(cfg *BlockchainConfig) Blockchain {
 	pblock := &BlockPersister{Storage: cfg.Storage}
 	pchain := &BlockchainPersister{Storage: cfg.Storage}
 
@@ -168,12 +188,11 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
 	if cfg.EventBus == nil {
 		cfg.EventBus = &cmn.NullBus{}
 	}
-	blockchain := &Blockchain{
+	blockchain := &BlockchainImpl{
 		blocksByHash:            make(map[common.Hash]*Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
-		blockService:            cfg.BlockService,
 		txPool:                  cfg.Pool,
 		stateDB:                 cfg.Db,
 		blockPersister:          pblock,
@@ -215,14 +234,14 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) *Blockchain {
 	return blockchain
 }
 
-func (bc *Blockchain) GetBlockByHash(hash common.Hash) (block *Block) {
+func (bc *BlockchainImpl) GetBlockByHash(hash common.Hash) (block *Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	return bc.getBlockByHash(hash)
 }
 
-func (bc *Blockchain) getBlockByHash(hash common.Hash) *Block {
+func (bc *BlockchainImpl) getBlockByHash(hash common.Hash) *Block {
 	block := bc.blocksByHash[hash]
 
 	if block == nil {
@@ -236,7 +255,7 @@ func (bc *Blockchain) getBlockByHash(hash common.Hash) *Block {
 	return block
 }
 
-func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
+func (bc *BlockchainImpl) GetBlockByHeight(height int32) (res []*Block) {
 	block, ok := bc.committedChainByHeight.Get(height)
 	if !ok {
 		blocks, ok := bc.uncommittedTreeByHeight.Get(height)
@@ -259,7 +278,7 @@ func (bc *Blockchain) GetBlockByHeight(height int32) (res []*Block) {
 	return res
 }
 
-func (bc *Blockchain) GetFork(height int32, headHash common.Hash) (res []*Block) {
+func (bc *BlockchainImpl) GetFork(height int32, headHash common.Hash) (res []*Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
@@ -275,39 +294,13 @@ func (bc *Blockchain) GetFork(height int32, headHash common.Hash) (res []*Block)
 	return res
 }
 
-//todo remove this method
-func (bc *Blockchain) GetBlockByHashOrLoad(ctx context.Context, hash common.Hash) (b *Block, loaded bool) {
-	loaded = !bc.Contains(hash)
-	if loaded {
-		b = bc.LoadBlock(ctx, hash)
-	} else {
-		b = bc.GetBlockByHash(hash)
-	}
-
-	return b, loaded
-}
-
-func (bc *Blockchain) LoadBlock(ctx context.Context, hash common.Hash) *Block {
-	log.Infof("Loading block with hash [%v]", hash.Hex())
-	blocks, err := ReadBlocksWithErrors(bc.blockService.RequestBlock(ctx, hash, nil))
-	if err != nil {
-		log.Error("Can't load block", err)
-		return nil
-	}
-	if err := bc.AddBlock(blocks[0]); err != nil {
-		log.Error("Can't add loaded block", err)
-		return nil
-	}
-	return blocks[0]
-}
-
-func (bc *Blockchain) Contains(hash common.Hash) bool {
+func (bc *BlockchainImpl) Contains(hash common.Hash) bool {
 	return bc.GetBlockByHash(hash) != nil
 }
 
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
-func (bc *Blockchain) GetThreeChain(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
+func (bc *BlockchainImpl) GetThreeChain(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
 	two = bc.GetBlockByHash(twoHash)
 	if two == nil {
 		return nil, nil, nil
@@ -328,7 +321,8 @@ func (bc *Blockchain) GetThreeChain(twoHash common.Hash) (zero *Block, one *Bloc
 
 //move uncommitted chain with b as head to committed and analyze rejected forks
 //toCommit is ordered by height ascending
-func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error) {
+//TODO should we delete orphans from BlocksByHash index? they hang there now
+func (bc *BlockchainImpl) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error) {
 	orphans = treemap.NewWith(utils.Int32Comparator)
 
 	low, _ := bc.uncommittedTreeByHeight.Min()
@@ -426,13 +420,7 @@ func (bc *Blockchain) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Ma
 	return toCommit, orphans, nil
 }
 
-func (bc *Blockchain) Execute(b *Block) error {
-
-	log.Infof("Applying transactions to state for block [%s]", b.Header().Hash())
-
-	return nil
-}
-func (bc *Blockchain) GetHead() *Block {
+func (bc *BlockchainImpl) GetHead() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
@@ -442,7 +430,7 @@ func (bc *Blockchain) GetHead() *Block {
 	return b[0]
 }
 
-func (bc *Blockchain) GetHeadRecord() *state.Record {
+func (bc *BlockchainImpl) GetHeadRecord() *state.Record {
 	r, f := bc.stateDB.Get(bc.GetHead().Header().Hash())
 	if !f {
 		log.Error("Can't find head snapshot")
@@ -450,11 +438,19 @@ func (bc *Blockchain) GetHeadRecord() *state.Record {
 	return r
 }
 
-func (bc *Blockchain) GetTopHeight() int32 {
+func (bc *BlockchainImpl) GetTopHeight() int32 {
 	return bc.GetHead().Header().Height()
 }
+func (bc *BlockchainImpl) GetTopHeightBlocks() []*Block {
+	bc.indexGuard.RLock()
+	defer bc.indexGuard.RUnlock()
 
-func (bc *Blockchain) AddBlock(block *Block) error {
+	_, blocks := bc.uncommittedTreeByHeight.Max()
+	var b = blocks.([]*Block)
+	return b
+}
+
+func (bc *BlockchainImpl) AddBlock(block *Block) error {
 	log.Infof("Adding block with hash [%v]", block.header.Hash().Hex())
 	//spew.Dump(block)
 
@@ -500,7 +496,7 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	return nil
 }
 
-func (bc *Blockchain) updateBlockSignature(b *Block) {
+func (bc *BlockchainImpl) updateBlockSignature(b *Block) {
 	if b.Height() == 0 {
 		return
 	}
@@ -515,7 +511,7 @@ func (bc *Blockchain) updateBlockSignature(b *Block) {
 
 }
 
-func (bc *Blockchain) addUncommittedBlock(block *Block) error {
+func (bc *BlockchainImpl) addUncommittedBlock(block *Block) error {
 	value, found := bc.uncommittedTreeByHeight.Get(block.Header().Height())
 	if !found {
 		value = make([]*Block, 0)
@@ -531,7 +527,7 @@ func (bc *Blockchain) addUncommittedBlock(block *Block) error {
 	return nil
 }
 
-func (bc *Blockchain) RemoveBlock(block *Block) error {
+func (bc *BlockchainImpl) RemoveBlock(block *Block) error {
 	log.Infof("Removing block with hash [%v]", block.header.Hash().Hex())
 	//spew.Dump(block)
 
@@ -572,14 +568,14 @@ func (bc *Blockchain) RemoveBlock(block *Block) error {
 	return nil
 }
 
-func (bc *Blockchain) GetGenesisBlock() *Block {
+func (bc *BlockchainImpl) GetGenesisBlock() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	return bc.getGenesisBlock()
 }
 
-func (bc *Blockchain) getGenesisBlock() *Block {
+func (bc *BlockchainImpl) getGenesisBlock() *Block {
 	value, ok := bc.committedChainByHeight.Get(int32(0))
 	if !ok {
 		if h, okk := bc.uncommittedTreeByHeight.Get(int32(0)); okk {
@@ -590,11 +586,11 @@ func (bc *Blockchain) getGenesisBlock() *Block {
 	return value.(*Block)
 }
 
-func (bc *Blockchain) GetGenesisCert() *QuorumCertificate {
+func (bc *BlockchainImpl) GetGenesisCert() *QuorumCertificate {
 	return bc.GetGenesisBlock().QC()
 }
 
-func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
+func (bc BlockchainImpl) IsSibling(sibling *Header, ancestor *Header) bool {
 	//Genesis block is ancestor of every block
 	if ancestor.IsGenesisBlock() {
 		return true
@@ -614,11 +610,11 @@ func (bc Blockchain) IsSibling(sibling *Header, ancestor *Header) bool {
 	return bc.IsSibling(parent.Header(), ancestor)
 }
 
-func (bc *Blockchain) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
+func (bc *BlockchainImpl) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
 	return bc.newBlock(parent, qc, data, true)
 }
 
-func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte, withTransactions bool) *Block {
+func (bc *BlockchainImpl) newBlock(parent *Block, qc *QuorumCertificate, data []byte, withTransactions bool) *Block {
 	proposer := bc.proposerGetter.ProposerForHeight(parent.header.height + 1).GetAddress() //this block will be the block of next height
 	r, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
 	if e != nil {
@@ -655,7 +651,7 @@ func (bc *Blockchain) newBlock(parent *Block, qc *QuorumCertificate, data []byte
 	return block
 }
 
-func (bc *Blockchain) collectTransactions(s *state.Record, txs *trie.FixedLengthHexKeyMerkleTrie) {
+func (bc *BlockchainImpl) collectTransactions(s *state.Record, txs *trie.FixedLengthHexKeyMerkleTrie) {
 	c := context.Background()
 	timeout, _ := context.WithTimeout(c, bc.delta)
 	chunks := bc.txPool.Drain(timeout)
@@ -678,7 +674,7 @@ func (bc *Blockchain) collectTransactions(s *state.Record, txs *trie.FixedLength
 	log.Debugf("Collected %v txs", i)
 }
 
-func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
+func (bc *BlockchainImpl) PadEmptyBlock(head *Block) *Block {
 	block := bc.newBlock(head, head.QC(), []byte(""), false)
 
 	if e := bc.AddBlock(block); e != nil {
@@ -689,7 +685,7 @@ func (bc *Blockchain) PadEmptyBlock(head *Block) *Block {
 	return block
 }
 
-func (bc *Blockchain) GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature {
+func (bc *BlockchainImpl) GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature {
 	hash := bc.GetGenesisBlock().Header().Hash()
 	sig := crypto.Sign(hash.Bytes(), key)
 	if sig == nil {
@@ -698,13 +694,13 @@ func (bc *Blockchain) GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.
 	return sig
 
 }
-func (bc *Blockchain) ValidateGenesisBlockSignature(signature *crypto.Signature, address common.Address) bool {
+func (bc *BlockchainImpl) ValidateGenesisBlockSignature(signature *crypto.Signature, address common.Address) bool {
 	hash := bc.GetGenesisBlock().Header().Hash()
 	signatureAddress := crypto.PubkeyToAddress(crypto.NewPublicKey(signature.Pub()))
 	return crypto.Verify(hash.Bytes(), signature) && bytes.Equal(address.Bytes(), signatureAddress.Bytes())
 }
 
-func (bc *Blockchain) GetTopCommittedBlock() *Block {
+func (bc *BlockchainImpl) GetTopCommittedBlock() *Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 	_, block := bc.committedChainByHeight.Max()
@@ -715,7 +711,7 @@ func (bc *Blockchain) GetTopCommittedBlock() *Block {
 	return block.(*Block)
 }
 
-func (bc *Blockchain) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
+func (bc *BlockchainImpl) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
 	bc.GetGenesisBlock().qc = certificate
 	//we can simply put new block and replace existing. in fact ignoring height index is not a problem for us since Genesis is hashed without it's QC
 	if err := bc.blockPersister.Persist(bc.GetGenesisBlock()); err != nil {
@@ -724,7 +720,7 @@ func (bc *Blockchain) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
 	}
 }
 
-func (bc *Blockchain) applyTransactionsAndValidate(block *Block) error {
+func (bc *BlockchainImpl) applyTransactionsAndValidate(block *Block) error {
 	_, f := bc.stateDB.Get(block.Header().hash)
 	if f {
 		log.Debug("Found block that was created by us and already processed, skip this step")

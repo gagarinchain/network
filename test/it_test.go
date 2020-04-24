@@ -133,9 +133,7 @@ func TestScenario1c(t *testing.T) {
 	}
 
 	go func() {
-		ctx.blockChan <- newBlock
-		close(ctx.blockChan)
-		ctx.blockChan = make(chan *blockchain.Block)
+		ctx.SendBlocks([]*blockchain.Block{newBlock})
 	}()
 
 	p := ctx.createProposal(newBlock, 1)
@@ -501,10 +499,9 @@ func TestScenario6a(t *testing.T) {
 	proposal := ctx.createProposal(block4, 4)
 	ctx.hotstuffChan <- proposal
 
-	ctx.blockChan <- block4
-	ctx.blockChan <- block31
-	ctx.blockChan <- block2
-	close(ctx.blockChan)
+	go func() {
+		ctx.SendBlocks([]*blockchain.Block{block4, block31, block2})
+	}()
 
 	ctx.waitRounds(timeout, 5)
 
@@ -547,10 +544,7 @@ func TestScenario6b(t *testing.T) {
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
-	ctx.blockChan <- block22
-	ctx.blockChan <- block32
-	ctx.blockChan <- block42
-	close(ctx.blockChan)
+	ctx.SendBlocks([]*blockchain.Block{block22, block32, block42})
 
 	ctx.waitRounds(timeout, 6)
 
@@ -597,10 +591,7 @@ func TestScenario6c(t *testing.T) {
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
-	ctx.blockChan <- block2
-	ctx.blockChan <- block32
-	ctx.blockChan <- block42
-	close(ctx.blockChan)
+	ctx.SendBlocks([]*blockchain.Block{block2, block32, block42})
 
 	ctx.waitRounds(timeout, 6)
 
@@ -649,11 +640,6 @@ func TestScenario6d(t *testing.T) {
 	ctx.pacer.OnNextView()
 	ctx.pacer.OnNextView()
 	ctx.pacer.OnNextView()
-	//ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
-	//ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
-	//ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
-	//ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
-	//ctx.cfg.ControlChan <- *hotstuff.NewCommand(context.Background(), hotstuff.NextView)
 
 	qcb4 := ctx.createQC(block4)
 	block51 := ctx.bc.NewBlock(block4, qcb4, []byte("block 51"))
@@ -661,11 +647,7 @@ func TestScenario6d(t *testing.T) {
 	proposal6 := ctx.createProposal(block6, 6)
 	ctx.hotstuffChan <- proposal6
 
-	ctx.blockChan <- block2
-	ctx.blockChan <- block3
-	ctx.blockChan <- block4
-	ctx.blockChan <- block51
-	close(ctx.blockChan)
+	ctx.SendBlocks([]*blockchain.Block{block2, block3, block4, block51})
 
 	ctx.waitRounds(timeout, 7)
 
@@ -675,14 +657,18 @@ func TestScenario6d(t *testing.T) {
 }
 
 //Scenario 6e: Fork Cleanup
+//Faulty proposer 5 can send bad proposal for us only, trying to isolate us.
+// After that 6-th proposer send us good proposal 6 and good proposal 5 (valiant sent different proposals)
+// We commit block 2,3 after that and reject B21<-B32<-B42-B52
 //Start new epoch
 //Replica
 //Receive fork Gc<-B1c<-B2<-B3<-B4
 //Receive proposal fork B21<-B32<-B42-B52
+//Receive proposal fork B4-B5-B6
 func TestScenario6e(t *testing.T) {
 	ctx := initContext(t)
 
-	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
+	timeout, f := context.WithTimeout(context.Background(), 14*ctx.cfg.Delta)
 	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
@@ -704,24 +690,28 @@ func TestScenario6e(t *testing.T) {
 	proposal4 := ctx.createProposal(block4, 4)
 	ctx.hotstuffChan <- proposal4
 
-	block21 := ctx.bc.NewBlock(block2, qcb2, []byte("block 21"))
+	block21 := ctx.bc.NewBlock(block1, qcb2, []byte("block 21"))
 	block32 := ctx.bc.NewBlock(block21, qcb2, []byte("block 32"))
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
-	ctx.blockChan <- block21
-	ctx.blockChan <- block32
-	ctx.blockChan <- block42
-	close(ctx.blockChan)
-
+	ctx.SendBlocks([]*blockchain.Block{block21, block32, block42})
 	ctx.waitRounds(timeout, 6)
 
-	assert.Equal(t, int32(4), ctx.protocol.Vheight())
-	assert.Equal(t, block1.Header(), ctx.bc.GetTopCommittedBlock().Header())
-	assert.Nil(t, ctx.bc.GetBlockByHash(block32.Header().Hash()))
-	assert.Nil(t, ctx.bc.GetBlockByHash(block42.Header().Hash()))
+	block5 := ctx.bc.NewBlock(block4, ctx.createQC(block4), []byte("block 5"))
+	block6 := ctx.bc.NewBlock(block5, ctx.createQC(block5), []byte("block 6"))
+	proposal6 := ctx.createProposal(block6, 6)
+	ctx.hotstuffChan <- proposal6
+
+	ctx.SendBlocks([]*blockchain.Block{block2, block3, block4, block5})
+
+	ctx.waitRounds(timeout, 2)
+
+	assert.Equal(t, int32(6), ctx.protocol.Vheight())
+	assert.Equal(t, block3.Header(), ctx.bc.GetTopCommittedBlock().Header())
+	_ = ctx.bc.GetBlockByHash(block21.Header().Hash())
 }
 
 //Scenario 7a: Propose block with transaction
@@ -1123,7 +1113,7 @@ type TestContext struct {
 	pacer        *hotstuff.StaticPacer
 	protocol     *hotstuff.Protocol
 	cfg          *hotstuff.ProtocolConfig
-	bc           *blockchain.Blockchain
+	bc           blockchain.Blockchain
 	bsrv         blockchain.BlockService
 	pool         blockchain.TransactionPool
 	eventChan    chan hotstuff.Event
@@ -1135,7 +1125,8 @@ type TestContext struct {
 	epochChan    chan *msg.Message
 	txChan       chan *msg.Message
 	sentTxChan   chan *msg.Message
-	blockChan    chan *blockchain.Block
+	headersChan  chan *msg.Message
+	blocksChan   chan *msg.Message
 	seed         map[common2.Address]*state.Account
 	stateDB      state.DB
 	txService    *blockchain.TxService
@@ -1159,7 +1150,7 @@ func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.
 	return votes
 }
 
-func makeVote(bc *blockchain.Blockchain, newBlock *blockchain.Block, peer *common.Peer) *hotstuff.Vote {
+func makeVote(bc blockchain.Blockchain, newBlock *blockchain.Block, peer *common.Peer) *hotstuff.Vote {
 	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), peer)
 	vote.Sign(peer.GetPrivateKey())
 	return vote
@@ -1238,11 +1229,38 @@ func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCert
 	return blockchain.CreateQuorumCertificate(aggregate, block.Header())
 }
 
+func (ctx *TestContext) SendBlocks(blocks []*blockchain.Block) {
+	hs := headers(blocks)
+	var pbHeaders []*pb.BlockHeader
+	for _, h := range hs {
+		pbHeaders = append(pbHeaders, h.GetMessage())
+	}
+
+	payload := &pb.HeadersResponse{Response: &pb.HeadersResponse_Headers{Headers: &pb.Headers{Headers: pbHeaders}}}
+	any, e := ptypes.MarshalAny(payload)
+	if e != nil {
+		log.Error("can't send blocks")
+		return
+	}
+	ctx.headersChan <- msg.CreateMessage(pb.Message_HEADERS_RESPONSE, any, ctx.me)
+
+	for _, b := range blocks {
+		pblock := b.GetMessage()
+		p := &pb.BlockResponsePayload_Block{Block: pblock}
+		payload := &pb.BlockResponsePayload{Response: p}
+		any, e := ptypes.MarshalAny(payload)
+		if e != nil {
+			log.Error("can't send blocks")
+			return
+		}
+		ctx.blocksChan <- msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, ctx.me)
+	}
+}
+
 func initContext(t *testing.T) *TestContext {
 	identity := generateIdentity(t, 0)
 	log.Debugf("Current me %v", identity.GetAddress().Hex())
 	srv := &mocks.Service{}
-	bsrv := &mocks.BlockService{}
 	storage := SoftStorageMock()
 
 	bpersister := &blockchain.BlockPersister{storage}
@@ -1262,18 +1280,19 @@ func initContext(t *testing.T) *TestContext {
 	pool := blockchain.NewTransactionPool()
 	seed := blockchain.SeedFromFile("../static/seed.json")
 	stateDb := state.NewStateDB(storage)
+
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		Seed:           seed,
 		BlockPerister:  bpersister,
 		ChainPersister: cpersister,
-		BlockService:   bsrv,
 		Pool:           pool,
 		Db:             stateDb,
 		Delta:          1 * time.Millisecond, //todo we have a lot of tests where blocks has no transactions, and we create several blocks per round. probably we must add instant block generation without transactions for tests
 		Storage:        storage,
 	})
 
-	sync := blockchain.CreateSynchronizer(identity, bsrv, bc)
+	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator(), MockGoodHeaderValidator())
+	sync := blockchain.CreateSynchronizer(identity, bsrv, bc, -1, 20, 1, 3, -1)
 	config := &hotstuff.ProtocolConfig{
 		F:            10,
 		Delta:        1 * time.Second,
@@ -1313,11 +1332,12 @@ func initContext(t *testing.T) *TestContext {
 			voteChan <- &DirectMessage{Message: (args[2]).(*msg.Message), to: (args[1]).(*common.Peer)}
 		})
 
-	blockChan := make(chan *blockchain.Block)
-	bsrv.On("RequestBlock", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("common.Hash"),
-		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
-	bsrv.On("RequestFork", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("int32"), mock.AnythingOfType("common.Hash"),
-		mock.AnythingOfType("*common.Peer")).Return(blockChan, nil)
+	blocksChan := make(chan *msg.Message)
+	headersChan := make(chan *msg.Message)
+	srv.On("SendRequest", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*common.Peer"),
+		mock.MatchedBy(matcher(pb.Message_HEADERS_REQUEST))).Return(headersChan, nil)
+	srv.On("SendRequest", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*common.Peer"),
+		mock.MatchedBy(matcher(pb.Message_BLOCK_REQUEST))).Return(blocksChan, nil)
 
 	txService := blockchain.NewService(blockchain.NewTransactionValidator(peers), pool, srv, bc, identity)
 
@@ -1342,7 +1362,8 @@ func initContext(t *testing.T) *TestContext {
 		cfg:          config,
 		seed:         seed,
 		proposalChan: proposalChan,
-		blockChan:    blockChan,
+		blocksChan:   blocksChan,
+		headersChan:  headersChan,
 		startChan:    startChan,
 		eventChan:    eventChan,
 		me:           identity,
@@ -1355,4 +1376,12 @@ func initContext(t *testing.T) *TestContext {
 		txChan:       txChan,
 		sentTxChan:   sentTxChan,
 	}
+}
+
+func headers(blocks []*blockchain.Block) (headers []*blockchain.Header) {
+	for _, b := range blocks {
+		headers = append(headers, b.Header())
+	}
+
+	return headers
 }
