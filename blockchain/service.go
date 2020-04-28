@@ -41,6 +41,8 @@ func (s *BlockServiceImpl) RequestHeaders(ctx context.Context, low int32, high i
 
 	if e == nil {
 		return headers, nil
+	} else {
+		log.Error("Error loading headers", e)
 	}
 
 	for i := 1; i < s.threshold; i++ {
@@ -48,7 +50,10 @@ func (s *BlockServiceImpl) RequestHeaders(ctx context.Context, low int32, high i
 
 		if e == nil {
 			return headers, nil
+		} else {
+			log.Error("Error loading headers", e)
 		}
+
 	}
 
 	log.Error("No headers found for ")
@@ -151,7 +156,6 @@ func (s *BlockServiceImpl) requestHeaders(ctx context.Context, low int32, high i
 	}
 
 	msg := message.CreateMessage(pb.Message_HEADERS_REQUEST, any, nil)
-
 	var m *message.Message
 	if peer == nil {
 		resps, errs := s.srv.SendRequestToRandomPeer(ctx, msg)

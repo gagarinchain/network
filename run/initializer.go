@@ -81,7 +81,6 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Seed:           seed,
 		BlockPerister:  &blockchain.BlockPersister{Storage: storage},
 		ChainPersister: &blockchain.BlockchainPersister{Storage: storage},
-		BlockService:   bsrv,
 		Pool:           pool,
 		Db:             db,
 		Storage:        storage,

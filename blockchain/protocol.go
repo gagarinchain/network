@@ -21,7 +21,10 @@ type BlockProtocol struct {
 	stop chan int
 }
 
-var Version int32 = 1
+var (
+	Version     int32 = 1
+	HeaderLimit       = 30
+)
 
 func CreateBlockProtocol(srv network.Service, bc Blockchain, sync Synchronizer) *BlockProtocol {
 	return &BlockProtocol{srv: srv, bc: bc, sync: sync, stop: make(chan int)}
@@ -101,7 +104,67 @@ func (p *BlockProtocol) SendHello(ctx context.Context) error {
 	return nil
 }
 
+func (p *BlockProtocol) OnHeaderRequest(ctx context.Context, req *msg.Message) error {
+	log.Debug("Got headers request from peer %v", req.Source().GetPeerInfo().ID.Pretty())
+	payload := req.GetPayload()
+	br := &pb.HeadersRequest{}
+	if err := ptypes.UnmarshalAny(payload, br); err != nil {
+		return err
+	}
+
+	low := br.GetLow()
+	high := br.GetHigh()
+
+	if low < 0 || high < 0 {
+		return errors.New("negative boundaries")
+	}
+
+	if high <= low {
+		return errors.New("invalid boundaries")
+	}
+
+	var headers []*Header
+	for height := low + 1; height <= high; height++ {
+		res := p.bc.GetBlockByHeight(height)
+		if len(res) == 0 || len(headers)+len(res) > HeaderLimit {
+			break
+		}
+
+		for _, b := range res {
+			headers = append(headers, b.Header())
+		}
+	}
+
+	var resp *pb.HeadersResponse
+	if len(headers) == 0 {
+		resp = createHeadersError(headers)
+	} else {
+		var blockHeaders []*pb.BlockHeader
+		for _, h := range headers {
+			pbHeader := h.GetMessage()
+			blockHeaders = append(blockHeaders, pbHeader)
+		}
+		pbHeaders := &pb.Headers{Headers: blockHeaders}
+		resp = &pb.HeadersResponse{Response: &pb.HeadersResponse_Headers{Headers: pbHeaders}}
+	}
+
+	any, e := ptypes.MarshalAny(resp)
+	if e != nil {
+		return e
+	}
+	b := msg.CreateMessage(pb.Message_HEADERS_RESPONSE, any, nil)
+	b.SetStream(req.Stream())
+	p.srv.SendResponse(ctx, b)
+	return nil
+}
+
+func createHeadersError(headers []*Header) *pb.HeadersResponse {
+	e := &pb.Error{Code: pb.Error_NOT_FOUND, Desc: "Not found"}
+	return &pb.HeadersResponse{Response: &pb.HeadersResponse_ErrorCode{ErrorCode: e}}
+}
+
 func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) error {
+	log.Debug("Got block request from peer %v", req.Source().GetPeerInfo().ID.Pretty())
 	payload := req.GetPayload()
 	br := &pb.BlockRequestPayload{}
 	if err := ptypes.UnmarshalAny(payload, br); err != nil {
@@ -189,6 +252,8 @@ func (p *BlockProtocol) handleMessage(ctx context.Context, m *msg.Message) error
 	switch m.GetType() {
 	case pb.Message_HELLO_REQUEST:
 		return p.OnHello(ctx, m)
+	case pb.Message_HEADERS_REQUEST:
+		return p.OnHeaderRequest(ctx, m)
 	case pb.Message_BLOCK_REQUEST:
 		return p.OnBlockRequest(ctx, m)
 	}

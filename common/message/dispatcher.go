@@ -39,9 +39,13 @@ func (d *HotstuffDispatcher) Dispatch(msg *Message) {
 			d.hotstuffChan <- msg
 		case pb.Message_HELLO_REQUEST:
 			fallthrough
+		case pb.Message_HEADERS_REQUEST:
+			fallthrough
 		case pb.Message_BLOCK_REQUEST:
 			d.blockProtocolChan <- msg
 		case pb.Message_HELLO_RESPONSE:
+			fallthrough
+		case pb.Message_HEADERS_RESPONSE:
 			fallthrough
 		case pb.Message_BLOCK_RESPONSE:
 			log.Warningf("Received message %v, without request, ignoring", msg.Type.String())

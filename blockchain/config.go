@@ -17,7 +17,6 @@ type BlockchainConfig struct {
 	BlockPerister  *BlockPersister
 	ProposerGetter cmn.ProposerForHeight
 	ChainPersister *BlockchainPersister
-	BlockService   BlockService
 	Pool           TransactionPool
 	Db             state.DB
 	Storage        gagarinchain.Storage
