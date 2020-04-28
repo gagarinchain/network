@@ -6,7 +6,6 @@ import (
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/tx"
-	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
@@ -15,11 +14,10 @@ import (
 //Note that QC hash does not matter, since genesis.QC.header is genesis.header
 func TestIsValidGenesisBlock(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -34,11 +32,10 @@ func TestIsValidGenesisBlock(t *testing.T) {
 
 func TestIsValidBlock(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -58,11 +55,10 @@ func TestIsValidBlock(t *testing.T) {
 
 func TestIsValidBlockWithSignature(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -83,11 +79,10 @@ func TestIsValidBlockWithSignature(t *testing.T) {
 
 func TestIsValidBlockWithTransaction(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -109,11 +104,10 @@ func TestIsValidBlockWithTransaction(t *testing.T) {
 
 func TestIsNotValidBlockWithTransaction(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -135,11 +129,10 @@ func TestIsNotValidBlockWithTransaction(t *testing.T) {
 
 func TestIsNotValidWithBrokenHash(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -159,12 +152,11 @@ func TestIsNotValidWithBrokenHash(t *testing.T) {
 
 func TestIsNotValidWithBrokenDataHash(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -183,12 +175,11 @@ func TestIsNotValidWithBrokenDataHash(t *testing.T) {
 }
 func TestIsNotValidWithBrokenQCHash(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -210,11 +201,10 @@ func TestIsNotValidWithBrokenQCHash(t *testing.T) {
 
 func TestIsNotValidWithBrokenQCSignature(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -231,11 +221,10 @@ func TestIsNotValidWithBrokenQCSignature(t *testing.T) {
 }
 func TestIsNotValidWithNotEnpoughQCSignature(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -253,11 +242,10 @@ func TestIsNotValidWithNotEnpoughQCSignature(t *testing.T) {
 
 func TestIsNotValidWithEmptyQCSignature(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
@@ -274,11 +262,10 @@ func TestIsNotValidWithEmptyQCSignature(t *testing.T) {
 
 func TestIsNotValidWithBrokenSignature(t *testing.T) {
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	committee := mockCommittee(t)
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)

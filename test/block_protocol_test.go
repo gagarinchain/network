@@ -19,11 +19,10 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
 	storage := SoftStorageMock()
-	bsrv := &mocks.BlockService{}
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
@@ -66,12 +65,11 @@ func TestBlockProtocolBootstrap(t *testing.T) {
 func TestBlockProtocolOnHello(t *testing.T) {
 	srv := &mocks.Service{}
 	synchr := &mocks.Synchronizer{}
-	bsrv := &mocks.BlockService{}
 	storage := SoftStorageMock()
 	bpersister := &blockchain.BlockPersister{storage}
 	cpersister := &blockchain.BlockchainPersister{storage}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
-		BlockPerister: bpersister, ChainPersister: cpersister, BlockService: bsrv, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 	p := blockchain.CreateBlockProtocol(srv, bc, synchr)
