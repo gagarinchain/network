@@ -33,7 +33,7 @@ type Settings struct {
 		ConnectionTimeout int `yaml:"ConnectionTimeout"`
 	} `yaml:"Network"`
 	Storage struct {
-		DataDir string `yaml:"DataDir"`
+		Dir string `yaml:"Dir"`
 	} `yaml:"Storage"`
 	Static struct {
 		Dir string `yaml:"Dir"`
@@ -88,7 +88,7 @@ func main() {
 	cfg := &network.NodeConfig{
 		PrivateKey: peerKey,
 		Port:       9080,
-		DataDir:    path.Join(s.Storage.DataDir, strconv.Itoa(ind)),
+		DataDir:    path.Join(s.Storage.Dir, strconv.Itoa(ind)),
 		Committee:  committee[0:s.Hotstuff.N],
 	}
 
@@ -132,8 +132,8 @@ func readSettings() (s *Settings) {
 				ConnectionTimeout int `yaml:"ConnectionTimeout"`
 			}{MinPeerThreshold: 3, ReconnectPeriod: 10000, ConnectionTimeout: 3000},
 			Storage: struct {
-				DataDir string `yaml:"DataDir"`
-			}{DataDir: os.TempDir()},
+				Dir string `yaml:"Dir"`
+			}{Dir: os.TempDir()},
 			Static: struct {
 				Dir string `yaml:"Dir"`
 			}{Dir: "/Users/dabasov/Projects/gagarin/network/static"},

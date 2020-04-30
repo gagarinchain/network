@@ -1126,6 +1126,7 @@ type TestContext struct {
 	txChan       chan *msg.Message
 	sentTxChan   chan *msg.Message
 	headersChan  chan *msg.Message
+	blocksToSend map[common2.Hash]*msg.Message
 	blocksChan   chan *msg.Message
 	seed         map[common2.Address]*state.Account
 	stateDB      state.DB
@@ -1253,7 +1254,7 @@ func (ctx *TestContext) SendBlocks(blocks []*blockchain.Block) {
 			log.Error("can't send blocks")
 			return
 		}
-		ctx.blocksChan <- msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, ctx.me)
+		ctx.blocksToSend[b.Header().Hash()] = msg.CreateMessage(pb.Message_BLOCK_RESPONSE, any, ctx.me)
 	}
 }
 
@@ -1292,7 +1293,7 @@ func initContext(t *testing.T) *TestContext {
 	})
 
 	bsrv := blockchain.NewBlockService(srv, MockGoodBlockValidator(), MockGoodHeaderValidator())
-	sync := blockchain.CreateSynchronizer(identity, bsrv, bc, -1, 20, 1, 3, -1)
+	sync := blockchain.CreateSynchronizer(identity, bsrv, bc, -1, 20, 1, 3, -1, 2*10)
 	config := &hotstuff.ProtocolConfig{
 		F:            10,
 		Delta:        1 * time.Second,
@@ -1334,10 +1335,21 @@ func initContext(t *testing.T) *TestContext {
 
 	blocksChan := make(chan *msg.Message)
 	headersChan := make(chan *msg.Message)
+	blocksToSend := make(map[common2.Hash]*msg.Message)
 	srv.On("SendRequest", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*common.Peer"),
 		mock.MatchedBy(matcher(pb.Message_HEADERS_REQUEST))).Return(headersChan, nil)
 	srv.On("SendRequest", mock.MatchedBy(func(ctx context.Context) bool { return true }), mock.AnythingOfType("*common.Peer"),
-		mock.MatchedBy(matcher(pb.Message_BLOCK_REQUEST))).Return(blocksChan, nil)
+		mock.MatchedBy(matcher(pb.Message_BLOCK_REQUEST))).Run(
+		func(args mock.Arguments) {
+			m := args.Get(2).(*msg.Message)
+			req := &pb.BlockRequestPayload{}
+			if err := ptypes.UnmarshalAny(m.Payload, req); err != nil {
+				log.Error(err)
+			}
+			go func() {
+				blocksChan <- blocksToSend[common2.BytesToHash(req.Hash)]
+			}()
+		}).Return(blocksChan, nil)
 
 	txService := blockchain.NewService(blockchain.NewTransactionValidator(peers), pool, srv, bc, identity)
 
@@ -1363,6 +1375,7 @@ func initContext(t *testing.T) *TestContext {
 		seed:         seed,
 		proposalChan: proposalChan,
 		blocksChan:   blocksChan,
+		blocksToSend: blocksToSend,
 		headersChan:  headersChan,
 		startChan:    startChan,
 		eventChan:    eventChan,

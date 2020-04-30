@@ -87,7 +87,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Delta:          time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
 		EventBus:       bus,
 	})
-	synchr := blockchain.CreateSynchronizer(me, bsrv, bc, -1, 20, 3, 3, 5)
+	synchr := blockchain.CreateSynchronizer(me, bsrv, bc, -1, 20, 3, 3, 5, int32(2*s.Hotstuff.N))
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
 	initialState := getInitialState(storage, bc)

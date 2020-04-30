@@ -26,6 +26,7 @@ type SynchronizerImpl struct {
 	depthLimit          int32
 	headersAttemptCount int32
 	blocksParallelLimit int32
+	maxForkLength       int32
 }
 
 const DefaultTimeout = 50 * time.Millisecond
@@ -42,7 +43,7 @@ var (
 //to ommit depthLimit set -1
 //to ommit timeout set -1
 func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc Blockchain, timeout time.Duration, headersLimit int32,
-	headersAttemptCount int32, blocksParallelLimit int32, depthLimit int32) Synchronizer {
+	headersAttemptCount int32, blocksParallelLimit int32, depthLimit int32, maxForkLength int32) Synchronizer {
 	if depthLimit == -1 {
 		depthLimit = DepthLimitConst
 	}
@@ -58,6 +59,7 @@ func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc Blockchain, timeout
 		headersLimit:        headersLimit,
 		headersAttemptCount: headersAttemptCount,
 		blocksParallelLimit: blocksParallelLimit,
+		maxForkLength:       maxForkLength,
 	}
 }
 
@@ -91,13 +93,19 @@ func (s *SynchronizerImpl) loadBlocks(ctx context.Context, low int32, high int32
 			}
 
 			sort.Sort(HeadersByHeight(headers))
-			for k := 0; k < len(headers); k += int(s.blocksParallelLimit) {
+			var filteredHeaders []*Header
+			for k := 0; k < len(headers); k++ {
+				if !s.bc.Contains(headers[k].Hash()) {
+					filteredHeaders = append(filteredHeaders, headers[k])
+				}
+			}
+			for k := 0; k < len(filteredHeaders); k += int(s.blocksParallelLimit) {
 				l := k
 				h := k + int(s.blocksParallelLimit)
-				if h >= len(headers) {
-					h = len(headers)
+				if h >= len(filteredHeaders) {
+					h = len(filteredHeaders)
 				}
-				blocks, e := s.requestBlocks(ctx, headers[l:h], peer)
+				blocks, e := s.requestBlocks(ctx, filteredHeaders[l:h], peer)
 				if e != nil {
 					goto END
 				}
@@ -257,8 +265,16 @@ func (s *SynchronizerImpl) requestBlocks(ctx context.Context, headers []*Header,
 //We filter and omit orphans, so we add only chains starting from common blockchain block upto highest loaded not guaranteed to be #high
 func (s *SynchronizerImpl) LoadFork(ctx context.Context, headHeight int32, head common.Hash, peer *comm.Peer) error {
 	topCommited := s.bc.GetTopCommittedBlock()
+	topCommitedHeight := topCommited.Height()
 
-	return s.loadBlocks(ctx, topCommited.Height(), headHeight, headHeight, &head, peer)
+	low := int32(0)
+	if topCommitedHeight < headHeight-s.maxForkLength {
+		low = headHeight - s.maxForkLength
+	} else {
+		low = topCommitedHeight
+	}
+
+	return s.loadBlocks(ctx, low, headHeight, headHeight, &head, peer)
 }
 
 func (s *SynchronizerImpl) addBlocksTransactional(blocks []*Block) error {

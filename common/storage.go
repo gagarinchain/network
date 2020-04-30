@@ -8,30 +8,31 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/storage"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"path"
 )
 
 const DefaultIntValue = -1
+const StorageName = "gagarin"
 
 type StorageImpl struct {
 	db   *leveldb.DB
 	path string
 }
 
-func NewStorage(path string, opts *opt.Options) (net.Storage, error) {
+func NewStorage(p string, opts *opt.Options) (net.Storage, error) {
 	var nopts opt.Options
-	if opts != nil {
-		nopts = opt.Options(*opts)
-	}
 
 	var err error
 	var db *leveldb.DB
 
-	if path == "" {
+	if p == "" {
 		db, err = leveldb.Open(storage.NewMemStorage(), &nopts)
 	} else {
-		db, err = leveldb.OpenFile(path, &nopts)
+		p = path.Join(p, StorageName)
+		db, err = leveldb.OpenFile(p, &nopts)
+		log.Debugf("Created storage at %v", p)
 		if errors.IsCorrupted(err) && !nopts.GetReadOnly() {
-			db, err = leveldb.RecoverFile(path, &nopts)
+			db, err = leveldb.RecoverFile(p, &nopts)
 		}
 	}
 
@@ -41,7 +42,7 @@ func NewStorage(path string, opts *opt.Options) (net.Storage, error) {
 
 	return &StorageImpl{
 		db:   db,
-		path: path,
+		path: p,
 	}, nil
 }
 

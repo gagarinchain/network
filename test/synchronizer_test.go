@@ -39,7 +39,7 @@ func TestSyncRequestBlocksSimple(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, -1)
+		3, 3, -1, 20)
 
 	background := context.Background()
 	_ = toTest.LoadBlocks(background, 0, 25, nil)
@@ -79,7 +79,7 @@ func TestSyncRequestBlocksWithNoHead(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, -1)
+		3, 3, -1, 20)
 
 	background := context.Background()
 	_ = toTest.LoadBlocks(background, 19, 25, nil)
@@ -125,7 +125,7 @@ func TestSyncRequestBlocksWithNoHeadExceedDepthLimit(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, 3)
+		3, 3, 3, 20)
 
 	background := context.Background()
 	_ = toTest.LoadBlocks(background, 19, 25, nil)
@@ -166,7 +166,7 @@ func TestSyncRequestBlocksNoBlockFound(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, -1)
+		3, 3, -1, 20)
 
 	background := context.Background()
 	_ = toTest.LoadBlocks(background, 0, 25, nil)
@@ -204,7 +204,7 @@ func TestSyncRequestBlocksNoHeaderFound(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, -1)
+		3, 3, -1, 20)
 
 	background := context.Background()
 	_ = toTest.LoadBlocks(background, 0, 25, nil)
@@ -250,7 +250,7 @@ func TestSyncRequestBlocksWithForkNoHeaderFound(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, -1)
+		3, 3, -1, 20)
 
 	background := context.Background()
 	_ = toTest.LoadBlocks(background, 19, 25, nil)
@@ -290,7 +290,7 @@ func TestSyncRequestFork(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, -1)
+		3, 3, -1, 20)
 
 	background := context.Background()
 	_ = toTest.LoadFork(background, headers[10].Height(), headers[10].Hash(), nil)
@@ -343,7 +343,7 @@ func TestSyncRequestForkNoHead(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, -1)
+		3, 3, -1, 20)
 
 	background := context.Background()
 	e := toTest.LoadFork(background, headers[10].Height(), headers[10].Hash(), nil)
@@ -390,7 +390,7 @@ func TestSyncRequestForkNoCommonBlock(t *testing.T) {
 	}
 
 	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
-		3, 3, 3)
+		3, 3, 3, 20)
 
 	background := context.Background()
 	_ = toTest.LoadFork(background, headers[21].Height(), headers[21].Hash(), nil)

@@ -65,7 +65,7 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	log.Infof("I am %v", peerHost.Addrs())
 
 	// Create a leveldb datastore
-	dstore, err := leveldb.NewDatastore(path.Join(config.DataDir, "gagarin"), nil)
+	dstore, err := leveldb.NewDatastore(path.Join(config.DataDir, "network"), nil)
 	if err != nil {
 		return nil, err
 	}
