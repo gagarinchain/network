@@ -33,7 +33,7 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 				log.Error("Can't parse transaction message", err)
 				continue
 			}
-			t, e := tx.CreateTransactionFromMessage(pbt)
+			t, e := tx.CreateTransactionFromMessage(pbt, false)
 			if e != nil {
 				log.Error("Can't create transaction", e)
 				continue
@@ -49,7 +49,7 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 					log.Error("Can't send agreement", err)
 					continue
 				}
-				//we change to, since need default address any more
+				//we change to, since we don't need default address any more
 				t.SetTo(common2.BytesToAddress(t.Hash().Bytes()[12:]))
 			}
 

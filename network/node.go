@@ -12,7 +12,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
 	"github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p-kad-dht/opts"
 	"github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-record"
 	"github.com/multiformats/go-multiaddr"
@@ -73,9 +72,9 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	// Create the DHT instance. It needs the Host and a datastore instance.
 	rt, err := dht.New(
 		context.Background(), peerHost,
-		dhtopts.Datastore(dstore),
-		dhtopts.Protocols("/gagarin/hotstuff/1.0.0"),
-		dhtopts.Validator(record.NamespacedValidator{
+		dht.Datastore(dstore),
+		dht.ProtocolPrefix("/gagarin"),
+		dht.Validator(record.NamespacedValidator{
 			"pk": record.PublicKeyValidator{},
 		}),
 	)

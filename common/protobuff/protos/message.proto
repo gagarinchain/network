@@ -131,6 +131,7 @@ message Transaction {
     int64 fee = 5;
     Signature signature = 6;
     bytes data = 7;
+    bytes from = 8;
 
     enum Type {
         PAYMENT = 0;

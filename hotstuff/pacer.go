@@ -258,11 +258,14 @@ func (p *StaticPacer) FireEvent(event Event) {
 		case Proposing: //we are timed out during proposing, let's start to vote then
 			log.Info("Timed out during proposing phase, possibly no votes received for QC, propose with hqc and go to voting")
 			p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, p.delta)
-			p.stateId = Voting
-			p.protocol.OnPropose(p.execution.ctx)
+			p.stateId = Voting //if we timeout during proposing probably during next call OnPropose we move to next phase
+			p.protocol.OnPropose(p.execution.parent)
 		case Voting: //we received no valid proposal during delta, current proposer equivocated, let's resend last successful vote to next proposer
 			log.Info("Timed out during voting phase, resending last successful vote")
-			p.protocol.Vote(p.execution.ctx)
+			//vote with default timeout, we won't cancel it anyway since it is only message send
+			//we have choice to make this call async with timeout or sync with managing timeouts in pacer
+			//actually failed message sending and it's duration doesn't make sense for period duration
+			p.protocol.Vote(p.execution.parent)
 		default:
 			log.Errorf("Unknown transition %v %v", event, p.stateId)
 		}
@@ -296,7 +299,7 @@ func (p *StaticPacer) FireEvent(event Event) {
 	case VotesCollected:
 		log.Info("Collected all votes for new QC, proposing")
 		p.stateId = Proposing
-		p.protocol.OnPropose(p.execution.ctx)
+		p.protocol.OnPropose(p.execution.parent)
 	case Proposed:
 		log.Info("Proposed")
 		p.stateId = Voting

@@ -7,9 +7,11 @@ import (
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	pb "github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/network/common/tx"
 	protoio "github.com/gogo/protobuf/io"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/magiconair/properties/assert"
 
-	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -22,7 +24,7 @@ var (
 		105, 8, 7, 26, 101, 10, 41, 116, 121, 112, 101, 46, 103, 111, 111, 103, 108, 101, 97, 112, 105, 115, 46, 99, 111, 109, 47, 65, 99, 99, 111, 117, 110, 116, 82, 101, 113, 117, 101, 115, 116, 80, 97, 121, 108, 111, 97, 100, 18, 56, 10, 32, 223, 154, 107, 145, 195, 164, 138, 184, 185, 9, 23, 5, 155, 20, 152, 110, 32, 99, 62, 255, 7, 5, 53, 7, 142, 48, 12, 158, 252, 177, 182, 147, 18, 20, 221, 152, 17, 207, 194, 74, 184, 213, 96, 54, 168, 236, 169, 12, 123, 140, 117, 227, 89, 80,
 	}
 
-	someHex = "0000008c41bbf320390ab8ae194eec442d0fce63668d0f7017542a1381b363375d8bb9a7e6b3955dce0b9954526b4eba1e1cb3eab5023b4e7a0404b9856bae12eb112b2a99d09a1045d6412f61da34ff962811e479973a537c4ef88459404ea88babd8da9d77c902c9fc0a187ae39564e97ae148baf0c249eba91cab3b40a29476d33877baacb28138d8078fcc4cd806"
+	someHex = "08071ade010a1f747970652e676f6f676c65617069732e636f6d2f5472616e73616374696f6e12ba011214a60c85be9c2b8980dbd3f82cf8ce19de12f3e8291801200128013294010a308d00d7cea8f1f6edc961fe2867ffb94a1e78ef8b8eb416d6f5b7b3f6dd9811cfc24ab8d56036a8eca90c7b8c75e35950126098fe474c09be8799dbe91d93fcf6d399418659ccebe31ee1120aa8f2cbd74c5dca3e23fee25dbce26b509df18b72676205f50a82975a951416319c8af0a2ee830c0969141e4d7fd937d9d26276197aafd7cd995e6ab9ff7bd9da3fc9814682503a037177654200"
 )
 
 func TestSomeMessageParse(t *testing.T) {
@@ -31,8 +33,7 @@ func TestSomeMessageParse(t *testing.T) {
 	bb := common.Hex2Bytes(someHex)
 	reader := bytes.NewReader(bb)
 	spew.Dump(bb)
-	spew.Dump(someMessage)
-	dr := protoio.NewDelimitedReader(reader, 1024)
+	dr := protoio.NewDelimitedReader(reader, 101024)
 
 	if err := dr.ReadMsg(m); err != nil {
 		t.Error(err)
@@ -42,7 +43,15 @@ func TestSomeMessageParse(t *testing.T) {
 func TestTransactionReceive(t *testing.T) {
 
 	ctx := initContext(t)
+	txMessage := common.Hex2Bytes(someHex)
 	m := message.CreateFromSerialized(txMessage, ctx.me)
+
+	tran := &pb.Transaction{}
+	_ = ptypes.UnmarshalAny(m.Payload, tran)
+	spew.Dump(tran)
+	transaction, _ := tx.CreateTransactionFromMessage(tran, false)
+	spew.Dump(transaction)
+
 	ch := make(chan *message.Message)
 	background := context.Background()
 	ctx2, cancel := context.WithCancel(background)

@@ -66,7 +66,7 @@ func Bootstrap(ctx context.Context, routing *dht.IpfsDHT, peerHost host.Host, cf
 	}
 	go watchdog.watch(ctx)
 	//Start DHT
-	err := routing.BootstrapWithConfig(ctx, dht.DefaultBootstrapConfig)
+	err := routing.Bootstrap(ctx)
 	if err != nil {
 		go func() {
 			errChan <- err

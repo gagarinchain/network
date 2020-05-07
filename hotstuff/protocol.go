@@ -275,6 +275,9 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 }
 
 //Votes with last vote
+//This call is fast and will never block. All underlying message sending must be done in async manner with default timeout
+//We don't care about sending result since it has no effect on protocol
+// ctx - parent context for all execution
 func (p *Protocol) Vote(ctx context.Context) {
 	if p.lastVote != nil {
 		go p.srv.SendMessage(ctx, p.pacer.GetNext(), p.lastVote)
@@ -285,7 +288,7 @@ func (p *Protocol) Vote(ctx context.Context) {
 }
 
 func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
-	log.Debugf("Received vote for block on height [%v]", vote.Header.Height())
+	log.Debugf("Received vote for block on height [%v] from [%v] peer", vote.Header.Height(), vote.Sender.GetAddress().Hex())
 	p.Update(vote.HQC)
 
 	//TODO mb we don't need this check
@@ -356,12 +359,15 @@ func (p *Protocol) CheckConsensus() bool {
 
 //We must propose block atop preferred block.  "It then chooses to extend a branch from the Preferred Block determined by it."
 //In later versions of protocol this block is called SafeBlock, block on which we have locked certificate, simply 2-chain block.
+//This call is fast and will never block. All underlying message sending must be done in async manner with default timeout
+//We don't care about sending result since it has no effect on protocol
+// ctx - parent context for all execution
 func (p *Protocol) OnPropose(ctx context.Context) {
 	if !p.pacer.GetCurrent().Equals(p.me) {
 		log.Debug("Not my turn to propose, skipping")
 		return
 	}
-	log.Debug("We are proposer, proposing")
+	log.Debugf("We are proposer, proposing with HQC [%v]", p.HQC().QrefBlock().Height())
 	//TODO    write test to fail on signature
 	head := p.blockchain.GetBlockByHash(p.HQC().QrefBlock().Hash())
 	blocksToAdd := p.getCurrentView() - 1 - head.Header().Height()
@@ -369,7 +375,7 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 	log.Debugf("Padding with %v empty blocks", blocksToAdd)
 
 	for i := 0; i < int(blocksToAdd); i++ {
-		head = p.blockchain.PadEmptyBlock(head)
+		head = p.blockchain.PadEmptyBlock(head, p.hqc)
 	}
 
 	//todo remove rand data
@@ -384,6 +390,7 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 		log.Error(e)
 	}
 	m := msg.CreateMessage(pb.Message_PROPOSAL, any, p.me)
+
 	go p.srv.Broadcast(ctx, m)
 
 	p.pacer.FireEvent(Event{

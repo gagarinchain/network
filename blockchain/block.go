@@ -1,8 +1,6 @@
 package blockchain
 
 import (
-	"errors"
-	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -12,56 +10,12 @@ import (
 	"time"
 )
 
-var (
-	NoBlockFoundError = errors.New("no block is found")
-)
-
 type Block struct {
 	header    *Header
 	qc        *QuorumCertificate
 	signature *crypto.SignatureAggregate
 	txs       *trie.FixedLengthHexKeyMerkleTrie
 	data      []byte
-}
-
-type BlockPersister struct {
-	Storage net.Storage
-}
-
-func (bp *BlockPersister) Persist(b *Block) error {
-	bytes, e := proto.Marshal(b.GetMessage())
-	if e != nil {
-		return e
-	}
-
-	return bp.Storage.Put(net.Block, b.Header().Hash().Bytes(), bytes)
-}
-func (bp *BlockPersister) Update(b *Block) error {
-	if bp.Contains(b.Header().hash) {
-		return bp.Persist(b)
-	}
-	return NoBlockFoundError
-}
-
-func (bp *BlockPersister) Load(hash common.Hash) (b *Block, er error) {
-	value, er := bp.Storage.Get(net.Block, hash.Bytes())
-	if er != nil {
-		return nil, er
-	}
-	if value == nil {
-		return nil, NoBlockFoundError
-	}
-	block := &pb.Block{}
-	er = proto.Unmarshal(value, block)
-	if er != nil {
-		return nil, er
-	}
-
-	return CreateBlockFromMessage(block), nil
-}
-
-func (bp *BlockPersister) Contains(hash common.Hash) bool {
-	return bp.Storage.Contains(net.Block, hash.Bytes())
 }
 
 func (b *Block) TxsCount() int {
@@ -84,7 +38,7 @@ func (b *Block) Txs() tx.Iterator {
 }
 
 func (b *Block) AddTransaction(t *tx.Transaction) {
-	key := []byte(t.HashKey().Hex())
+	key := []byte(t.Hash().Hex())
 	b.txs.InsertOrUpdate(key, t.Serialized())
 }
 
@@ -178,7 +132,8 @@ func CreateGenesisBlock() (zero *Block) {
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)),
 		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
-	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader), txs: trie.New()}
+	zero = &Block{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader),
+		txs: trie.New(), signature: crypto.EmptyAggregateSignatures()}
 
 	return zero
 }
@@ -207,17 +162,38 @@ func CreateBlockFromMessage(block *pb.Block) *Block {
 	cert := CreateQuorumCertificate(crypto.AggregateFromProto(aggrPb), CreateBlockHeaderFromMessage(block.Cert.Header))
 	var txs = trie.New()
 	for _, tpb := range block.Txs {
-		t, e := tx.CreateTransactionFromMessage(tpb)
+		t, e := tx.CreateTransactionFromMessage(tpb, block.GetSignatureAggregate() != nil)
 		if e != nil {
 			log.Errorf("Bad transaction, %v", e)
 			return nil
 		}
-		txs.InsertOrUpdate([]byte(t.HashKey().Hex()), t.Serialized())
+		txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
 	}
 
 	var signature *crypto.SignatureAggregate
 	if block.SignatureAggregate != nil {
 		signature = crypto.AggregateFromProto(block.SignatureAggregate)
+	}
+	return &Block{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs}
+}
+
+func CreateBlockFromStorage(block *pb.BlockS) *Block {
+	header := CreateBlockHeaderFromStorage(block.Header)
+	aggrPb := block.Cert.GetSignatureAggregate()
+	cert := CreateQuorumCertificate(crypto.AggregateFromStorage(aggrPb), CreateBlockHeaderFromStorage(block.Cert.Header))
+	var txs = trie.New()
+	for _, tpb := range block.Txs {
+		t, e := tx.CreateTransactionFromStorage(tpb)
+		if e != nil {
+			log.Errorf("Bad transaction, %v", e)
+			return nil
+		}
+		txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
+	}
+
+	var signature *crypto.SignatureAggregate
+	if block.SignatureAggregate != nil {
+		signature = crypto.AggregateFromStorage(block.SignatureAggregate)
 	}
 	return &Block{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs}
 }
@@ -245,13 +221,36 @@ func (b *Block) GetMessage() *pb.Block {
 		Data: &pb.BlockData{Data: b.Data()}, Txs: txs}
 }
 
+func (b *Block) ToStorageProto() *pb.BlockS {
+	var qc *pb.QuorumCertificateS
+	if b.qc != nil {
+		qc = b.QC().ToStorageProto()
+	}
+
+	var txs []*pb.TransactionS
+	if b.TxsCount() > 0 {
+		it := b.Txs()
+		for t := it.Next(); t != nil; t = it.Next() {
+			txs = append(txs, t.ToStorageProto())
+		}
+	}
+
+	var sign *pb.SignatureAggregateS
+	if b.signature != nil {
+		sign = b.signature.ToStorageProto()
+	}
+
+	return &pb.BlockS{Header: b.Header().ToStorageProto(), Cert: qc, SignatureAggregate: sign,
+		Data: &pb.BlockDataS{Data: b.Data()}, Txs: txs}
+}
+
 func (b *Block) pruneTxSignatures() {
 	var txs = trie.New()
 	iterator := b.Txs()
 	for iterator.HasNext() {
 		next := iterator.Next()
 		next.DropSignature()
-		txs.InsertOrUpdate([]byte(next.HashKey().Hex()), next.Serialized())
+		txs.InsertOrUpdate([]byte(next.Hash().Hex()), next.Serialized())
 
 	}
 	b.txs = txs
@@ -269,9 +268,34 @@ func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *Header {
 		time.Unix(0, header.Timestamp).UTC(),
 	)
 }
+func CreateBlockHeaderFromStorage(header *pb.BlockHeaderS) *Header {
+	return createHeader(
+		header.Height,
+		common.BytesToHash(header.Hash),
+		common.BytesToHash(header.QcHash),
+		common.BytesToHash(header.TxHash),
+		common.BytesToHash(header.StateHash),
+		common.BytesToHash(header.DataHash),
+		common.BytesToHash(header.ParentHash),
+		time.Unix(0, header.Timestamp).UTC(),
+	)
+}
 
 func (h *Header) GetMessage() *pb.BlockHeader {
 	return &pb.BlockHeader{
+		Hash:       h.Hash().Bytes(),
+		ParentHash: h.Parent().Bytes(),
+		TxHash:     h.TxHash().Bytes(),
+		StateHash:  h.StateHash().Bytes(),
+		DataHash:   h.DataHash().Bytes(),
+		QcHash:     h.QCHash().Bytes(),
+		Height:     h.Height(),
+		Timestamp:  h.Timestamp().UnixNano(),
+	}
+}
+
+func (h *Header) ToStorageProto() *pb.BlockHeaderS {
+	return &pb.BlockHeaderS{
 		Hash:       h.Hash().Bytes(),
 		ParentHash: h.Parent().Bytes(),
 		TxHash:     h.TxHash().Bytes(),

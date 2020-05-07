@@ -197,7 +197,7 @@ func (c *Context) Bootstrap(s *Settings) {
 		}
 	}
 END:
-	ints, errors := c.srv.Bootstrap(rootCtx)
+	ints, errors := c.srv.Bootstrap(rootCtx, config)
 	select {
 	case <-ints:
 		log.Debug("Network service bootstrapped successfully")

@@ -444,7 +444,7 @@ func TestScenario5e(t *testing.T) {
 
 	block := ctx.bc.GetHead()
 	for i := 0; i < 20; i++ {
-		block = ctx.bc.PadEmptyBlock(block)
+		block = ctx.bc.PadEmptyBlock(block, ctx.protocol.HQC())
 	}
 	newBlock := ctx.bc.NewBlock(block, ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
@@ -730,7 +730,7 @@ func TestScenario7a(t *testing.T) {
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
 	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
-	assert.Equal(t, "0x5398ef0b268066eac506627bd5a04ce23d4fec3a6464fd7f6c2308316387196a", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0x573e917b1e96825378ab508d557e0cd8762b80c0b39b242d43cb420457c1df4f", proposal.NewBlock.Header().TxHash().Hex())
 	assert.Equal(t, "0x7509e1371b6d9293bac6ed2e32661978a23d9ff4352f661bdfcb31c3370922b5", proposal.NewBlock.Header().StateHash().Hex())
 
 }
@@ -752,7 +752,7 @@ func TestScenario7aa(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0x49db1423dfd577d276e08a3e9ce09e9cb49991322c1840d3f0a23b1aa23c80a1", proposal.NewBlock.Header().TxHash().Hex())
+	assert.Equal(t, "0xd7871f8f064f68ebb2b8e092efcf8212d12c3584c4ab9d91b5b1a47d421bbe8d", proposal.NewBlock.Header().TxHash().Hex())
 	assert.Equal(t, "0x51de6155ccb435024a7874b4f933efacad07e49cf0776738d706ff3b52211df7", proposal.NewBlock.Header().StateHash().Hex())
 	assert.Equal(t, 2, proposal.NewBlock.TxsCount())
 
@@ -958,7 +958,9 @@ func TestScenario8b(t *testing.T) {
 		if bytes.Equal(ctx.peers[i].GetAddress().Bytes(), ctx.me.GetAddress().Bytes()) {
 			nonce = 2
 		}
+
 		agreement := tx.CreateAgreement(s, uint64(nonce), nil)
+		agreement.SetFrom(ctx.peers[i].GetAddress())
 		if err := agreement.CreateProof(ctx.peers[i].GetPrivateKey()); err != nil {
 			t.Error(err)
 		}
@@ -1021,7 +1023,7 @@ func TestScenario8b(t *testing.T) {
 	a5, _ := head.Get(ctx.peers[4].GetAddress())
 	a6, _ := head.Get(ctx.peers[5].GetAddress())
 	a7, _ := head.Get(ctx.peers[6].GetAddress())
-	as, _ := head.Get(common2.HexToAddress("0x0f10169CaFAd230fB8C57D1432562f8fFF121aAb"))
+	as, _ := head.Get(common2.HexToAddress("0x0bfa0e22be2feC85Cd04dA94b7b1fd8563F4Cb07"))
 
 	assert.Equal(t, big.NewInt(1532), a1.Balance())
 	assert.Equal(t, big.NewInt(2016), a2.Balance())

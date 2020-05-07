@@ -69,3 +69,11 @@ func (qc *QuorumCertificate) IsValid(qcHash common.Hash, committee []*crypto.Pub
 	}
 	return false, errors.New("QC is not valid")
 }
+
+func (qc *QuorumCertificate) ToStorageProto() *pb.QuorumCertificateS {
+	var m *pb.BlockHeaderS
+	if qc.QrefBlock() != nil {
+		m = qc.QrefBlock().ToStorageProto()
+	}
+	return &pb.QuorumCertificateS{Header: m, SignatureAggregate: qc.SignatureAggregate().ToStorageProto()}
+}

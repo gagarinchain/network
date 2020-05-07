@@ -11,7 +11,7 @@ func TestEmptySignature(t *testing.T) {
 
 	spew.Dump(proto)
 
-	storage := SignatureFromStorage(proto)
+	storage := SignatureFromStorageProto(proto)
 
 	assert.True(t, storage.IsEmpty())
 }

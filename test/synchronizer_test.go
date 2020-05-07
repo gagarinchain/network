@@ -518,7 +518,7 @@ func (m *MockBlockchain) NewBlock(parent *blockchain.Block, qc *blockchain.Quoru
 	panic("implement me")
 }
 
-func (m *MockBlockchain) PadEmptyBlock(head *blockchain.Block) *blockchain.Block {
+func (m *MockBlockchain) PadEmptyBlock(head *blockchain.Block, qc *blockchain.QuorumCertificate) *blockchain.Block {
 	panic("implement me")
 }
 

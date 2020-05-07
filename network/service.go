@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p-pubsub"
 	"io"
 	"math/rand"
+	"time"
 )
 
 type Service interface {
@@ -36,7 +37,7 @@ type Service interface {
 	Broadcast(ctx context.Context, msg *msg.Message)
 	BroadcastTransaction(ctx context.Context, msg *msg.Message)
 
-	Bootstrap(ctx context.Context) (chan int, chan error)
+	Bootstrap(ctx context.Context, cfg *BootstrapConfig) (chan int, chan error)
 }
 
 type TopicListener interface {
@@ -52,11 +53,12 @@ const TransactionTopic string = "/tx"
 //TODO find out whether we have to cache streams and synchronize access to them
 //TODO handle contexts correctly
 type ServiceImpl struct {
-	node             *Node
-	dispatcher       msg.Dispatcher
-	hotstuffListener TopicListener
-	txListener       TopicListener
-	bus              *GagarinEventBus
+	node              *Node
+	dispatcher        msg.Dispatcher
+	hotstuffListener  TopicListener
+	txListener        TopicListener
+	bus               *GagarinEventBus
+	connectionTimeout time.Duration
 }
 
 type TopicListenerImpl struct {
@@ -92,22 +94,25 @@ func (s *ServiceImpl) SendMessage(ctx context.Context, peer *common.Peer, m *msg
 	case <-resp:
 		log.Debugf("sent successfully to %v", peer.GetAddress().Hex())
 	case e := <-err:
-		log.Errorf("error (%v) sending message to %v", e.Error(), peer.GetAddress().Hex())
+		log.Errorf("error (%v) sending message %v to %v", e.Error(), m.Type.String(), peer.GetAddress().Hex())
 	}
 }
 
 func (s *ServiceImpl) SendResponse(ctx context.Context, m *msg.Message) {
-	go func() {
+	timeout, _ := context.WithTimeout(ctx, s.connectionTimeout)
+	go func(ctx context.Context) {
 		log.Debug("Sending response")
 		stream := m.Stream()
-		writer := protoio.NewDelimitedWriter(stream)
+		wr := ctxio.NewWriter(timeout, stream)
+
+		writer := protoio.NewDelimitedWriter(wr)
 		spew.Dump(m)
 		if e := writer.WriteMsg(m.Message); e != nil {
 			log.Error("Response not sent", e)
 			return
 		}
 		log.Debug("Response sent")
-	}()
+	}(timeout)
 }
 
 func (s *ServiceImpl) SendRequest(ctx context.Context, peer *common.Peer, req *msg.Message) (resp chan *msg.Message, err chan error) {
@@ -124,19 +129,23 @@ func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *ms
 		log.Debug("Sending message to self")
 		go func() {
 			s.dispatcher.Dispatch(req)
+			close(resp)
 		}()
 		return resp, err
 	}
 
+	timeout, _ := context.WithTimeout(ctx, s.connectionTimeout)
 	go func(ctx context.Context, pid peer.ID, m *msg.Message, withResponse bool) {
 		message, e := s.sendRequestSync(ctx, pid, m, withResponse)
 		if e != nil {
 			err <- e
 		} else if !withResponse {
+			close(resp)
 		} else {
 			resp <- message
+			close(resp)
 		}
-	}(ctx, pid, req, withResponse)
+	}(timeout, pid, req, withResponse)
 
 	return resp, err
 }
@@ -154,8 +163,9 @@ func (s *ServiceImpl) sendRequestSync(ctx context.Context, pid peer.ID, req *msg
 	if e != nil {
 		return nil, e
 	}
+	wr := ctxio.NewWriter(ctx, stream)
 
-	writer := protoio.NewDelimitedWriter(stream)
+	writer := protoio.NewDelimitedWriter(wr)
 	if e := writer.WriteMsg(req.Message); e != nil {
 		return nil, e
 	}
@@ -175,6 +185,8 @@ func (s *ServiceImpl) sendRequestSync(ctx context.Context, pid peer.ID, req *msg
 		_ = stream.Reset()
 		return nil, e
 	}
+	_ = stream.Close()
+
 	info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
 	p := common.CreatePeer(nil, nil, &info)
 	return msg.CreateMessageFromProto(respMsg, p, nil), nil
@@ -194,46 +206,44 @@ func (s *ServiceImpl) BroadcastTransaction(ctx context.Context, msg *msg.Message
 }
 
 func (s *ServiceImpl) broadcast(ctx context.Context, topic string, msg *msg.Message) {
-	go func() {
-		bytes, e := proto.Marshal(msg.Message)
-		if e != nil {
-			log.Error("Can't marshall message", e)
-		}
+	timeout, _ := context.WithTimeout(ctx, s.connectionTimeout)
+	bytes, e := proto.Marshal(msg.Message)
+	if e != nil {
+		log.Error("Can't marshall message", e)
+	}
 
-		e = s.node.PubSub.Publish(ctx, topic, bytes)
-		if e != nil {
-			log.Error("Can't broadcast message", e)
-		}
-	}()
+	e = s.node.PubSub.Publish(timeout, topic, bytes)
+	if e != nil {
+		log.Error("Can't broadcast message", e)
+	}
 }
 
 func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream network.Stream) {
 	cr := ctxio.NewReader(ctx, stream)
 	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)
 
-	for {
-		m := &pb.Message{}
-		err := r.ReadMsg(m)
-		if err != nil {
-			if err != io.EOF {
-				if err := stream.Reset(); err != nil {
-					log.Error("error resetting stream", err)
-				}
-				log.Infof("error reading message from %s: %s", stream.Conn().RemotePeer(), err)
-			} else {
-				// Just be nice. They probably won't read this
-				// but it doesn't hurt to send it.
-				if err := stream.Close(); err != nil {
-					log.Error("error closing stream", err)
-				}
+	m := &pb.Message{}
+	err := r.ReadMsg(m)
+	if err != nil {
+		if err != io.EOF {
+			if err := stream.Reset(); err != nil {
+				log.Error("error resetting stream", err)
 			}
-			return
+			log.Infof("error reading message from %s: %s", stream.Conn().RemotePeer(), err)
+		} else {
+			// Just be nice. They probably won't read this
+			// but it doesn't hurt to send it.
+			if err := stream.Close(); err != nil {
+				log.Error("error closing stream", err)
+			}
 		}
-
-		info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
-		p := common.CreatePeer(nil, nil, &info)
-		s.dispatcher.Dispatch(msg.CreateMessageFromProto(m, p, stream))
+		return
 	}
+
+	info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
+	p := common.CreatePeer(nil, nil, &info)
+	log.Infof("Received Direct [%v] message from [%v]", m.Type.String(), p.GetPeerInfo().ID.Pretty())
+	s.dispatcher.Dispatch(msg.CreateMessageFromProto(m, p, stream))
 }
 
 func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context) network.StreamHandler {
@@ -247,7 +257,8 @@ func (s *ServiceImpl) handleGagarinWithContext(ctx context.Context) network.Stre
 	}
 }
 
-func (s *ServiceImpl) Bootstrap(ctx context.Context) (chan int, chan error) {
+func (s *ServiceImpl) Bootstrap(ctx context.Context, cfg *BootstrapConfig) (chan int, chan error) {
+	s.connectionTimeout = cfg.ConnectionTimeout
 	statusChan := make(chan int)
 	errChan := make(chan error)
 	go func() {
@@ -322,11 +333,10 @@ func (l *TopicListenerImpl) handleTopicMessage(ctx context.Context, sub *pubsub.
 		return err
 	}
 
-	log.Infof("Received Pubsub message from %s\n", pid.Pretty())
-
 	//We do several very easy checks here and give control to dispatcher
 	info := l.node.Host.Peerstore().PeerInfo(pid)
 	message := msg.CreateFromSerialized(m.Data, common.CreatePeer(nil, nil, &info))
+	log.Infof("Received Pubsub message [%v] from [%v]\n", message.Type.String(), pid.Pretty())
 	l.dispatcher.Dispatch(message)
 
 	return nil

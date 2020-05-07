@@ -313,13 +313,13 @@ func (_m *Blockchain) OnCommit(b *blockchain.Block) ([]*blockchain.Block, *treem
 	return r0, r1, r2
 }
 
-// PadEmptyBlock provides a mock function with given fields: head
-func (_m *Blockchain) PadEmptyBlock(head *blockchain.Block) *blockchain.Block {
-	ret := _m.Called(head)
+// PadEmptyBlock provides a mock function with given fields: head, qc
+func (_m *Blockchain) PadEmptyBlock(head *blockchain.Block, qc *blockchain.QuorumCertificate) *blockchain.Block {
+	ret := _m.Called(head, qc)
 
 	var r0 *blockchain.Block
-	if rf, ok := ret.Get(0).(func(*blockchain.Block) *blockchain.Block); ok {
-		r0 = rf(head)
+	if rf, ok := ret.Get(0).(func(*blockchain.Block, *blockchain.QuorumCertificate) *blockchain.Block); ok {
+		r0 = rf(head, qc)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*blockchain.Block)

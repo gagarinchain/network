@@ -108,7 +108,7 @@ type Blockchain interface {
 	GetGenesisCert() *QuorumCertificate
 	IsSibling(sibling *Header, ancestor *Header) bool
 	NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block
-	PadEmptyBlock(head *Block) *Block
+	PadEmptyBlock(head *Block, qc *QuorumCertificate) *Block
 	GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature
 	ValidateGenesisBlockSignature(signature *crypto.Signature, address common.Address) bool
 	GetTopCommittedBlock() *Block
@@ -502,6 +502,9 @@ func (bc *BlockchainImpl) updateBlockSignature(b *Block) {
 	}
 	qrefHash := b.QC().QrefBlock().Hash()
 	qrefBlock := bc.getBlockByHash(qrefHash)
+	if qrefBlock.Height() == 0 {
+		return
+	}
 
 	qrefBlock.SetSignature(b.QC().SignatureAggregate())
 
@@ -662,7 +665,7 @@ func (bc *BlockchainImpl) collectTransactions(s *state.Record, txs *trie.FixedLe
 			if s.ApplyTransaction(t) != nil {
 				continue
 			}
-			txs.InsertOrUpdate([]byte(t.HashKey().Hex()), t.Serialized())
+			txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
 			i++
 
 			if i >= TxLimit {
@@ -674,8 +677,8 @@ func (bc *BlockchainImpl) collectTransactions(s *state.Record, txs *trie.FixedLe
 	log.Debugf("Collected %v txs", i)
 }
 
-func (bc *BlockchainImpl) PadEmptyBlock(head *Block) *Block {
-	block := bc.newBlock(head, head.QC(), []byte(""), false)
+func (bc *BlockchainImpl) PadEmptyBlock(head *Block, qc *QuorumCertificate) *Block {
+	block := bc.newBlock(head, qc, []byte(""), false)
 
 	if e := bc.AddBlock(block); e != nil {
 		log.Error("Can't add empty block")

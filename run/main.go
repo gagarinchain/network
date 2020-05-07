@@ -6,7 +6,6 @@ import (
 	"github.com/gagarinchain/network/network"
 	golog "github.com/ipfs/go-log"
 	"github.com/op/go-logging"
-	gologging "github.com/whyrusleeping/go-logging"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -44,7 +43,8 @@ func main() {
 	// LibP2P code uses golog to log messages. They log with different
 	// string IDs (i.e. "swarm"). We can control the verbosity level for
 	// all loggers with:
-	golog.SetAllLoggers(gologging.INFO)
+	level, _ := golog.LevelFromString("DEBUG")
+	golog.SetAllLoggers(level)
 
 	backend := logging.NewLogBackend(os.Stderr, "", 0)
 	backendFormatter := logging.NewBackendFormatter(backend, stdoutLogFormat)

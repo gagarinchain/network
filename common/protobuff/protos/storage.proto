@@ -1,23 +1,54 @@
 syntax = "proto3";
 option go_package = "pb";
 
-message Tx {
+message QuorumCertificateS {
+    BlockHeaderS header = 1;
+    SignatureAggregateS signatureAggregate = 2;
+}
+
+message BlockS {
+    BlockHeaderS header = 1;
+    QuorumCertificateS cert = 2;
+    SignatureAggregateS signatureAggregate = 3;
+    BlockDataS data = 4;
+    repeated TransactionS txs = 5;
+}
+
+message BlockHeaderS {
+    bytes hash = 1;
+    bytes parentHash = 2;
+    bytes qcHash = 3;
+    bytes dataHash = 4;
+    bytes txHash = 5;
+    bytes stateHash = 6;
+    int32 height = 7;
+    int64 timestamp = 8;
+}
+
+message BlockDataS {
+    bytes data = 1;
+}
+
+message TransactionS {
     int32 type = 1;
     bytes to = 2;
     bytes from = 3;
     uint64 nonce = 4;
-    bytes value = 5;
-    bytes fee = 6;
-    Sign signature = 7;
-    bytes hashKey = 8;
+    int64 value = 5;
+    int64 fee = 6;
+    SignatureS signature = 7;
+    bytes hash = 8;
     bytes data = 9;
 }
 
-message Sign{
+message SignatureS{
     bytes from = 1;
     bytes signature = 2;
 }
-
+message SignatureAggregateS {
+    bytes bitmap = 1;
+    bytes signature = 2;
+}
 
 message Account {
     uint64 nonce = 1;

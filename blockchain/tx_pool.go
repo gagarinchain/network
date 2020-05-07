@@ -48,7 +48,7 @@ func (tp *TransactionPoolImpl) Remove(transaction *tx.Transaction) {
 
 func (tp *TransactionPoolImpl) remove(transaction *tx.Transaction) {
 	for i, k := range tp.pending {
-		if bytes.Equal(k.HashKey().Bytes(), transaction.HashKey().Bytes()) {
+		if bytes.Equal(k.Hash().Bytes(), transaction.Hash().Bytes()) {
 			tp.pending = append(tp.pending[:i], tp.pending[i+1:]...)
 		}
 	}
