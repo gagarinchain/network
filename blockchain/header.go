@@ -110,7 +110,6 @@ func (h *HeaderImpl) SetHash() {
 func HashHeader(header api.Header) common.Hash {
 	switch t := header.(type) {
 	case *HeaderImpl:
-		//TODO check that copy here
 		h := *t
 		h.hash = common.BytesToHash(make([]byte, common.HashLength))
 		if h.IsGenesisBlock() {

@@ -182,6 +182,12 @@ func BytesToAddress(b []byte) Address {
 	return a
 }
 
+func RandomAddress() Address {
+	token := make([]byte, 20)
+	rand.Read(token)
+	return BytesToAddress(token)
+}
+
 // BigToAddress returns Address with byte values of b.
 // If b is larger than len(h), b will be cropped from the left.
 func BigToAddress(b *big.Int) Address { return BytesToAddress(b.Bytes()) }
