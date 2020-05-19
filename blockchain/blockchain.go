@@ -10,6 +10,7 @@ import (
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/trie"
@@ -53,7 +54,7 @@ func (bp *BlockchainPersister) GetTopCommittedHeight() (val int32, err error) {
 	return cmn.ByteToInt32(value)
 }
 
-func (bp *BlockchainPersister) PutHeightIndexRecord(b *Block) error {
+func (bp *BlockchainPersister) PutHeightIndexRecord(b api.Block) error {
 	key := make([]byte, binary.MaxVarintLen64)
 	binary.PutVarint(key, int64(b.Height()))
 
@@ -90,36 +91,10 @@ func (bp *BlockchainPersister) GetHeightIndexRecord(height int32) (hashes []comm
 	return hashes, nil
 }
 
-type Blockchain interface {
-	GetBlockByHash(hash common.Hash) (block *Block)
-	GetBlockByHeight(height int32) (res []*Block)
-	GetFork(height int32, headHash common.Hash) (res []*Block)
-
-	Contains(hash common.Hash) bool
-	GetThreeChain(twoHash common.Hash) (zero *Block, one *Block, two *Block)
-	OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error)
-	GetHead() *Block
-	GetHeadRecord() *state.Record
-	GetTopHeight() int32
-	GetTopHeightBlocks() []*Block
-	AddBlock(block *Block) error
-	RemoveBlock(block *Block) error
-	GetGenesisBlock() *Block
-	GetGenesisCert() *QuorumCertificate
-	IsSibling(sibling *Header, ancestor *Header) bool
-	NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block
-	PadEmptyBlock(head *Block, qc *QuorumCertificate) *Block
-	GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature
-	ValidateGenesisBlockSignature(signature *crypto.Signature, address common.Address) bool
-	GetTopCommittedBlock() *Block
-	UpdateGenesisBlockQC(certificate *QuorumCertificate)
-	SetProposerGetter(proposerGetter cmn.ProposerForHeight)
-}
-
 type BlockchainImpl struct {
 	indexGuard *sync.RWMutex
 	//index for storing blocks by their hash
-	blocksByHash map[common.Hash]*Block
+	blocksByHash map[common.Hash]api.Block
 	//indexes for storing blocks according to their height,
 	// <int32, *Block>
 	committedChainByHeight *treemap.Map
@@ -128,26 +103,26 @@ type BlockchainImpl struct {
 	uncommittedTreeByHeight *treemap.Map
 	txPool                  TransactionPool
 	stateDB                 state.DB
-	proposerGetter          cmn.ProposerForHeight
+	proposerGetter          api.ProposerForHeight
 	blockPersister          *BlockPersister
 	chainPersister          *BlockchainPersister
 	delta                   time.Duration
 	bus                     cmn.EventBus
 }
 
-func (bc *BlockchainImpl) SetProposerGetter(proposerGetter cmn.ProposerForHeight) {
+func (bc *BlockchainImpl) SetProposerGetter(proposerGetter api.ProposerForHeight) {
 	bc.proposerGetter = proposerGetter
 }
 
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) Blockchain {
+func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) api.Blockchain {
 	zero := CreateGenesisBlock()
 	if cfg.EventBus == nil {
 		cfg.EventBus = &cmn.NullBus{}
 	}
 	blockchain := &BlockchainImpl{
-		blocksByHash:            make(map[common.Hash]*Block),
+		blocksByHash:            make(map[common.Hash]api.Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
@@ -174,7 +149,7 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) Blockchain {
 	return blockchain
 }
 
-func CreateBlockchainFromStorage(cfg *BlockchainConfig) Blockchain {
+func CreateBlockchainFromStorage(cfg *BlockchainConfig) api.Blockchain {
 	pblock := &BlockPersister{Storage: cfg.Storage}
 	pchain := &BlockchainPersister{Storage: cfg.Storage}
 
@@ -189,7 +164,7 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) Blockchain {
 		cfg.EventBus = &cmn.NullBus{}
 	}
 	blockchain := &BlockchainImpl{
-		blocksByHash:            make(map[common.Hash]*Block),
+		blocksByHash:            make(map[common.Hash]api.Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
 		uncommittedTreeByHeight: treemap.NewWith(utils.Int32Comparator),
 		indexGuard:              &sync.RWMutex{},
@@ -234,14 +209,14 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) Blockchain {
 	return blockchain
 }
 
-func (bc *BlockchainImpl) GetBlockByHash(hash common.Hash) (block *Block) {
+func (bc *BlockchainImpl) GetBlockByHash(hash common.Hash) (block api.Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	return bc.getBlockByHash(hash)
 }
 
-func (bc *BlockchainImpl) getBlockByHash(hash common.Hash) *Block {
+func (bc *BlockchainImpl) getBlockByHash(hash common.Hash) api.Block {
 	block := bc.blocksByHash[hash]
 
 	if block == nil {
@@ -255,12 +230,12 @@ func (bc *BlockchainImpl) getBlockByHash(hash common.Hash) *Block {
 	return block
 }
 
-func (bc *BlockchainImpl) GetBlockByHeight(height int32) (res []*Block) {
+func (bc *BlockchainImpl) GetBlockByHeight(height int32) (res []api.Block) {
 	block, ok := bc.committedChainByHeight.Get(height)
 	if !ok {
 		blocks, ok := bc.uncommittedTreeByHeight.Get(height)
 		if ok {
-			res = append(res, blocks.([]*Block)...)
+			res = append(res, blocks.([]api.Block)...)
 		} else { //TODO it seems like a hack, we should preload blockchain structure from index to memory
 			hashes, err := bc.chainPersister.GetHeightIndexRecord(height)
 			if err == nil {
@@ -273,18 +248,18 @@ func (bc *BlockchainImpl) GetBlockByHeight(height int32) (res []*Block) {
 			}
 		}
 	} else {
-		res = append(res, block.(*Block))
+		res = append(res, block.(api.Block))
 	}
 	return res
 }
 
-func (bc *BlockchainImpl) GetFork(height int32, headHash common.Hash) (res []*Block) {
+func (bc *BlockchainImpl) GetFork(height int32, headHash common.Hash) (res []api.Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	head := bc.blocksByHash[headHash]
 	hash := headHash
-	res = make([]*Block, head.Height()-height+1)
+	res = make([]api.Block, head.Height()-height+1)
 	for i := 0; i < len(res); i++ {
 		head = bc.blocksByHash[hash]
 		res[i] = head
@@ -300,7 +275,7 @@ func (bc *BlockchainImpl) Contains(hash common.Hash) bool {
 
 // Returns three certified blocks (Bzero, Bone, Btwo) from 3-chain
 // B|zero <-- B|one <-- B|two <--...--  B|head
-func (bc *BlockchainImpl) GetThreeChain(twoHash common.Hash) (zero *Block, one *Block, two *Block) {
+func (bc *BlockchainImpl) GetThreeChain(twoHash common.Hash) (zero api.Block, one api.Block, two api.Block) {
 	two = bc.GetBlockByHash(twoHash)
 	if two == nil {
 		return nil, nil, nil
@@ -322,7 +297,7 @@ func (bc *BlockchainImpl) GetThreeChain(twoHash common.Hash) (zero *Block, one *
 //move uncommitted chain with b as head to committed and analyze rejected forks
 //toCommit is ordered by height ascending
 //TODO should we delete orphans from BlocksByHash index? they hang there now
-func (bc *BlockchainImpl) OnCommit(b *Block) (toCommit []*Block, orphans *treemap.Map, err error) {
+func (bc *BlockchainImpl) OnCommit(b api.Block) (toCommit []api.Block, orphans *treemap.Map, err error) {
 	orphans = treemap.NewWith(utils.Int32Comparator)
 
 	low, _ := bc.uncommittedTreeByHeight.Min()
@@ -331,10 +306,10 @@ func (bc *BlockchainImpl) OnCommit(b *Block) (toCommit []*Block, orphans *treema
 	}
 
 	//lets collect all predecessors of block to commit, and make orphans map
-	phash := b.header.hash
+	phash := b.Header().Hash()
 	for height := b.Height(); height >= low.(int32); height-- {
 		val, found := bc.uncommittedTreeByHeight.Get(height)
-		currentBag := val.([]*Block)
+		currentBag := val.([]api.Block)
 		if !found {
 			return nil, nil, errors.New("bad index structure")
 		}
@@ -353,16 +328,16 @@ func (bc *BlockchainImpl) OnCommit(b *Block) (toCommit []*Block, orphans *treema
 	}
 
 	//lets filter orphan blocks
-	hashes := map[common.Hash]bool{b.header.hash: true}
+	hashes := map[common.Hash]bool{b.Header().Hash(): true}
 	max, _ := bc.uncommittedTreeByHeight.Max()
 	for height := b.Height() + 1; height <= max.(int32); height++ {
 		val, found := bc.uncommittedTreeByHeight.Get(height)
-		currentBag := val.([]*Block)
+		currentBag := val.([]api.Block)
 		if !found {
 			return nil, nil, errors.New("bad index structure")
 		}
-		var o []*Block
-		var c []*Block
+		var o []api.Block
+		var c []api.Block
 		for _, el := range currentBag {
 			_, ok := hashes[el.Header().Parent()]
 			if ok {
@@ -410,9 +385,9 @@ func (bc *BlockchainImpl) OnCommit(b *Block) (toCommit []*Block, orphans *treema
 
 	//release orphan states
 	_, v := orphans.Min()
-	lowestHeightOrphans := v.([]*Block)
+	lowestHeightOrphans := v.([]api.Block)
 	for _, o := range lowestHeightOrphans {
-		if e := bc.stateDB.Release(o.Header().hash); e != nil {
+		if e := bc.stateDB.Release(o.Header().Hash()); e != nil {
 			log.Error(e)
 		}
 	}
@@ -420,13 +395,13 @@ func (bc *BlockchainImpl) OnCommit(b *Block) (toCommit []*Block, orphans *treema
 	return toCommit, orphans, nil
 }
 
-func (bc *BlockchainImpl) GetHead() *Block {
+func (bc *BlockchainImpl) GetHead() api.Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	//TODO probably it is not correct^ have to return head of PREF block branch here
 	_, blocks := bc.uncommittedTreeByHeight.Max()
-	var b = blocks.([]*Block)
+	var b = blocks.([]api.Block)
 	return b[0]
 }
 
@@ -441,24 +416,24 @@ func (bc *BlockchainImpl) GetHeadRecord() *state.Record {
 func (bc *BlockchainImpl) GetTopHeight() int32 {
 	return bc.GetHead().Header().Height()
 }
-func (bc *BlockchainImpl) GetTopHeightBlocks() []*Block {
+func (bc *BlockchainImpl) GetTopHeightBlocks() []api.Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	_, blocks := bc.uncommittedTreeByHeight.Max()
-	var b = blocks.([]*Block)
+	var b = blocks.([]api.Block)
 	return b
 }
 
-func (bc *BlockchainImpl) AddBlock(block *Block) error {
-	log.Infof("Adding block with hash [%v]", block.header.Hash().Hex())
+func (bc *BlockchainImpl) AddBlock(block api.Block) error {
+	log.Infof("Adding block with hash [%v]", block.Header().Hash().Hex())
 	//spew.Dump(block)
 
 	bc.indexGuard.Lock()
 	defer bc.indexGuard.Unlock()
 
 	if bc.blocksByHash[block.Header().Hash()] != nil || bc.blockPersister.Contains(block.Header().Hash()) {
-		log.Debugf("Block with hash [%v] already exists, updating", block.header.Hash().Hex())
+		log.Debugf("Block with hash [%v] already exists, updating", block.Header().Hash().Hex())
 		return bc.blockPersister.Persist(block)
 	}
 
@@ -496,7 +471,7 @@ func (bc *BlockchainImpl) AddBlock(block *Block) error {
 	return nil
 }
 
-func (bc *BlockchainImpl) updateBlockSignature(b *Block) {
+func (bc *BlockchainImpl) updateBlockSignature(b api.Block) {
 	if b.Height() == 0 {
 		return
 	}
@@ -514,42 +489,42 @@ func (bc *BlockchainImpl) updateBlockSignature(b *Block) {
 
 }
 
-func (bc *BlockchainImpl) addUncommittedBlock(block *Block) error {
+func (bc *BlockchainImpl) addUncommittedBlock(block api.Block) error {
 	value, found := bc.uncommittedTreeByHeight.Get(block.Header().Height())
 	if !found {
-		value = make([]*Block, 0)
+		value = make([]api.Block, 0)
 		if err := bc.chainPersister.PutCurrentTopHeight(block.Header().Height()); err != nil {
 			return err
 		}
 	}
 
-	value = append(value.([]*Block), block)
+	value = append(value.([]api.Block), block)
 	bc.blocksByHash[block.Header().Hash()] = block
 	bc.uncommittedTreeByHeight.Put(block.Header().Height(), value)
 
 	return nil
 }
 
-func (bc *BlockchainImpl) RemoveBlock(block *Block) error {
-	log.Infof("Removing block with hash [%v]", block.header.Hash().Hex())
+func (bc *BlockchainImpl) RemoveBlock(block api.Block) error {
+	log.Infof("Removing block with hash [%v]", block.Header().Hash().Hex())
 	//spew.Dump(block)
 
 	bc.indexGuard.Lock()
 	defer bc.indexGuard.Unlock()
 
 	if bc.blocksByHash[block.Header().Hash()] == nil && !bc.blockPersister.Contains(block.Header().Hash()) {
-		log.Warningf("Block with hash [%v] is absent", block.header.Hash().Hex())
+		log.Warningf("Block with hash [%v] is absent", block.Header().Hash().Hex())
 		return nil
 	}
 
 	//we can delete only leafs, so check whether this block is not parent of any
 	value, found := bc.uncommittedTreeByHeight.Get(block.Height() + 1)
 	if found {
-		nextHeight := value.([]*Block)
+		nextHeight := value.([]api.Block)
 		for _, next := range nextHeight {
 			if block.Header().Parent().Big() == next.Header().Hash().Big() {
 				return errors.New(fmt.Sprintf("block [%v] has sibling [%v] on next level",
-					block.header.Hash().Hex(), next.Header().Hash().Hex()))
+					block.Header().Hash().Hex(), next.Header().Hash().Hex()))
 			}
 		}
 	}
@@ -558,7 +533,7 @@ func (bc *BlockchainImpl) RemoveBlock(block *Block) error {
 
 	onHeight, found := bc.uncommittedTreeByHeight.Get(block.Height())
 	if found {
-		thisHeight := onHeight.([]*Block)
+		thisHeight := onHeight.([]api.Block)
 		for i, b := range thisHeight {
 			if b.Header().Hash().Big() == block.Header().Hash().Big() {
 				thisHeight = append(thisHeight[:i], thisHeight[i+1:]...)
@@ -571,38 +546,38 @@ func (bc *BlockchainImpl) RemoveBlock(block *Block) error {
 	return nil
 }
 
-func (bc *BlockchainImpl) GetGenesisBlock() *Block {
+func (bc *BlockchainImpl) GetGenesisBlock() api.Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	return bc.getGenesisBlock()
 }
 
-func (bc *BlockchainImpl) getGenesisBlock() *Block {
+func (bc *BlockchainImpl) getGenesisBlock() api.Block {
 	value, ok := bc.committedChainByHeight.Get(int32(0))
 	if !ok {
 		if h, okk := bc.uncommittedTreeByHeight.Get(int32(0)); okk {
-			value = h.([]*Block)[0]
+			value = h.([]api.Block)[0]
 		}
 	}
 
-	return value.(*Block)
+	return value.(api.Block)
 }
 
-func (bc *BlockchainImpl) GetGenesisCert() *QuorumCertificate {
+func (bc *BlockchainImpl) GetGenesisCert() api.QuorumCertificate {
 	return bc.GetGenesisBlock().QC()
 }
 
-func (bc BlockchainImpl) IsSibling(sibling *Header, ancestor *Header) bool {
+func (bc BlockchainImpl) IsSibling(sibling api.Header, ancestor api.Header) bool {
 	//Genesis block is ancestor of every block
 	if ancestor.IsGenesisBlock() {
 		return true
 	}
 
 	//todo should load blocks earlier, remove this call
-	parent := bc.GetBlockByHash(sibling.parent)
+	parent := bc.GetBlockByHash(sibling.Parent())
 
-	if parent.Header().IsGenesisBlock() || parent.header.height < ancestor.height {
+	if parent.Header().IsGenesisBlock() || parent.Header().Height() < ancestor.Height() {
 		return false
 	}
 
@@ -613,12 +588,12 @@ func (bc BlockchainImpl) IsSibling(sibling *Header, ancestor *Header) bool {
 	return bc.IsSibling(parent.Header(), ancestor)
 }
 
-func (bc *BlockchainImpl) NewBlock(parent *Block, qc *QuorumCertificate, data []byte) *Block {
+func (bc *BlockchainImpl) NewBlock(parent api.Block, qc api.QuorumCertificate, data []byte) api.Block {
 	return bc.newBlock(parent, qc, data, true)
 }
 
-func (bc *BlockchainImpl) newBlock(parent *Block, qc *QuorumCertificate, data []byte, withTransactions bool) *Block {
-	proposer := bc.proposerGetter.ProposerForHeight(parent.header.height + 1).GetAddress() //this block will be the block of next height
+func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, data []byte, withTransactions bool) api.Block {
+	proposer := bc.proposerGetter.ProposerForHeight(parent.Header().Height() + 1).GetAddress() //this block will be the block of next height
 	r, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
 	if e != nil {
 		log.Error("Can't create new block", e)
@@ -649,7 +624,7 @@ func (bc *BlockchainImpl) newBlock(parent *Block, qc *QuorumCertificate, data []
 		return nil
 	}
 
-	block := &Block{header: header, data: data, qc: qc, txs: txs}
+	block := &BlockImpl{header: header, data: data, qc: qc, txs: txs}
 
 	return block
 }
@@ -677,7 +652,7 @@ func (bc *BlockchainImpl) collectTransactions(s *state.Record, txs *trie.FixedLe
 	log.Debugf("Collected %v txs", i)
 }
 
-func (bc *BlockchainImpl) PadEmptyBlock(head *Block, qc *QuorumCertificate) *Block {
+func (bc *BlockchainImpl) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) api.Block {
 	block := bc.newBlock(head, qc, []byte(""), false)
 
 	if e := bc.AddBlock(block); e != nil {
@@ -703,7 +678,7 @@ func (bc *BlockchainImpl) ValidateGenesisBlockSignature(signature *crypto.Signat
 	return crypto.Verify(hash.Bytes(), signature) && bytes.Equal(address.Bytes(), signatureAddress.Bytes())
 }
 
-func (bc *BlockchainImpl) GetTopCommittedBlock() *Block {
+func (bc *BlockchainImpl) GetTopCommittedBlock() api.Block {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 	_, block := bc.committedChainByHeight.Max()
@@ -711,11 +686,11 @@ func (bc *BlockchainImpl) GetTopCommittedBlock() *Block {
 	if block == nil {
 		return bc.GetGenesisBlock()
 	}
-	return block.(*Block)
+	return block.(api.Block)
 }
 
-func (bc *BlockchainImpl) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
-	bc.GetGenesisBlock().qc = certificate
+func (bc *BlockchainImpl) UpdateGenesisBlockQC(certificate api.QuorumCertificate) {
+	bc.GetGenesisBlock().SetQC(certificate)
 	//we can simply put new block and replace existing. in fact ignoring height index is not a problem for us since Genesis is hashed without it's QC
 	if err := bc.blockPersister.Persist(bc.GetGenesisBlock()); err != nil {
 		log.Error(err)
@@ -723,8 +698,8 @@ func (bc *BlockchainImpl) UpdateGenesisBlockQC(certificate *QuorumCertificate) {
 	}
 }
 
-func (bc *BlockchainImpl) applyTransactionsAndValidate(block *Block) error {
-	_, f := bc.stateDB.Get(block.Header().hash)
+func (bc *BlockchainImpl) applyTransactionsAndValidate(block api.Block) error {
+	_, f := bc.stateDB.Get(block.Header().Hash())
 	if f {
 		log.Debug("Found block that was created by us and already processed, skip this step")
 		return nil
@@ -743,8 +718,8 @@ func (bc *BlockchainImpl) applyTransactionsAndValidate(block *Block) error {
 		}
 	}
 
-	if !bytes.Equal(r.RootProof().Bytes(), block.Header().stateHash.Bytes()) {
-		log.Debugf("Not equal state hash: expected %v, calculated %v", block.Header().stateHash.Hex(), r.RootProof().Hex())
+	if !bytes.Equal(r.RootProof().Bytes(), block.Header().StateHash().Bytes()) {
+		log.Debugf("Not equal state hash: expected %v, calculated %v", block.Header().StateHash().Hex(), r.RootProof().Hex())
 		return InvalidStateHashError
 	}
 	_, err := bc.stateDB.Commit(block.Header().Parent(), block.Header().Hash())

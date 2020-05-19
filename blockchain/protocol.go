@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -16,7 +17,7 @@ import (
 //Now we don't use same stream to send response, it means that we pass peer id to open new stream to this peer when sending response, this scheme is redundant too
 type BlockProtocol struct {
 	srv  network.Service
-	bc   Blockchain
+	bc   api.Blockchain
 	sync Synchronizer
 	stop chan int
 }
@@ -26,7 +27,7 @@ var (
 	HeaderLimit       = 30
 )
 
-func CreateBlockProtocol(srv network.Service, bc Blockchain, sync Synchronizer) *BlockProtocol {
+func CreateBlockProtocol(srv network.Service, bc api.Blockchain, sync Synchronizer) *BlockProtocol {
 	return &BlockProtocol{srv: srv, bc: bc, sync: sync, stop: make(chan int)}
 }
 
@@ -123,7 +124,7 @@ func (p *BlockProtocol) OnHeaderRequest(ctx context.Context, req *msg.Message) e
 		return errors.New("invalid boundaries")
 	}
 
-	var headers []*Header
+	var headers []api.Header
 	for height := low + 1; height <= high; height++ {
 		res := p.bc.GetBlockByHeight(height)
 		if len(res) == 0 || len(headers)+len(res) > HeaderLimit {
@@ -158,7 +159,7 @@ func (p *BlockProtocol) OnHeaderRequest(ctx context.Context, req *msg.Message) e
 	return nil
 }
 
-func createHeadersError(headers []*Header) *pb.HeadersResponse {
+func createHeadersError(headers []api.Header) *pb.HeadersResponse {
 	e := &pb.Error{Code: pb.Error_NOT_FOUND, Desc: "Not found"}
 	return &pb.HeadersResponse{Response: &pb.HeadersResponse_ErrorCode{ErrorCode: e}}
 }
@@ -186,7 +187,7 @@ func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) er
 	return nil
 }
 
-func createBlockResponse(block *Block) *pb.BlockResponsePayload {
+func createBlockResponse(block api.Block) *pb.BlockResponsePayload {
 	if block == nil {
 		e := &pb.Error{Code: pb.Error_NOT_FOUND, Desc: "Not found"}
 		return &pb.BlockResponsePayload{Response: &pb.BlockResponsePayload_ErrorCode{ErrorCode: e}}

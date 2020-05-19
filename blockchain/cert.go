@@ -3,33 +3,34 @@ package blockchain
 import (
 	"bytes"
 	"errors"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 )
 
-type QuorumCertificate struct {
+type QuorumCertificateImpl struct {
 	signatureAggregate *crypto.SignatureAggregate
-	qrefBlock          *Header
+	qrefBlock          api.Header
 }
 
-func CreateQuorumCertificate(aggregate *crypto.SignatureAggregate, qrefBlock *Header) *QuorumCertificate {
-	return &QuorumCertificate{signatureAggregate: aggregate, qrefBlock: qrefBlock}
+func CreateQuorumCertificate(aggregate *crypto.SignatureAggregate, qrefBlock api.Header) api.QuorumCertificate {
+	return &QuorumCertificateImpl{signatureAggregate: aggregate, qrefBlock: qrefBlock}
 }
-func CreateQuorumCertificateFromMessage(msg *pb.QuorumCertificate) *QuorumCertificate {
+func CreateQuorumCertificateFromMessage(msg *pb.QuorumCertificate) api.QuorumCertificate {
 	return CreateQuorumCertificate(crypto.AggregateFromProto(msg.SignatureAggregate), CreateBlockHeaderFromMessage(msg.Header))
 }
 
-func (qc *QuorumCertificate) SignatureAggregate() *crypto.SignatureAggregate {
+func (qc *QuorumCertificateImpl) SignatureAggregate() *crypto.SignatureAggregate {
 	return qc.signatureAggregate
 }
 
-func (qc *QuorumCertificate) QrefBlock() *Header {
+func (qc *QuorumCertificateImpl) QrefBlock() api.Header {
 	return qc.qrefBlock
 }
 
-func (qc *QuorumCertificate) GetMessage() *pb.QuorumCertificate {
+func (qc *QuorumCertificateImpl) GetMessage() *pb.QuorumCertificate {
 	var m *pb.BlockHeader
 	if qc.QrefBlock() != nil {
 		m = qc.QrefBlock().GetMessage()
@@ -38,7 +39,7 @@ func (qc *QuorumCertificate) GetMessage() *pb.QuorumCertificate {
 }
 
 //Calculates signature hash and concatenates it with QREF block hash
-func (qc *QuorumCertificate) GetHash() common.Hash {
+func (qc *QuorumCertificateImpl) GetHash() common.Hash {
 	aggrPb := qc.signatureAggregate.ToProto()
 	marshal, e := proto.Marshal(aggrPb)
 	if e != nil {
@@ -49,7 +50,7 @@ func (qc *QuorumCertificate) GetHash() common.Hash {
 	return common.BytesToHash(crypto.Keccak256(bytes))
 }
 
-func (qc *QuorumCertificate) IsValid(qcHash common.Hash, committee []*crypto.PublicKey) (bool, error) {
+func (qc *QuorumCertificateImpl) IsValid(qcHash common.Hash, committee []*crypto.PublicKey) (bool, error) {
 	calculated := qc.GetHash()
 
 	//Skip qc checks for genesis QC
@@ -70,7 +71,7 @@ func (qc *QuorumCertificate) IsValid(qcHash common.Hash, committee []*crypto.Pub
 	return false, errors.New("QC is not valid")
 }
 
-func (qc *QuorumCertificate) ToStorageProto() *pb.QuorumCertificateS {
+func (qc *QuorumCertificateImpl) ToStorageProto() *pb.QuorumCertificateS {
 	var m *pb.BlockHeaderS
 	if qc.QrefBlock() != nil {
 		m = qc.QrefBlock().ToStorageProto()

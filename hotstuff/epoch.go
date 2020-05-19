@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gagarinchain/network/blockchain"
 	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
@@ -13,13 +14,13 @@ import (
 )
 
 type Epoch struct {
-	qc               *blockchain.QuorumCertificate
+	qc               api.QuorumCertificate
 	genesisSignature *crypto.Signature
 	sender           *comm.Peer
 	number           int32
 }
 
-func (ep *Epoch) Qc() *blockchain.QuorumCertificate {
+func (ep *Epoch) Qc() api.QuorumCertificate {
 	return ep.qc
 }
 
@@ -35,7 +36,7 @@ func (ep *Epoch) GenesisSignature() *crypto.Signature {
 	return ep.genesisSignature
 }
 
-func CreateEpoch(sender *comm.Peer, number int32, qc *blockchain.QuorumCertificate, genesisSignature *crypto.Signature) *Epoch {
+func CreateEpoch(sender *comm.Peer, number int32, qc api.QuorumCertificate, genesisSignature *crypto.Signature) *Epoch {
 	return &Epoch{qc, genesisSignature, sender, number}
 }
 

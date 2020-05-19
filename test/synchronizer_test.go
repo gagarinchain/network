@@ -6,7 +6,7 @@ import (
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
-	common2 "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/mocks"
@@ -21,7 +21,7 @@ func TestSyncRequestBlocksSimple(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 	headers, blocks := createChain(genesis, 25)
 
 	for _, b := range blocks[1:] {
@@ -53,7 +53,7 @@ func TestSyncRequestBlocksWithNoHead(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 	_, blocksLoaded := createChain(genesis, 20)
 	headers, blocks := createChain(blocksLoaded[15], 10)
 
@@ -72,7 +72,7 @@ func TestSyncRequestBlocksWithNoHead(t *testing.T) {
 			rightLimit = 10
 		}
 		chunk := headers[leftLimit+1 : rightLimit+1]
-		res := make([]*blockchain.Header, len(chunk))
+		res := make([]api.Header, len(chunk))
 		copy(res, chunk)
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit+15), int32(rightLimit+15), mock.AnythingOfType("*common.Peer")).Return(res, nil)
@@ -96,7 +96,7 @@ func TestSyncRequestBlocksWithNoHeadExceedDepthLimit(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 
 	_, blocksLoaded := createChain(genesis, 20)
 	headers, blocks := createChain(genesis, 25)
@@ -118,7 +118,7 @@ func TestSyncRequestBlocksWithNoHeadExceedDepthLimit(t *testing.T) {
 		}
 
 		chunk := headers[leftLimit:rightLimit]
-		res := make([]*blockchain.Header, len(chunk))
+		res := make([]api.Header, len(chunk))
 		copy(res, chunk)
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit), int32(rightLimit), mock.AnythingOfType("*common.Peer")).Return(res, nil)
@@ -142,7 +142,7 @@ func TestSyncRequestBlocksNoBlockFound(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 	headers, blocks := createChain(genesis, 25)
 
 	for _, b := range blocks[1:] {
@@ -180,7 +180,7 @@ func TestSyncRequestBlocksNoHeaderFound(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 	headers, blocks := createChain(genesis, 25)
 
 	for _, b := range blocks[1:] {
@@ -218,7 +218,7 @@ func TestSyncRequestBlocksWithForkNoHeaderFound(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 	_, blocksLoaded := createChain(genesis, 20)
 	headers, blocks := createChain(blocksLoaded[15], 10)
 
@@ -237,7 +237,7 @@ func TestSyncRequestBlocksWithForkNoHeaderFound(t *testing.T) {
 			rightLimit = 10
 		}
 		chunk := headers[leftLimit+1 : rightLimit+1]
-		res := make([]*blockchain.Header, len(chunk))
+		res := make([]api.Header, len(chunk))
 		copy(res, chunk)
 
 		if leftLimit == 4 {
@@ -264,7 +264,7 @@ func TestSyncRequestFork(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 	_, blocksLoaded := createChain(genesis, 20)
 	headers, blocks := createChain(blocksLoaded[17], 10)
 
@@ -283,7 +283,7 @@ func TestSyncRequestFork(t *testing.T) {
 			rightLimit = 10
 		}
 		chunk := headers[leftLimit+1 : rightLimit+1]
-		res := make([]*blockchain.Header, len(chunk))
+		res := make([]api.Header, len(chunk))
 		copy(res, chunk)
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit+17), int32(rightLimit+17), mock.AnythingOfType("*common.Peer")).Return(res, nil)
@@ -307,7 +307,7 @@ func TestSyncRequestForkNoHead(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 	_, blocksLoaded := createChain(genesis, 20)
 	headers, blocks := createChain(blocksLoaded[17], 10)
 	block27 := blockchain.CreateBlockWithParent(blocks[9])
@@ -331,12 +331,12 @@ func TestSyncRequestForkNoHead(t *testing.T) {
 		}
 		chunk := headers[leftLimit+1 : rightLimit+1]
 		if rightLimit == 10 {
-			chunk2 := make([]*blockchain.Header, len(chunk))
+			chunk2 := make([]api.Header, len(chunk))
 			copy(chunk2, chunk)
 			chunk2[len(chunk2)-1] = block27.Header()
 			chunk = chunk2
 		}
-		res := make([]*blockchain.Header, len(chunk))
+		res := make([]api.Header, len(chunk))
 		copy(res, chunk)
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit+17), int32(rightLimit+17), mock.AnythingOfType("*common.Peer")).Return(res, nil)
@@ -361,7 +361,7 @@ func TestSyncRequestForkNoCommonBlock(t *testing.T) {
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
-	bc := &MockBlockchain{map[common.Hash]*blockchain.Block{genesis.Header().Hash(): genesis}}
+	bc := &MockBlockchain{map[common.Hash]api.Block{genesis.Header().Hash(): genesis}}
 
 	_, blocksLoaded := createChain(genesis, 20)
 	headers, blocks := createChain(genesis, 25)
@@ -383,7 +383,7 @@ func TestSyncRequestForkNoCommonBlock(t *testing.T) {
 		}
 
 		chunk := headers[leftLimit:rightLimit]
-		res := make([]*blockchain.Header, len(chunk))
+		res := make([]api.Header, len(chunk))
 		copy(res, chunk)
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit), int32(rightLimit), mock.AnythingOfType("*common.Peer")).Return(res, nil)
@@ -401,9 +401,9 @@ func TestSyncRequestForkNoCommonBlock(t *testing.T) {
 	assert.Equal(t, 21, len(bc.blocks))
 }
 
-func createChain(root *blockchain.Block, n int) ([]*blockchain.Header, []*blockchain.Block) {
-	blocks := []*blockchain.Block{root}
-	headers := []*blockchain.Header{root.Header()}
+func createChain(root api.Block, n int) ([]api.Header, []api.Block) {
+	blocks := []api.Block{root}
+	headers := []api.Header{root.Header()}
 	for i := 1; i <= n; i++ {
 		block := blockchain.CreateBlockWithParent(blocks[i-1])
 		blocks = append(blocks, block)
@@ -414,14 +414,14 @@ func createChain(root *blockchain.Block, n int) ([]*blockchain.Header, []*blockc
 }
 
 type MockBlockchain struct {
-	blocks map[common.Hash]*blockchain.Block
+	blocks map[common.Hash]api.Block
 }
 
-func (m *MockBlockchain) GetBlockByHash(hash common.Hash) (block *blockchain.Block) {
+func (m *MockBlockchain) GetBlockByHash(hash common.Hash) (block api.Block) {
 	return m.blocks[hash]
 }
 
-func (m *MockBlockchain) GetBlockByHeight(height int32) (res []*blockchain.Block) {
+func (m *MockBlockchain) GetBlockByHeight(height int32) (res []api.Block) {
 	for _, b := range m.blocks {
 		if b.Height() == height {
 			res = append(res, b)
@@ -431,16 +431,16 @@ func (m *MockBlockchain) GetBlockByHeight(height int32) (res []*blockchain.Block
 	return res
 }
 
-func (m *MockBlockchain) GetFork(height int32, headHash common.Hash) (res []*blockchain.Block) {
+func (m *MockBlockchain) GetFork(height int32, headHash common.Hash) (res []api.Block) {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) GetBlockByHashOrLoad(ctx context.Context, hash common.Hash) (b *blockchain.Block, loaded bool) {
+func (m *MockBlockchain) GetBlockByHashOrLoad(ctx context.Context, hash common.Hash) (b api.Block, loaded bool) {
 	b, loaded = m.blocks[hash]
 	return b, loaded
 }
 
-func (m *MockBlockchain) LoadBlock(ctx context.Context, hash common.Hash) *blockchain.Block {
+func (m *MockBlockchain) LoadBlock(ctx context.Context, hash common.Hash) api.Block {
 	panic("implement me")
 }
 
@@ -449,15 +449,15 @@ func (m *MockBlockchain) Contains(hash common.Hash) bool {
 	return f
 }
 
-func (m *MockBlockchain) GetThreeChain(twoHash common.Hash) (zero *blockchain.Block, one *blockchain.Block, two *blockchain.Block) {
+func (m *MockBlockchain) GetThreeChain(twoHash common.Hash) (zero api.Block, one api.Block, two api.Block) {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) OnCommit(b *blockchain.Block) (toCommit []*blockchain.Block, orphans *treemap.Map, err error) {
+func (m *MockBlockchain) OnCommit(b api.Block) (toCommit []api.Block, orphans *treemap.Map, err error) {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) GetHead() (res *blockchain.Block) {
+func (m *MockBlockchain) GetHead() (res api.Block) {
 	max := int32(0)
 
 	for _, b := range m.blocks {
@@ -477,7 +477,7 @@ func (m *MockBlockchain) GetTopHeight() int32 {
 	return m.GetHead().Height()
 }
 
-func (m *MockBlockchain) GetTopHeightBlocks() (res []*blockchain.Block) {
+func (m *MockBlockchain) GetTopHeightBlocks() (res []api.Block) {
 	top := m.GetTopHeight()
 
 	for _, b := range m.blocks {
@@ -488,7 +488,7 @@ func (m *MockBlockchain) GetTopHeightBlocks() (res []*blockchain.Block) {
 	return res
 }
 
-func (m *MockBlockchain) AddBlock(block *blockchain.Block) error {
+func (m *MockBlockchain) AddBlock(block api.Block) error {
 	_, f := m.blocks[block.Header().Parent()]
 	if !f {
 		return errors.New("error")
@@ -497,28 +497,28 @@ func (m *MockBlockchain) AddBlock(block *blockchain.Block) error {
 	return nil
 }
 
-func (m *MockBlockchain) RemoveBlock(block *blockchain.Block) error {
+func (m *MockBlockchain) RemoveBlock(block api.Block) error {
 	delete(m.blocks, block.Header().Hash())
 	return nil
 }
 
-func (m *MockBlockchain) GetGenesisBlock() *blockchain.Block {
+func (m *MockBlockchain) GetGenesisBlock() api.Block {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) GetGenesisCert() *blockchain.QuorumCertificate {
+func (m *MockBlockchain) GetGenesisCert() api.QuorumCertificate {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) IsSibling(sibling *blockchain.Header, ancestor *blockchain.Header) bool {
+func (m *MockBlockchain) IsSibling(sibling api.Header, ancestor api.Header) bool {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) NewBlock(parent *blockchain.Block, qc *blockchain.QuorumCertificate, data []byte) *blockchain.Block {
+func (m *MockBlockchain) NewBlock(parent api.Block, qc api.QuorumCertificate, data []byte) api.Block {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) PadEmptyBlock(head *blockchain.Block, qc *blockchain.QuorumCertificate) *blockchain.Block {
+func (m *MockBlockchain) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) api.Block {
 	panic("implement me")
 }
 
@@ -530,7 +530,7 @@ func (m *MockBlockchain) ValidateGenesisBlockSignature(signature *crypto.Signatu
 	panic("implement me")
 }
 
-func (m *MockBlockchain) GetTopCommittedBlock() *blockchain.Block {
+func (m *MockBlockchain) GetTopCommittedBlock() api.Block {
 	committedHeight := m.GetTopHeight() - 3
 
 	if committedHeight < 0 {
@@ -539,10 +539,10 @@ func (m *MockBlockchain) GetTopCommittedBlock() *blockchain.Block {
 	return m.GetBlockByHeight(committedHeight)[0]
 }
 
-func (m *MockBlockchain) UpdateGenesisBlockQC(certificate *blockchain.QuorumCertificate) {
+func (m *MockBlockchain) UpdateGenesisBlockQC(certificate api.QuorumCertificate) {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) SetProposerGetter(proposerGetter common2.ProposerForHeight) {
+func (m *MockBlockchain) SetProposerGetter(proposerGetter api.ProposerForHeight) {
 	panic("implement me")
 }

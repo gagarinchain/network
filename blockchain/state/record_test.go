@@ -1,6 +1,7 @@
 package state
 
 import (
+	common2 "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ func TestNewRecordFirst(t *testing.T) {
 	somebody := generate()
 	snapshot := NewSnapshot(firstBlockHash, firstProposer)
 	snapshot.Put(somebody, NewAccount(0, big.NewInt(5)))
-	record := NewRecord(snapshot, nil)
+	record := NewRecord(snapshot, nil, &common2.NullBus{})
 
 	acc, f := record.Get(somebody)
 	assert.True(t, f)
@@ -27,14 +28,14 @@ func TestNewRecordWithParent(t *testing.T) {
 	somebody := generate()
 	snapshot := NewSnapshot(firstBlockHash, firstProposer)
 	snapshot.Put(somebody, NewAccount(0, big.NewInt(5)))
-	firstRecord := NewRecord(snapshot, nil)
+	firstRecord := NewRecord(snapshot, nil, &common2.NullBus{})
 
 	secondBlockHash := common.BytesToHash(crypto.Keccak256([]byte("second block")))
 	secondProposer := generate()
 	anotherSnapshot := NewSnapshot(secondBlockHash, secondProposer)
 	somebody2 := generate()
 	anotherSnapshot.Put(somebody2, NewAccount(2, big.NewInt(10)))
-	secondRecord := NewRecord(anotherSnapshot, firstRecord)
+	secondRecord := NewRecord(anotherSnapshot, firstRecord, &common2.NullBus{})
 
 	acc, f := secondRecord.Get(somebody)
 	assert.True(t, f)

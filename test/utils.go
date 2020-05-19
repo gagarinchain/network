@@ -3,6 +3,7 @@ package test
 import (
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/mock"
@@ -23,7 +24,7 @@ func SoftStorageMock() gagarinchain.Storage {
 	return storage
 }
 
-func MockProposerForHeight() common.ProposerForHeight {
+func MockProposerForHeight() api.ProposerForHeight {
 	proposer := &mocks.ProposerForHeight{}
 	proposer.On("ProposerForHeight", mock.AnythingOfType("int32")).Return(&common.Peer{})
 
@@ -32,7 +33,7 @@ func MockProposerForHeight() common.ProposerForHeight {
 }
 func MockGoodBlockValidator() gagarinchain.Validator {
 	proposer := &mocks.Validator{}
-	proposer.On("IsValid", mock.AnythingOfType("*blockchain.Block")).Return(true, nil)
+	proposer.On("IsValid", mock.AnythingOfType("*blockchain.BlockImpl")).Return(true, nil)
 	proposer.On("Supported", mock.AnythingOfType("pb.Message_MessageType")).Return(true)
 	proposer.On("GetId").Return("Id")
 
@@ -42,7 +43,7 @@ func MockGoodBlockValidator() gagarinchain.Validator {
 
 func MockGoodHeaderValidator() gagarinchain.Validator {
 	proposer := &mocks.Validator{}
-	proposer.On("IsValid", mock.AnythingOfType("*blockchain.Header")).Return(true, nil)
+	proposer.On("IsValid", mock.AnythingOfType("*blockchain.HeaderImpl")).Return(true, nil)
 	proposer.On("Supported", mock.AnythingOfType("pb.Message_MessageType")).Return(true)
 	proposer.On("GetId").Return("Id")
 

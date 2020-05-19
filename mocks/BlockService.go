@@ -2,7 +2,8 @@
 
 package mocks
 
-import blockchain "github.com/gagarinchain/network/blockchain"
+import api "github.com/gagarinchain/network/common/api"
+
 import common "github.com/gagarinchain/network/common/eth/common"
 import context "context"
 import mock "github.com/stretchr/testify/mock"
@@ -14,15 +15,15 @@ type BlockService struct {
 }
 
 // RequestBlock provides a mock function with given fields: ctx, hash, peer
-func (_m *BlockService) RequestBlock(ctx context.Context, hash common.Hash, peer *networkcommon.Peer) (*blockchain.Block, error) {
+func (_m *BlockService) RequestBlock(ctx context.Context, hash common.Hash, peer *networkcommon.Peer) (api.Block, error) {
 	ret := _m.Called(ctx, hash, peer)
 
-	var r0 *blockchain.Block
-	if rf, ok := ret.Get(0).(func(context.Context, common.Hash, *networkcommon.Peer) *blockchain.Block); ok {
+	var r0 api.Block
+	if rf, ok := ret.Get(0).(func(context.Context, common.Hash, *networkcommon.Peer) api.Block); ok {
 		r0 = rf(ctx, hash, peer)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*blockchain.Block)
+			r0 = ret.Get(0).(api.Block)
 		}
 	}
 
@@ -37,15 +38,15 @@ func (_m *BlockService) RequestBlock(ctx context.Context, hash common.Hash, peer
 }
 
 // RequestHeaders provides a mock function with given fields: ctx, low, high, peer
-func (_m *BlockService) RequestHeaders(ctx context.Context, low int32, high int32, peer *networkcommon.Peer) ([]*blockchain.Header, error) {
+func (_m *BlockService) RequestHeaders(ctx context.Context, low int32, high int32, peer *networkcommon.Peer) ([]api.Header, error) {
 	ret := _m.Called(ctx, low, high, peer)
 
-	var r0 []*blockchain.Header
-	if rf, ok := ret.Get(0).(func(context.Context, int32, int32, *networkcommon.Peer) []*blockchain.Header); ok {
+	var r0 []api.Header
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32, *networkcommon.Peer) []api.Header); ok {
 		r0 = rf(ctx, low, high, peer)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*blockchain.Header)
+			r0 = ret.Get(0).([]api.Header)
 		}
 	}
 

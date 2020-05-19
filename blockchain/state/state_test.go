@@ -20,7 +20,7 @@ func TestSnapshot_Empty(t *testing.T) {
 
 func TestSnapshot_ApplyTransactionNoAccount(t *testing.T) {
 	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
-	record := NewRecord(snapshot, nil)
+	record := NewRecord(snapshot, nil, &cmn.NullBus{})
 	Me = generate()
 	from := generate()
 	to := generate()
@@ -33,7 +33,7 @@ func TestSnapshot_ApplyTransactionNoAccount(t *testing.T) {
 
 func TestSnapshot_ApplyTransactionInsufficientFunds(t *testing.T) {
 	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
-	record := NewRecord(snapshot, nil)
+	record := NewRecord(snapshot, nil, &cmn.NullBus{})
 	Me = generate()
 	from := generate()
 	to := generate()
@@ -49,7 +49,7 @@ func TestSnapshot_ApplyTransactionInsufficientFunds(t *testing.T) {
 
 func TestSnapshot_ApplyTransactionFutureNonce(t *testing.T) {
 	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
-	record := NewRecord(snapshot, nil)
+	record := NewRecord(snapshot, nil, &cmn.NullBus{})
 	Me = generate()
 	from := generate()
 	to := generate()
@@ -66,7 +66,7 @@ func TestSnapshot_ApplyTransactionFutureNonce(t *testing.T) {
 
 func TestSnapshot_ApplyTransactionNoMe(t *testing.T) {
 	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
-	record := NewRecord(snapshot, nil)
+	record := NewRecord(snapshot, nil, &cmn.NullBus{})
 	Me = generate()
 	from := generate()
 	to := generate()
@@ -84,7 +84,7 @@ func TestSnapshot_ApplyTransactionSingleSnapshot(t *testing.T) {
 	from := generate()
 	to := generate()
 	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), Me)
-	rec := NewRecord(snapshot, nil)
+	rec := NewRecord(snapshot, nil, &cmn.NullBus{})
 
 	snapshot.Put(Me, NewAccount(0, big.NewInt(0)))
 	snapshot.Put(from, NewAccount(0, big.NewInt(111)))
@@ -112,7 +112,7 @@ func TestSnapshot_ApplyTransactionSingleSnapshot(t *testing.T) {
 func TestStateDB_New(t *testing.T) {
 	valeera := crypto.Keccak256Hash([]byte("eeeeeee Valeera"))
 	storage, _ := cmn.NewStorage("", nil)
-	db := NewStateDB(storage)
+	db := NewStateDB(storage, &cmn.NullBus{})
 	db.Init(valeera, nil)
 
 	sn, f := db.Get(valeera)
@@ -127,7 +127,7 @@ func TestStateDB_Create(t *testing.T) {
 	maiev := crypto.Keccak256Hash([]byte("eeeeeee Maiev"))
 	guldan := crypto.Keccak256Hash([]byte("eeeeeee Guldan"))
 	storage, _ := cmn.NewStorage("", nil)
-	db := NewStateDB(storage)
+	db := NewStateDB(storage, &cmn.NullBus{})
 	db.Init(valeera, nil)
 	ma, _ := db.Create(valeera, Me)
 	db.Commit(valeera, maiev)
@@ -159,7 +159,7 @@ func TestStateDB_Release(t *testing.T) {
 	maiev := crypto.Keccak256Hash([]byte("eeeeeee Maiev"))
 	guldan := crypto.Keccak256Hash([]byte("eeeeeee Guldan"))
 	storage, _ := cmn.NewStorage("", nil)
-	db := NewStateDB(storage)
+	db := NewStateDB(storage, &cmn.NullBus{})
 	db.Init(valeera, nil)
 	ma, _ := db.Create(valeera, Me)
 	db.Commit(valeera, maiev)
@@ -190,7 +190,7 @@ func TestStateDB_Release(t *testing.T) {
 
 func TestStorageIntegration(t *testing.T) {
 	storage, _ := cmn.NewStorage("", nil)
-	db := NewStateDB(storage)
+	db := NewStateDB(storage, &cmn.NullBus{})
 
 	seed := make(map[common.Address]*Account)
 	a, b, c, d := generate(), generate(), generate(), generate()
@@ -226,7 +226,7 @@ func TestStorageIntegration(t *testing.T) {
 
 	guldanRec, _ = db.Commit(maiev, guldan)
 
-	db2 := NewStateDB(storage)
+	db2 := NewStateDB(storage, &cmn.NullBus{})
 
 	guldanFromDb, f := db2.Get(guldan)
 	if !f {

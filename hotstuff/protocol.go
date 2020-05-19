@@ -8,6 +8,7 @@ import (
 	main "github.com/gagarinchain/network"
 	bc "github.com/gagarinchain/network/blockchain"
 	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
@@ -25,50 +26,32 @@ var (
 	log = logging.MustGetLogger("hotstuff")
 )
 
-type Proposer interface {
-	OnReceiveVote(vote *Vote) error
-	CheckConsensus() bool
-	OnPropose()
-	FinishQC(header *bc.Header)
-}
-
-type Replica interface {
-	OnReceiveProposal(proposal *Proposal) error
-	CheckCommit() bool
-	OnNextView()
-	StartEpoch(i int32)
-	OnEpochStart(m *msg.Message, s *comm.Peer)
-	SubscribeEpochChange(trigger chan interface{})
-}
-
-type HQCHandler interface {
-	Update(qc *bc.QuorumCertificate)
-	HQC() *bc.QuorumCertificate
-}
-
 type ProtocolConfig struct {
-	F            int
-	Delta        time.Duration
-	Blockchain   bc.Blockchain
-	Me           *comm.Peer
-	Srv          network.Service
-	Sync         bc.Synchronizer
-	Pacer        Pacer
-	Validators   []main.Validator
-	Storage      main.Storage
-	Committee    []*comm.Peer
-	InitialState *InitialState
+	F                 int
+	Delta             time.Duration
+	Blockchain        api.Blockchain
+	Me                *comm.Peer
+	Srv               network.Service
+	Sync              bc.Synchronizer
+	Pacer             api.Pacer
+	Validators        []main.Validator
+	Storage           main.Storage
+	Committee         []*comm.Peer
+	InitialState      *InitialState
+	OnReceiveProposal api.OnReceiveProposal
+	OnVoteReceived    api.OnVoteReceived
+	OnBlockCommit     api.OnBlockCommit
 }
 
 type InitialState struct {
 	View              int32
 	Epoch             int32
 	VHeight           int32
-	LastExecutedBlock *bc.Header
-	HQC               *bc.QuorumCertificate
+	LastExecutedBlock api.Header
+	HQC               api.QuorumCertificate
 }
 
-func DefaultState(bc bc.Blockchain) *InitialState {
+func DefaultState(bc api.Blockchain) *InitialState {
 	return &InitialState{
 		View:              int32(0),
 		Epoch:             int32(-1),
@@ -80,18 +63,21 @@ func DefaultState(bc bc.Blockchain) *InitialState {
 
 type Protocol struct {
 	f                 int
-	blockchain        bc.Blockchain
+	blockchain        api.Blockchain
 	vheight           int32
 	lastVote          *msg.Message
-	votes             map[common.Address]*Vote
-	lastExecutedBlock *bc.Header
-	hqc               *bc.QuorumCertificate
+	votes             map[common.Address]api.Vote
+	lastExecutedBlock api.Header
+	hqc               api.QuorumCertificate
 	me                *comm.Peer
-	pacer             Pacer
+	pacer             api.Pacer
 	validators        []main.Validator
 	srv               network.Service
 	sync              bc.Synchronizer
 	persister         *ProtocolPersister
+	onReceiveProposal api.OnReceiveProposal
+	onVoteReceived    api.OnVoteReceived
+	onBlockCommit     api.OnBlockCommit
 }
 
 type ProtocolPersister struct {
@@ -121,7 +107,7 @@ func (pp *ProtocolPersister) GetLastExecutedBlockHash() (common.Hash, error) {
 	return common.BytesToHash(value), nil
 }
 
-func (pp *ProtocolPersister) PutHQC(hqc *bc.QuorumCertificate) error {
+func (pp *ProtocolPersister) PutHQC(hqc api.QuorumCertificate) error {
 	m := hqc.GetMessage()
 	bytes, e := proto.Marshal(m)
 	if e != nil {
@@ -129,7 +115,7 @@ func (pp *ProtocolPersister) PutHQC(hqc *bc.QuorumCertificate) error {
 	}
 	return pp.Storage.Put(main.HQC, nil, bytes)
 }
-func (pp *ProtocolPersister) GetHQC() (*bc.QuorumCertificate, error) {
+func (pp *ProtocolPersister) GetHQC() (api.QuorumCertificate, error) {
 	value, err := pp.Storage.Get(main.HQC, nil)
 	if err != nil {
 		return nil, err
@@ -146,11 +132,11 @@ func (p *Protocol) Vheight() int32 {
 }
 
 func CreateProtocol(cfg *ProtocolConfig) *Protocol {
-	return &Protocol{
+	p := &Protocol{
 		f:                 cfg.F,
 		blockchain:        cfg.Blockchain,
 		vheight:           cfg.InitialState.VHeight,
-		votes:             make(map[common.Address]*Vote),
+		votes:             make(map[common.Address]api.Vote),
 		lastExecutedBlock: cfg.InitialState.LastExecutedBlock,
 		hqc:               cfg.InitialState.HQC,
 		me:                cfg.Me,
@@ -160,10 +146,30 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		sync:              cfg.Sync,
 		persister:         &ProtocolPersister{Storage: cfg.Storage},
 	}
+
+	if cfg.OnReceiveProposal == nil {
+		p.onReceiveProposal = api.NullOnReceiveProposal{}
+	} else {
+		p.onReceiveProposal = cfg.OnReceiveProposal
+	}
+
+	if cfg.OnVoteReceived == nil {
+		p.onVoteReceived = api.NullOnVoteReceived{}
+	} else {
+		p.onVoteReceived = cfg.OnVoteReceived
+	}
+
+	if cfg.OnBlockCommit == nil {
+		p.onBlockCommit = api.NullOnBlockCommit{}
+	} else {
+		p.onBlockCommit = cfg.OnBlockCommit
+	}
+
+	return p
 }
 
 //We return qref(qref(HQC_Block))
-func (p *Protocol) GetPref() *bc.Block {
+func (p *Protocol) GetPref() api.Block {
 	_, one, _ := p.blockchain.GetThreeChain(p.hqc.QrefBlock().Hash())
 	return one
 }
@@ -174,11 +180,13 @@ func (p *Protocol) CheckCommit() bool {
 	if bytes.Equal(two.Header().Parent().Bytes(), one.Header().Hash().Bytes()) &&
 		bytes.Equal(one.Header().Parent().Bytes(), zero.Header().Hash().Bytes()) {
 		log.Debugf("Committing block %v height %v", zero.Header().Hash().Hex(), zero.Height())
-		toCommit, _, err := p.blockchain.OnCommit(zero)
+		toCommit, orphans, err := p.blockchain.OnCommit(zero)
 		if err != nil {
 			log.Error(err)
 			return false
 		}
+		p.onBlockCommit.OnBlockCommit(p.blockchain, zero, orphans)
+
 		p.lastExecutedBlock = toCommit[len(toCommit)-1].Header()
 
 		if err := p.persister.PutLastExecutedBlockHash(p.lastExecutedBlock.Hash()); err != nil {
@@ -191,7 +199,7 @@ func (p *Protocol) CheckCommit() bool {
 	return false
 }
 
-func (p *Protocol) Update(qc *bc.QuorumCertificate) {
+func (p *Protocol) Update(qc api.QuorumCertificate) {
 	//if new block has cert to block with greater number means that it is new HQC block
 	// and we must consider it as new HEAD
 
@@ -216,46 +224,48 @@ func (p *Protocol) Update(qc *bc.QuorumCertificate) {
 	}
 }
 
-func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) error {
-	p.Update(proposal.HQC)
+func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal api.Proposal) error {
+	p.Update(proposal.HQC())
 
 	log.Infof("current proposer %v", p.pacer.GetCurrent().GetAddress().Hex())
 
 	//TODO move this two validations
-	if !proposal.Sender.Equals(p.pacer.GetCurrent()) {
-		log.Warningf("This proposer [%v] is not expected", proposal.Sender.GetAddress().Hex())
-		p.equivocate(proposal.Sender)
+	if !proposal.Sender().Equals(p.pacer.GetCurrent()) {
+		log.Warningf("This proposer [%v] is not expected", proposal.Sender().GetAddress().Hex())
+		p.equivocate(proposal.Sender())
 		return errors.New("peer equivocated")
 	}
-	if proposal.NewBlock.Header().Height() != p.getCurrentView() {
+	if proposal.NewBlock().Header().Height() != p.getCurrentView() {
 		log.Warningf("This proposer [%v] is expected to propose at height [%v], not on [%v]",
-			proposal.Sender.GetAddress().Hex(), p.getCurrentView(), proposal.NewBlock.Header().Height())
-		p.equivocate(proposal.Sender)
+			proposal.Sender().GetAddress().Hex(), p.getCurrentView(), proposal.NewBlock().Header().Height())
+		p.equivocate(proposal.Sender())
 		return errors.New("peer equivocated")
 	}
 
-	if proposal.NewBlock.Header().Height() <= p.vheight {
+	if proposal.NewBlock().Header().Height() <= p.vheight {
 		log.Infof("Received proposal for block [%v] with lower or equal number [%v] from proposer [%v], skipping it",
-			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex())
-	} else if !p.blockchain.IsSibling(proposal.NewBlock.Header(), p.GetPref().Header()) {
+			proposal.NewBlock().Header().Hash().Hex(), proposal.NewBlock().Header().Height(), proposal.Sender().GetAddress().Hex())
+	} else if !p.blockchain.IsSibling(proposal.NewBlock().Header(), p.GetPref().Header()) {
 		log.Infof("Received proposal for block [%v] with higher number [%v] from proposer [%v], "+
 			"but it does not extend Pref block [%v] with number [%v] skipping it",
-			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex(),
+			proposal.NewBlock().Header().Hash().Hex(), proposal.NewBlock().Header().Height(), proposal.Sender().GetAddress().Hex(),
 			p.GetPref().Header().Hash().Hex(), p.GetPref().Header().Height())
 	} else {
 		log.Infof("Received proposal for block [%v] with higher number [%v] from proposer [%v], voting for it",
-			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex())
+			proposal.NewBlock().Header().Hash().Hex(), proposal.NewBlock().Header().Height(), proposal.Sender().GetAddress().Hex())
 
-		if err := p.blockchain.AddBlock(proposal.NewBlock); err != nil {
+		p.onReceiveProposal.BeforeProposedBlockAdded(p.pacer, p.blockchain, proposal)
+		if err := p.blockchain.AddBlock(proposal.NewBlock()); err != nil {
 			return err
 		}
+		p.onReceiveProposal.AfterProposedBlockAdded(p.pacer, p.blockchain, proposal)
 
-		p.vheight = proposal.NewBlock.Header().Height()
+		p.vheight = proposal.NewBlock().Header().Height()
 		if err := p.persister.PutVHeight(p.vheight); err != nil {
 			return err
 		}
 
-		newBlock := p.blockchain.GetBlockByHash(proposal.NewBlock.Header().Hash())
+		newBlock := p.blockchain.GetBlockByHash(proposal.NewBlock().Header().Hash())
 		vote := CreateVote(newBlock.Header(), p.hqc, p.me)
 		vote.Sign(p.me.GetPrivateKey())
 
@@ -265,7 +275,10 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 			log.Error(e)
 		}
 		p.lastVote = msg.CreateMessage(pb.Message_VOTE, any, p.me)
+
+		p.onReceiveProposal.BeforeVoted(p.pacer, p.blockchain, vote)
 		p.Vote(ctx)
+		p.onReceiveProposal.AfterVoted(p.pacer, p.blockchain, vote)
 	}
 	return nil
 }
@@ -278,32 +291,32 @@ func (p *Protocol) Vote(ctx context.Context) {
 	if p.lastVote != nil {
 		go p.srv.SendMessage(ctx, p.pacer.GetNext(), p.lastVote)
 	}
-	p.pacer.FireEvent(Event{
-		T: Voted,
+	p.pacer.FireEvent(api.Event{
+		T: api.Voted,
 	})
 }
 
-func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
-	log.Debugf("Received vote for block on height [%v] from [%v] peer", vote.Header.Height(), vote.Sender.GetAddress().Hex())
-	p.Update(vote.HQC)
+func (p *Protocol) OnReceiveVote(ctx context.Context, vote api.Vote) error {
+	log.Debugf("Received vote for block on height [%v] from [%v] peer", vote.Header().Height(), vote.Sender().GetAddress().Hex())
+	p.Update(vote.HQC())
 
 	//TODO mb we don't need this check
 	if p.me.GetAddress() != p.pacer.GetCurrent().GetAddress() && p.me.GetAddress() != p.pacer.GetNext().GetAddress() {
-		return errors.New(fmt.Sprintf("Got unexpected vote from [%v], i'm not proposer now", vote.Sender.GetAddress().Hex()))
+		return errors.New(fmt.Sprintf("Got unexpected vote from [%v], i'm not proposer now", vote.Sender().GetAddress().Hex()))
 	}
 
-	addr := vote.Sender.GetAddress()
+	addr := vote.Sender().GetAddress()
 
 	//todo add vote validation
 	if stored, ok := p.votes[addr]; ok {
 		//check whether peer voted previously for block with higher number
-		if stored.Header.Height() > vote.Header.Height() {
-			p.equivocate(vote.Sender)
+		if stored.Header().Height() > vote.Header().Height() {
+			p.equivocate(vote.Sender())
 			return errors.New("peer voted for block with higher height")
 		}
-		if stored.Header.Height() == vote.Header.Height() &&
-			stored.Header.Hash() != vote.Header.Hash() {
-			p.equivocate(vote.Sender)
+		if stored.Header().Height() == vote.Header().Height() &&
+			stored.Header().Hash() != vote.Header().Hash() {
+			p.equivocate(vote.Sender())
 			return errors.New("peer voted for different blocks on the same height")
 		}
 	}
@@ -311,15 +324,16 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 	p.votes[addr] = vote
 
 	if p.CheckConsensus() {
-		if !p.blockchain.Contains(vote.Header.Hash()) {
-			e := p.sync.LoadFork(ctx, vote.Header.Height(), vote.Header.Hash(), vote.Sender)
+		if !p.blockchain.Contains(vote.Header().Hash()) {
+			e := p.sync.LoadFork(ctx, vote.Header().Height(), vote.Header().Hash(), vote.Sender())
 			if e != nil {
 				log.Error(e)
 			}
 		}
-		p.FinishQC(vote.Header)
-		p.pacer.FireEvent(Event{
-			T: VotesCollected,
+		p.FinishQC(vote.Header())
+
+		p.pacer.FireEvent(api.Event{
+			T: api.VotesCollected,
 		})
 	}
 	return nil
@@ -328,12 +342,12 @@ func (p *Protocol) OnReceiveVote(ctx context.Context, vote *Vote) error {
 func (p *Protocol) CheckConsensus() bool {
 	type stat struct {
 		score  int
-		header *bc.Header
+		header api.Header
 	}
 	stats := make(map[common.Hash]*stat, len(p.votes))
 	for _, each := range p.votes {
-		if s, ok := stats[each.Header.Hash()]; !ok {
-			stats[each.Header.Hash()] = &stat{score: 1, header: each.Header}
+		if s, ok := stats[each.Header().Hash()]; !ok {
+			stats[each.Header().Hash()] = &stat{score: 1, header: each.Header()}
 		} else {
 			s.score += 1
 		}
@@ -389,8 +403,8 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 
 	go p.srv.Broadcast(ctx, m)
 
-	p.pacer.FireEvent(Event{
-		T: Proposed,
+	p.pacer.FireEvent(api.Event{
+		T: api.Proposed,
 	})
 }
 
@@ -398,14 +412,14 @@ func (*Protocol) equivocate(peer *comm.Peer) {
 	log.Warningf("Peer [%v] equivocated", peer.GetAddress().Hex())
 }
 
-func (p *Protocol) FinishQC(header *bc.Header) {
+func (p *Protocol) FinishQC(header api.Header) {
 	var signs []*crypto.Signature
 	signsByAddress := make(map[common.Address]*crypto.Signature)
 
 	for k, v := range p.votes {
-		if bytes.Equal(v.Header.Hash().Bytes(), header.Hash().Bytes()) {
-			signs = append(signs, v.Signature)
-			signsByAddress[k] = v.Signature
+		if bytes.Equal(v.Header().Hash().Bytes(), header.Hash().Bytes()) {
+			signs = append(signs, v.Signature())
+			signsByAddress[k] = v.Signature()
 		}
 	}
 	bitmap := p.pacer.GetBitmap(signsByAddress)
@@ -419,7 +433,7 @@ func (p *Protocol) FinishGenesisQC(aggregate *crypto.SignatureAggregate) {
 	p.hqc = p.blockchain.GetGenesisCert()
 }
 
-func (p *Protocol) HQC() *bc.QuorumCertificate {
+func (p *Protocol) HQC() api.QuorumCertificate {
 	return p.hqc
 }
 
@@ -464,14 +478,14 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 			return e
 		}
 
-		parent := pr.NewBlock.Header().Parent()
+		parent := pr.NewBlock().Header().Parent()
 		if !p.blockchain.Contains(parent) {
-			log.Debugf("Requesting for fork starting at proposal parent block %v at height %v", parent.Hex(), pr.NewBlock.Height())
-			err := p.sync.LoadFork(ctx, pr.NewBlock.Header().Height()-1, pr.NewBlock.Header().Parent(), pr.Sender)
+			log.Debugf("Requesting for fork starting at proposal parent block %v at height %v", parent.Hex(), pr.NewBlock().Height())
+			err := p.sync.LoadFork(ctx, pr.NewBlock().Header().Height()-1, pr.NewBlock().Header().Parent(), pr.Sender())
 			if err != nil {
 				return err
 			}
-			err = p.blockchain.AddBlock(pr.NewBlock)
+			err = p.blockchain.AddBlock(pr.NewBlock())
 			if err != nil {
 				return err
 			}

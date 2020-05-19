@@ -2,10 +2,10 @@
 
 package mocks
 
+import api "github.com/gagarinchain/network/common/api"
 import big "math/big"
 import common "github.com/gagarinchain/network/common/eth/common"
 import crypto "github.com/gagarinchain/network/common/eth/crypto"
-import hotstuff "github.com/gagarinchain/network/hotstuff"
 import mock "github.com/stretchr/testify/mock"
 import networkcommon "github.com/gagarinchain/network/common"
 
@@ -15,7 +15,7 @@ type Pacer struct {
 }
 
 // FireEvent provides a mock function with given fields: event
-func (_m *Pacer) FireEvent(event hotstuff.Event) {
+func (_m *Pacer) FireEvent(event api.Event) {
 	_m.Called(event)
 }
 
@@ -114,6 +114,6 @@ func (_m *Pacer) ProposerForHeight(blockHeight int32) *networkcommon.Peer {
 }
 
 // SubscribeProtocolEvents provides a mock function with given fields: sub
-func (_m *Pacer) SubscribeProtocolEvents(sub chan hotstuff.Event) {
+func (_m *Pacer) SubscribeProtocolEvents(sub chan api.Event) {
 	_m.Called(sub)
 }

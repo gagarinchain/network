@@ -1,13 +1,14 @@
 package blockchain
 
 import (
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"time"
 )
 
-func CreateBlockWithParentH(parent *Header) *Block {
-	header := &Header{
-		height:    parent.height + 1,
+func CreateBlockWithParentH(parent api.Header) api.Block {
+	header := &HeaderImpl{
+		height:    parent.Height() + 1,
 		hash:      common.Hash{},
 		txHash:    common.Hash{},
 		stateHash: common.Hash{},
@@ -17,7 +18,7 @@ func CreateBlockWithParentH(parent *Header) *Block {
 		timestamp: time.Now(),
 	}
 	header.SetHash()
-	return &Block{
+	return &BlockImpl{
 		header:    header,
 		qc:        nil,
 		signature: nil,
@@ -25,8 +26,8 @@ func CreateBlockWithParentH(parent *Header) *Block {
 		data:      nil,
 	}
 }
-func CreateBlockWithParent(parent *Block) *Block {
-	header := &Header{
+func CreateBlockWithParent(parent api.Block) api.Block {
+	header := &HeaderImpl{
 		height:    parent.Height() + 1,
 		hash:      common.Hash{},
 		txHash:    common.Hash{},
@@ -37,7 +38,7 @@ func CreateBlockWithParent(parent *Block) *Block {
 		timestamp: time.Now(),
 	}
 	header.SetHash()
-	return &Block{
+	return &BlockImpl{
 		header:    header,
 		qc:        parent.QC(),
 		signature: nil,

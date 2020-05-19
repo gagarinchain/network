@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/pkg/errors"
 	"sort"
@@ -20,7 +21,7 @@ type Synchronizer interface {
 type SynchronizerImpl struct {
 	me                  *comm.Peer
 	bsrv                BlockService
-	bc                  Blockchain
+	bc                  api.Blockchain
 	timeout             time.Duration
 	headersLimit        int32
 	depthLimit          int32
@@ -42,7 +43,7 @@ var (
 //creates synchronizer
 //to ommit depthLimit set -1
 //to ommit timeout set -1
-func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc Blockchain, timeout time.Duration, headersLimit int32,
+func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc api.Blockchain, timeout time.Duration, headersLimit int32,
 	headersAttemptCount int32, blocksParallelLimit int32, depthLimit int32, maxForkLength int32) Synchronizer {
 	if depthLimit == -1 {
 		depthLimit = DepthLimitConst
@@ -81,7 +82,7 @@ func (s *SynchronizerImpl) loadBlocks(ctx context.Context, low int32, high int32
 		}
 
 		success := false
-		var headers []*Header
+		var headers []api.Header
 		//try headersAttemptCount times to load headers batch and all blocks, then add them to bc
 		for j := 0; j < int(s.headersAttemptCount); j++ {
 			log.Debugf("Attempt %v", j)
@@ -93,7 +94,7 @@ func (s *SynchronizerImpl) loadBlocks(ctx context.Context, low int32, high int32
 			}
 
 			sort.Sort(HeadersByHeight(headers))
-			var filteredHeaders []*Header
+			var filteredHeaders []api.Header
 			for k := 0; k < len(headers); k++ {
 				if !s.bc.Contains(headers[k].Hash()) {
 					filteredHeaders = append(filteredHeaders, headers[k])
@@ -130,7 +131,7 @@ func (s *SynchronizerImpl) loadBlocks(ctx context.Context, low int32, high int32
 	return nil
 }
 
-func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, high int32, headHeight int32, head *common.Hash, depth int32, peer *comm.Peer) ([]*Header, error) {
+func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, high int32, headHeight int32, head *common.Hash, depth int32, peer *comm.Peer) ([]api.Header, error) {
 	log.Debugf("Requesting headers for %v:%v, attempt %v", low, high, depth)
 	if depth > s.depthLimit || low < 0 {
 		return nil, DepthLimitExceeded
@@ -161,13 +162,13 @@ func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, h
 
 	}
 
-	parentSiblingMapping := make(map[common.Hash]*Header)
+	parentSiblingMapping := make(map[common.Hash]api.Header)
 	for _, h := range headers {
-		parentSiblingMapping[h.parent] = h
+		parentSiblingMapping[h.Parent()] = h
 	}
 
 	//determine chain heads
-	var heads []*Header
+	var heads []api.Header
 	for _, h := range headers {
 		if h.Height() == headers[0].Height() {
 			heads = append(heads, h)
@@ -175,7 +176,7 @@ func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, h
 	}
 
 	//filter siblings
-	var filtered []*Header
+	var filtered []api.Header
 	for _, head := range heads {
 		current := head
 		found := true
@@ -212,14 +213,14 @@ func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, h
 	return headers, e
 }
 
-func (s *SynchronizerImpl) requestBlocks(ctx context.Context, headers []*Header, peer *comm.Peer) ([]*Block, error) {
+func (s *SynchronizerImpl) requestBlocks(ctx context.Context, headers []api.Header, peer *comm.Peer) ([]api.Block, error) {
 	wg := &sync.WaitGroup{}
 	amount := len(headers)
 	wg.Add(amount)
 	log.Infof("Requesting %v blocks", amount)
 
 	type Exec struct {
-		blocks []*Block
+		blocks []api.Block
 		errors []error
 		lock   *sync.Mutex
 	}
@@ -277,7 +278,7 @@ func (s *SynchronizerImpl) LoadFork(ctx context.Context, headHeight int32, head 
 	return s.loadBlocks(ctx, low, headHeight, headHeight, &head, peer)
 }
 
-func (s *SynchronizerImpl) addBlocksTransactional(blocks []*Block) error {
+func (s *SynchronizerImpl) addBlocksTransactional(blocks []api.Block) error {
 	errorIndex := -1
 	var err error
 	sort.Sort(ByHeight(blocks))

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/common/api"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -15,7 +16,7 @@ import cmn "github.com/gagarinchain/network/common"
 type BlockchainConfig struct {
 	Seed           map[common.Address]*state.Account
 	BlockPerister  *BlockPersister
-	ProposerGetter cmn.ProposerForHeight
+	ProposerGetter api.ProposerForHeight
 	ChainPersister *BlockchainPersister
 	Pool           TransactionPool
 	Db             state.DB

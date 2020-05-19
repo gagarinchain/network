@@ -8,6 +8,7 @@ import (
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	common2 "github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
@@ -133,7 +134,7 @@ func TestScenario1c(t *testing.T) {
 	}
 
 	go func() {
-		ctx.SendBlocks([]*blockchain.Block{newBlock})
+		ctx.SendBlocks([]api.Block{newBlock})
 	}()
 
 	p := ctx.createProposal(newBlock, 1)
@@ -221,7 +222,7 @@ func TestScenario2b(t *testing.T) {
 	defer f()
 
 	trigger := make(chan interface{})
-	ctx.pacer.SubscribeEpochChange(timeout, func(event hotstuff.Event) {
+	ctx.pacer.SubscribeEpochChange(timeout, func(event api.Event) {
 		trigger <- event
 	})
 	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, nil)
@@ -500,7 +501,7 @@ func TestScenario6a(t *testing.T) {
 	ctx.hotstuffChan <- proposal
 
 	go func() {
-		ctx.SendBlocks([]*blockchain.Block{block4, block31, block2})
+		ctx.SendBlocks([]api.Block{block4, block31, block2})
 	}()
 
 	ctx.waitRounds(timeout, 5)
@@ -544,7 +545,7 @@ func TestScenario6b(t *testing.T) {
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
-	ctx.SendBlocks([]*blockchain.Block{block22, block32, block42})
+	ctx.SendBlocks([]api.Block{block22, block32, block42})
 
 	ctx.waitRounds(timeout, 6)
 
@@ -591,7 +592,7 @@ func TestScenario6c(t *testing.T) {
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
-	ctx.SendBlocks([]*blockchain.Block{block2, block32, block42})
+	ctx.SendBlocks([]api.Block{block2, block32, block42})
 
 	ctx.waitRounds(timeout, 6)
 
@@ -647,7 +648,7 @@ func TestScenario6d(t *testing.T) {
 	proposal6 := ctx.createProposal(block6, 6)
 	ctx.hotstuffChan <- proposal6
 
-	ctx.SendBlocks([]*blockchain.Block{block2, block3, block4, block51})
+	ctx.SendBlocks([]api.Block{block2, block3, block4, block51})
 
 	ctx.waitRounds(timeout, 7)
 
@@ -697,7 +698,7 @@ func TestScenario6e(t *testing.T) {
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
-	ctx.SendBlocks([]*blockchain.Block{block21, block32, block42})
+	ctx.SendBlocks([]api.Block{block21, block32, block42})
 	ctx.waitRounds(timeout, 6)
 
 	block5 := ctx.bc.NewBlock(block4, ctx.createQC(block4), []byte("block 5"))
@@ -705,7 +706,7 @@ func TestScenario6e(t *testing.T) {
 	proposal6 := ctx.createProposal(block6, 6)
 	ctx.hotstuffChan <- proposal6
 
-	ctx.SendBlocks([]*blockchain.Block{block2, block3, block4, block5})
+	ctx.SendBlocks([]api.Block{block2, block3, block4, block5})
 
 	ctx.waitRounds(timeout, 2)
 
@@ -729,9 +730,9 @@ func TestScenario7a(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, 1, proposal.NewBlock.TxsCount())
-	assert.Equal(t, "0x573e917b1e96825378ab508d557e0cd8762b80c0b39b242d43cb420457c1df4f", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0x7509e1371b6d9293bac6ed2e32661978a23d9ff4352f661bdfcb31c3370922b5", proposal.NewBlock.Header().StateHash().Hex())
+	assert.Equal(t, 1, proposal.NewBlock().TxsCount())
+	assert.Equal(t, "0x573e917b1e96825378ab508d557e0cd8762b80c0b39b242d43cb420457c1df4f", proposal.NewBlock().Header().TxHash().Hex())
+	assert.Equal(t, "0x7509e1371b6d9293bac6ed2e32661978a23d9ff4352f661bdfcb31c3370922b5", proposal.NewBlock().Header().StateHash().Hex())
 
 }
 
@@ -752,9 +753,9 @@ func TestScenario7aa(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0xd7871f8f064f68ebb2b8e092efcf8212d12c3584c4ab9d91b5b1a47d421bbe8d", proposal.NewBlock.Header().TxHash().Hex())
-	assert.Equal(t, "0x51de6155ccb435024a7874b4f933efacad07e49cf0776738d706ff3b52211df7", proposal.NewBlock.Header().StateHash().Hex())
-	assert.Equal(t, 2, proposal.NewBlock.TxsCount())
+	assert.Equal(t, "0xd7871f8f064f68ebb2b8e092efcf8212d12c3584c4ab9d91b5b1a47d421bbe8d", proposal.NewBlock().Header().TxHash().Hex())
+	assert.Equal(t, "0x51de6155ccb435024a7874b4f933efacad07e49cf0776738d706ff3b52211df7", proposal.NewBlock().Header().StateHash().Hex())
+	assert.Equal(t, 2, proposal.NewBlock().TxsCount())
 
 }
 
@@ -1115,10 +1116,10 @@ type TestContext struct {
 	pacer        *hotstuff.StaticPacer
 	protocol     *hotstuff.Protocol
 	cfg          *hotstuff.ProtocolConfig
-	bc           blockchain.Blockchain
+	bc           api.Blockchain
 	bsrv         blockchain.BlockService
 	pool         blockchain.TransactionPool
-	eventChan    chan hotstuff.Event
+	eventChan    chan api.Event
 	voteChan     chan *DirectMessage
 	startChan    chan *msg.Message
 	proposalChan chan *msg.Message
@@ -1140,7 +1141,7 @@ type DirectMessage struct {
 	to *common.Peer
 }
 
-func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.Message {
+func (ctx *TestContext) makeVotes(count int, newBlock api.Block) []*msg.Message {
 	votes := make([]*msg.Message, count)
 
 	for i := 0; i < count; i++ {
@@ -1153,7 +1154,7 @@ func (ctx *TestContext) makeVotes(count int, newBlock *blockchain.Block) []*msg.
 	return votes
 }
 
-func makeVote(bc blockchain.Blockchain, newBlock *blockchain.Block, peer *common.Peer) *hotstuff.Vote {
+func makeVote(bc api.Blockchain, newBlock api.Block, peer *common.Peer) api.Vote {
 	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), peer)
 	vote.Sign(peer.GetPrivateKey())
 	return vote
@@ -1161,14 +1162,14 @@ func makeVote(bc blockchain.Blockchain, newBlock *blockchain.Block, peer *common
 
 func (ctx *TestContext) StartFirstEpoch() {
 	trigger := make(chan interface{})
-	ctx.pacer.SubscribeEpochChange(context.Background(), func(event hotstuff.Event) {
+	ctx.pacer.SubscribeEpochChange(context.Background(), func(event api.Event) {
 		trigger <- event
 	})
 	ctx.sendStartEpochMessages(0, 2*ctx.cfg.F/3+1, nil)
 	<-trigger
 }
 
-func (ctx *TestContext) sendMoreStartEpochMessages(index int32, start int, amount int, hqc *blockchain.QuorumCertificate) {
+func (ctx *TestContext) sendMoreStartEpochMessages(index int32, start int, amount int, hqc api.QuorumCertificate) {
 	for i := start; i < amount; i++ {
 		var epoch *hotstuff.Epoch
 		p := ctx.pacer.Committee()[i]
@@ -1182,7 +1183,7 @@ func (ctx *TestContext) sendMoreStartEpochMessages(index int32, start int, amoun
 		ctx.epochChan <- message
 	}
 }
-func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc *blockchain.QuorumCertificate) {
+func (ctx *TestContext) sendStartEpochMessages(index int32, amount int, hqc api.QuorumCertificate) {
 	ctx.sendMoreStartEpochMessages(index, 0, amount, hqc)
 }
 
@@ -1198,7 +1199,7 @@ func (ctx *TestContext) waitRounds(c context.Context, count int) {
 	for {
 		select {
 		case event := <-ctx.eventChan:
-			if event.T == hotstuff.ChangedView {
+			if event.T == api.ChangedView {
 				i++
 				if i == count {
 					return
@@ -1210,14 +1211,14 @@ func (ctx *TestContext) waitRounds(c context.Context, count int) {
 	}
 }
 
-func (ctx *TestContext) createProposal(newBlock *blockchain.Block, peerNumber int) *msg.Message {
+func (ctx *TestContext) createProposal(newBlock api.Block, peerNumber int) *msg.Message {
 	proposal := hotstuff.CreateProposal(newBlock, newBlock.QC(), ctx.peers[peerNumber])
 	proposal.Sign(ctx.peers[peerNumber].GetPrivateKey())
 	any, _ := ptypes.MarshalAny(proposal.GetMessage())
 	return msg.CreateMessage(pb.Message_PROPOSAL, any, ctx.peers[peerNumber])
 }
 
-func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCertificate {
+func (ctx *TestContext) createQC(block api.Block) api.QuorumCertificate {
 	var signs []*crypto.Signature
 	signsByAddress := make(map[common2.Address]*crypto.Signature)
 
@@ -1232,7 +1233,7 @@ func (ctx *TestContext) createQC(block *blockchain.Block) *blockchain.QuorumCert
 	return blockchain.CreateQuorumCertificate(aggregate, block.Header())
 }
 
-func (ctx *TestContext) SendBlocks(blocks []*blockchain.Block) {
+func (ctx *TestContext) SendBlocks(blocks []api.Block) {
 	hs := headers(blocks)
 	var pbHeaders []*pb.BlockHeader
 	for _, h := range hs {
@@ -1361,7 +1362,7 @@ func initContext(t *testing.T) *TestContext {
 	p := hotstuff.CreateProtocol(config)
 	pacer.Bootstrap(context.Background(), p)
 
-	eventChan := make(chan hotstuff.Event)
+	eventChan := make(chan api.Event)
 	pacer.SubscribeProtocolEvents(eventChan)
 	bc.SetProposerGetter(pacer)
 
@@ -1394,7 +1395,7 @@ func initContext(t *testing.T) *TestContext {
 	}
 }
 
-func headers(blocks []*blockchain.Block) (headers []*blockchain.Header) {
+func headers(blocks []api.Block) (headers []api.Header) {
 	for _, b := range blocks {
 		headers = append(headers, b.Header())
 	}

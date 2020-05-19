@@ -4,6 +4,7 @@ import (
 	"fmt"
 	bc "github.com/gagarinchain/network/blockchain"
 	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -11,22 +12,42 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Vote struct {
-	Sender    *comm.Peer
-	Header    *bc.Header
-	Signature *crypto.Signature //We should not allow to change header if we want signature to be consistent with block
-	HQC       *bc.QuorumCertificate
+type VoteImpl struct {
+	sender    *comm.Peer
+	header    api.Header
+	signature *crypto.Signature //We should not allow to change header if we want signature to be consistent with block
+	hqc       api.QuorumCertificate
 }
 
-func CreateVote(newBlock *bc.Header, hqc *bc.QuorumCertificate, sender *comm.Peer) *Vote {
-	return &Vote{Sender: sender, Header: newBlock, HQC: hqc}
+func (v *VoteImpl) Sender() *comm.Peer {
+	return v.sender
 }
 
-func (v *Vote) Sign(key *crypto.PrivateKey) {
-	v.Signature = v.Header.Sign(key)
+func (v *VoteImpl) Header() api.Header {
+	return v.header
 }
 
-func CreateVoteFromMessage(msg *msg.Message) (*Vote, error) {
+func (v *VoteImpl) Signature() *crypto.Signature {
+	return v.signature
+}
+
+func (v *VoteImpl) HQC() api.QuorumCertificate {
+	return v.hqc
+}
+
+func CreateVote(newBlock api.Header, hqc api.QuorumCertificate, sender *comm.Peer) *VoteImpl {
+	return &VoteImpl{sender: sender, header: newBlock, hqc: hqc}
+}
+
+func (v *VoteImpl) Sign(key *crypto.PrivateKey) {
+	v.signature = v.Header().Sign(key)
+}
+
+func (v *VoteImpl) GetMessage() *pb.VotePayload {
+	return &pb.VotePayload{Cert: v.HQC().GetMessage(), Header: v.Header().GetMessage(), Signature: v.Signature().ToProto()}
+}
+
+func CreateVoteFromMessage(msg *msg.Message) (api.Vote, error) {
 	if msg.Type != pb.Message_VOTE {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_VOTE.String(), msg.Type))
@@ -50,10 +71,6 @@ func CreateVoteFromMessage(msg *msg.Message) (*Vote, error) {
 	msg.Source().SetPublicKey(crypto.NewPublicKey(sign.Pub()))
 
 	vote := CreateVote(header, qc, msg.Source())
-	vote.Signature = sign
+	vote.signature = sign
 	return vote, nil
-}
-
-func (v *Vote) GetMessage() *pb.VotePayload {
-	return &pb.VotePayload{Cert: v.HQC.GetMessage(), Header: v.Header.GetMessage(), Signature: v.Signature.ToProto()}
 }

@@ -2,17 +2,18 @@ package blockchain
 
 import (
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/golang/protobuf/ptypes"
 )
 
 type RequestHandler struct {
-	bc Blockchain
+	bc api.Blockchain
 	db state.DB
 }
 
-func NewRequestHandler(bc Blockchain, db state.DB) *RequestHandler {
+func NewRequestHandler(bc api.Blockchain, db state.DB) *RequestHandler {
 	return &RequestHandler{bc: bc, db: db}
 }
 

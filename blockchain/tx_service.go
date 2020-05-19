@@ -4,6 +4,7 @@ import (
 	"context"
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	common2 "github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -16,11 +17,11 @@ type TxService struct {
 	validator net.Validator
 	txPool    TransactionPool
 	netserv   network.Service
-	bc        Blockchain
+	bc        api.Blockchain
 	me        *common.Peer
 }
 
-func NewService(validator net.Validator, txPool TransactionPool, netserv network.Service, bc Blockchain, me *common.Peer) *TxService {
+func NewService(validator net.Validator, txPool TransactionPool, netserv network.Service, bc api.Blockchain, me *common.Peer) *TxService {
 	return &TxService{validator: validator, txPool: txPool, netserv: netserv, bc: bc, me: me}
 }
 

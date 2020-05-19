@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gagarinchain/network"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
@@ -15,19 +16,6 @@ import (
 	"time"
 )
 
-type Pacer interface {
-	EventNotifier
-	cmn.ProposerForHeight
-	GetCurrentView() int32
-	GetCurrent() *cmn.Peer
-	GetNext() *cmn.Peer
-}
-
-type EventNotifier interface {
-	SubscribeProtocolEvents(sub chan Event)
-	FireEvent(event Event)
-}
-
 type StateId int
 
 const (
@@ -36,27 +24,6 @@ const (
 	Voting        StateId = iota
 	Proposing     StateId = iota
 )
-
-type EventPayload interface{}
-type EventType int
-
-const (
-	TimedOut            EventType = iota
-	EpochStarted        EventType = iota
-	EpochStartTriggered EventType = iota
-	Voted               EventType = iota
-	VotesCollected      EventType = iota
-	Proposed            EventType = iota
-	ChangedView         EventType = iota
-)
-
-// We intentionally duplicated subset of common.Events here, simply to isolate protocol logic
-type Event struct {
-	Payload EventPayload
-	T       EventType
-}
-
-type EventHandler = func(event Event)
 
 type PacerPersister struct {
 	Storage gagarinchain.Storage
@@ -94,7 +61,7 @@ type StaticPacer struct {
 	me                    *cmn.Peer
 	committee             []*cmn.Peer
 	protocol              *Protocol
-	protocolEventSubChans []chan Event
+	protocolEventSubChans []chan api.Event
 	persister             *PacerPersister
 	view                  struct {
 		current int32
@@ -161,14 +128,14 @@ func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
 	p.stateId = Bootstrapped
 	p.execution.parent = ctx
 
-	p.SubscribeEpochChange(ctx, func(event Event) {
+	p.SubscribeEpochChange(ctx, func(event api.Event) {
 		epoch := event.Payload.(int32)
 		e := p.persister.PutCurrentEpoch(epoch)
 		if e != nil {
 			log.Error("Can'T persist new epoch")
 		}
 	})
-	p.SubscribeViewChange(ctx, func(event Event) {
+	p.SubscribeViewChange(ctx, func(event api.Event) {
 		view := event.Payload.(int32)
 		e := p.persister.PutCurrentView(view)
 		if e != nil {
@@ -233,8 +200,8 @@ func (p *StaticPacer) Run(ctx context.Context, hotstuffChan chan *msg.Message, e
 			}
 		case <-p.execution.ctx.Done(): //case when we timed out
 			if p.execution.ctx.Err() == context.DeadlineExceeded {
-				p.FireEvent(Event{
-					T: TimedOut,
+				p.FireEvent(api.Event{
+					T: api.TimedOut,
 				})
 			}
 		case <-ctx.Done():
@@ -244,11 +211,11 @@ func (p *StaticPacer) Run(ctx context.Context, hotstuffChan chan *msg.Message, e
 	}
 }
 
-func (p *StaticPacer) FireEvent(event Event) {
+func (p *StaticPacer) FireEvent(event api.Event) {
 	p.notifyProtocolEvent(event)
 
 	switch event.T {
-	case TimedOut:
+	case api.TimedOut:
 		switch p.stateId {
 		case StartingEpoch: //we are timed out during epoch starting, should retry
 			log.Info("Can'T start epoch in 4*delta, retry...")
@@ -269,19 +236,19 @@ func (p *StaticPacer) FireEvent(event Event) {
 		default:
 			log.Errorf("Unknown transition %v %v", event, p.stateId)
 		}
-	case EpochStartTriggered:
+	case api.EpochStartTriggered:
 		log.Info("Force starting new epoch")
 		p.execution.f() //cancelling previous context
 		p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, 4*p.delta)
 		p.stateId = StartingEpoch
 		p.StartEpoch(p.execution.ctx)
-	case EpochStarted:
+	case api.EpochStarted:
 		log.Info("Started new epoch, propose")
 		p.execution.f() //cancelling previous context
 		p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, p.delta)
 		p.stateId = Proposing
 		p.OnNextView()
-	case Voted:
+	case api.Voted:
 		log.Info("Voted for block, start new round")
 		p.execution.f() //cancelling previous context
 		i := int(p.GetCurrentView()) % len(p.committee)
@@ -296,16 +263,16 @@ func (p *StaticPacer) FireEvent(event Event) {
 			p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, p.delta)
 			p.stateId = Proposing
 		}
-	case VotesCollected:
+	case api.VotesCollected:
 		log.Info("Collected all votes for new QC, proposing")
 		p.stateId = Proposing
 		p.protocol.OnPropose(p.execution.parent)
-	case Proposed:
+	case api.Proposed:
 		log.Info("Proposed")
 		p.stateId = Voting
 		p.execution.f() //cancelling previous context
 		p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, p.delta)
-	case ChangedView:
+	case api.ChangedView:
 		log.Infof("New view %d is started", p.view.current)
 		p.stateId = Proposing
 		p.execution.f() //cancelling previous context
@@ -315,21 +282,21 @@ func (p *StaticPacer) FireEvent(event Event) {
 }
 
 //if we need unsubscribe we will refactor list to map and identify subscribers
-func (p *StaticPacer) SubscribeProtocolEvents(sub chan Event) {
+func (p *StaticPacer) SubscribeProtocolEvents(sub chan api.Event) {
 	p.protocolEventSubChans = append(p.protocolEventSubChans, sub)
 }
 
 //warning: we generate a lot of goroutines here, that can block forever
-func (p *StaticPacer) notifyProtocolEvent(event Event) {
+func (p *StaticPacer) notifyProtocolEvent(event api.Event) {
 	for _, ch := range p.protocolEventSubChans {
-		go func(c chan Event) {
+		go func(c chan api.Event) {
 			c <- event
 		}(ch)
 	}
 }
 
-func (p *StaticPacer) subscribeEvent(ctx context.Context, types map[EventType]interface{}, handler EventHandler) {
-	events := make(chan Event)
+func (p *StaticPacer) subscribeEvent(ctx context.Context, types map[api.EventType]interface{}, handler api.EventHandler) {
+	events := make(chan api.Event)
 	p.SubscribeProtocolEvents(events)
 	go func() {
 		for {
@@ -349,16 +316,16 @@ func (p *StaticPacer) subscribeEvent(ctx context.Context, types map[EventType]in
 	}()
 }
 
-func (p *StaticPacer) SubscribeEvents(ctx context.Context, handler EventHandler, types map[EventType]interface{}) {
+func (p *StaticPacer) SubscribeEvents(ctx context.Context, handler api.EventHandler, types map[api.EventType]interface{}) {
 	p.subscribeEvent(ctx, types, handler)
 }
 
-func (p *StaticPacer) SubscribeEpochChange(ctx context.Context, handler EventHandler) {
-	p.subscribeEvent(ctx, map[EventType]interface{}{EpochStarted: struct{}{}}, handler)
+func (p *StaticPacer) SubscribeEpochChange(ctx context.Context, handler api.EventHandler) {
+	p.subscribeEvent(ctx, map[api.EventType]interface{}{api.EpochStarted: struct{}{}}, handler)
 }
 
-func (p *StaticPacer) SubscribeViewChange(ctx context.Context, handler EventHandler) {
-	p.subscribeEvent(ctx, map[EventType]interface{}{ChangedView: struct{}{}}, handler)
+func (p *StaticPacer) SubscribeViewChange(ctx context.Context, handler api.EventHandler) {
+	p.subscribeEvent(ctx, map[api.EventType]interface{}{api.ChangedView: struct{}{}}, handler)
 }
 
 func (p *StaticPacer) GetCurrentView() int32 {
@@ -370,8 +337,8 @@ func (p *StaticPacer) GetCurrentView() int32 {
 func (p *StaticPacer) OnNextView() {
 	nextView := p.GetCurrentView() + 1
 	p.changeView(nextView)
-	p.FireEvent(Event{
-		T:       ChangedView,
+	p.FireEvent(api.Event{
+		T:       api.ChangedView,
 		Payload: nextView,
 	})
 }
@@ -452,8 +419,8 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 		if p.stateId == StartingEpoch && p.epoch.current < max.n-1 || p.stateId != StartingEpoch {
 			log.Debugf("Received F/3 + 1 start epoch messages, force starting new epoch")
 			p.epoch.toStart = max.n
-			p.FireEvent(Event{
-				T: EpochStartTriggered,
+			p.FireEvent(api.Event{
+				T: api.EpochStartTriggered,
 			})
 		}
 	}
@@ -500,8 +467,8 @@ func (p *StaticPacer) newEpoch(i int32) {
 	p.epoch.messageStorage = make(map[common.Address]int32)
 	log.Infof("Started new epoch %v", i)
 	log.Infof("Current view number %v, proposer %v", p.view.current, p.GetCurrent().GetAddress().Hex())
-	p.FireEvent(Event{
-		T:       EpochStarted,
+	p.FireEvent(api.Event{
+		T:       api.EpochStarted,
 		Payload: p.epoch.current,
 	})
 }

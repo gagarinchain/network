@@ -5,14 +5,7 @@ import (
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"math/big"
 )
-
-type ProposerForHeight interface {
-	ProposerForHeight(blockHeight int32) *Peer
-	GetBitmap(src map[common.Address]*crypto.Signature) (bitmap *big.Int)
-	GetPeers() []*Peer
-}
 
 type Peer struct {
 	address    common.Address

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -37,8 +38,11 @@ func TestProposalSignature(t *testing.T) {
 	m := msg.CreateMessage(pb.Message_PROPOSAL, any, &common.Peer{})
 
 	proposal2, e := hotstuff.CreateProposalFromMessage(m)
+	if e != nil {
+		t.Error(e)
+	}
 
-	assert.Equal(t, cfg.Me.GetAddress(), proposal2.Sender.GetAddress())
+	assert.Equal(t, cfg.Me.GetAddress(), proposal2.Sender().GetAddress())
 
 }
 
@@ -123,7 +127,7 @@ func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
 	assert.Equal(t, newQC, hqc)
 }
 
-func createValidQC(newBlock *blockchain.Block, cfg *hotstuff.ProtocolConfig) *blockchain.QuorumCertificate {
+func createValidQC(newBlock api.Block, cfg *hotstuff.ProtocolConfig) api.QuorumCertificate {
 	m := newBlock.Header().Hash().Bytes()
 	var signs []*crypto.Signature
 	for _, v := range cfg.Committee {
@@ -186,8 +190,8 @@ func TestOnReceiveProposal(t *testing.T) {
 
 	srv.AssertCalled(t, "SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 		nextProposer, mock.AnythingOfType("*message.Message"))
-	assert.Equal(t, proposal.NewBlock.Header().Hash(), vote.Header.Hash())
-	assert.Equal(t, vote.Header.Height(), p.Vheight())
+	assert.Equal(t, proposal.NewBlock().Header().Hash(), vote.Header().Hash())
+	assert.Equal(t, vote.Header().Height(), p.Vheight())
 
 }
 
@@ -200,7 +204,7 @@ func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 	}
 
 	nextProposer := cfg.Pacer.GetNext()
-	proposal := &hotstuff.Proposal{Sender: nextProposer, NewBlock: newBlock, HQC: head.QC()}
+	proposal := hotstuff.CreateProposal(newBlock, head.QC(), nextProposer)
 
 	assert.Error(t, p.OnReceiveProposal(context.Background(), proposal), "peer equivocated")
 	assert.Equal(t, int32(0), p.Vheight())
@@ -260,13 +264,13 @@ func TestQCUpdateOnVotesCollectFinish(t *testing.T) {
 	assert.Equal(t, newBlock.Header().Hash(), p.HQC().QrefBlock().Hash())
 }
 
-func createVote(bc blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) *hotstuff.Vote {
+func createVote(bc api.Blockchain, newBlock api.Block, t *testing.T) api.Vote {
 	vote := hotstuff.CreateVote(newBlock.Header(), bc.GetGenesisCert(), generateIdentity(t, 2))
 	return vote
 }
 
-func createVotes(count int, bc blockchain.Blockchain, newBlock *blockchain.Block, t *testing.T) []*hotstuff.Vote {
-	votes := make([]*hotstuff.Vote, count)
+func createVotes(count int, bc api.Blockchain, newBlock api.Block, t *testing.T) []api.Vote {
+	votes := make([]api.Vote, count)
 
 	for i := 0; i < count; i++ {
 		peer := generateIdentity(t, i)
@@ -278,7 +282,7 @@ func createVotes(count int, bc blockchain.Blockchain, newBlock *blockchain.Block
 	return votes
 }
 
-func initProtocol(t *testing.T, inds ...int) (blockchain.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig, chan hotstuff.Event) {
+func initProtocol(t *testing.T, inds ...int) (api.Blockchain, *hotstuff.Protocol, *hotstuff.ProtocolConfig, chan api.Event) {
 	var ind int
 	if inds != nil {
 		ind = inds[0]
@@ -318,17 +322,17 @@ func initProtocol(t *testing.T, inds ...int) (blockchain.Blockchain, *hotstuff.P
 
 	pacer := &mocks.Pacer{}
 	config.Pacer = pacer
-	pacer.On("FireEvent", mock.AnythingOfType("hotstuff.EventType"))
+	pacer.On("FireEvent", mock.AnythingOfType("api.EventType"))
 	pacer.On("GetCurrentView").Return(int32(1))
 	pacer.On("GetCurrent").Return(peers[1])
 	pacer.On("GetNext").Return(peers[2])
-	pacer.On("SubscribeProtocolEvents", mock.AnythingOfType("chan hotstuff.Event"))
-	pacer.On("FireEvent", mock.AnythingOfType("hotstuff.Event"))
+	pacer.On("SubscribeProtocolEvents", mock.AnythingOfType("chan api.Event"))
+	pacer.On("FireEvent", mock.AnythingOfType("api.Event"))
 	pacer.On("GetBitmap", mock.AnythingOfType("map[common.Address]*crypto.Signature")).Return(big.NewInt(1<<((f/3)*2+1)-1), 0)
 	pacer.On("GetPeers").Return(peers)
 
 	p := hotstuff.CreateProtocol(config)
-	eventChan := make(chan hotstuff.Event)
+	eventChan := make(chan api.Event)
 	pacer.SubscribeProtocolEvents(eventChan)
 
 	return bc, p, config, eventChan

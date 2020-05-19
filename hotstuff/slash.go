@@ -1,5 +1,7 @@
 package hotstuff
 
+import "github.com/gagarinchain/network/common/api"
+
 //Implementations of slashing should be specific to different crypto's
 type Slashing interface {
 }
@@ -21,10 +23,10 @@ type Slashing interface {
 //15. QC signature is valid
 
 type DoubleVoteEquivocation struct {
-	firstVote  *Vote
-	secondVote *Vote
+	firstVote  api.Vote
+	secondVote api.Vote
 }
 
 type InvalidProposedBlock struct {
-	proposal *Proposal
+	proposal api.Proposal
 }

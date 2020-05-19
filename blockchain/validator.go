@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -147,7 +148,7 @@ func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("entity is nil")
 	}
 
-	block := entity.(*Block)
+	block := entity.(api.Block)
 
 	isValid, e := b.headerValidator.IsValid(block.Header())
 
@@ -205,7 +206,7 @@ func (b *HeaderValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("entity is nil")
 	}
 
-	header := entity.(*Header)
+	header := entity.(*HeaderImpl)
 
 	if header.Height() < 0 {
 		return false, errors.New("header height is negative")
@@ -234,7 +235,7 @@ func (b *HeaderValidator) IsValid(entity interface{}) (bool, error) {
 		return true, nil
 	}
 
-	hash := HashHeader(*header)
+	hash := HashHeader(header)
 	if header.Hash() != hash {
 		log.Debugf("calculated %v, received %v", hash, header.Hash())
 		return false, errors.New("block hash is not valid")

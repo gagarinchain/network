@@ -6,6 +6,7 @@ import (
 	bch "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/tx"
@@ -253,31 +254,31 @@ func TestOnCommit(t *testing.T) {
 	assert.Nil(t, o0)
 
 	assert.NotNil(t, o1)
-	b1 := o1.([]*bch.Block)
+	b1 := o1.([]api.Block)
 	assert.Equal(t, 1, len(b1))
 	assert.Equal(t, block10, b1[0])
 
 	assert.NotNil(t, o2)
-	b2 := o2.([]*bch.Block)
+	b2 := o2.([]api.Block)
 	assert.Equal(t, 2, len(b2))
 	assert.Equal(t, block20, b2[0])
 	assert.Equal(t, block22, b2[1])
 
 	assert.NotNil(t, o3)
-	b3 := o3.([]*bch.Block)
+	b3 := o3.([]api.Block)
 	assert.Equal(t, 2, len(b3))
 	assert.Equal(t, block30, b3[0])
 	assert.Equal(t, block32, b3[1])
 
 	assert.NotNil(t, o4)
-	b4 := o4.([]*bch.Block)
+	b4 := o4.([]api.Block)
 	assert.Equal(t, 3, len(b4))
 	assert.Equal(t, block40, b4[0])
 	assert.Equal(t, block43, b4[1])
 	assert.Equal(t, block44, b4[2])
 
 	assert.NotNil(t, o5)
-	b5 := o5.([]*bch.Block)
+	b5 := o5.([]api.Block)
 	assert.Equal(t, 1, len(b5))
 	assert.Equal(t, block52, b5[0])
 
@@ -342,7 +343,7 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 
 	assert.Equal(t, genesisBlock, bc2.GetGenesisBlock())
 	assert.Equal(t, block34, bc2.GetTopCommittedBlock())
-	assert.Equal(t, []*bch.Block{block45, block47}, bc2.GetBlockByHeight(4))
+	assert.Equal(t, []api.Block{block45, block47}, bc2.GetBlockByHeight(4))
 	assert.Equal(t, block56, bc2.GetHead())
 
 }

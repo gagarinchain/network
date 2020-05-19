@@ -6,6 +6,7 @@ import (
 	"errors"
 	gagarinchain "github.com/gagarinchain/network"
 	com "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -20,8 +21,8 @@ var (
 )
 
 type BlockService interface {
-	RequestHeaders(ctx context.Context, low int32, high int32, peer *com.Peer) (resp []*Header, e error)
-	RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp *Block, e error)
+	RequestHeaders(ctx context.Context, low int32, high int32, peer *com.Peer) (resp []api.Header, e error)
+	RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp api.Block, e error)
 }
 
 type BlockServiceImpl struct {
@@ -36,7 +37,7 @@ func NewBlockService(srv network.Service, validator gagarinchain.Validator, head
 }
 
 // return headers of blocks for boundaries (low, high]
-func (s *BlockServiceImpl) RequestHeaders(ctx context.Context, low int32, high int32, peer *com.Peer) (resp []*Header, e error) {
+func (s *BlockServiceImpl) RequestHeaders(ctx context.Context, low int32, high int32, peer *com.Peer) (resp []api.Header, e error) {
 	headers, e := s.requestHeaders(ctx, low, high, peer)
 
 	if e == nil {
@@ -60,7 +61,7 @@ func (s *BlockServiceImpl) RequestHeaders(ctx context.Context, low int32, high i
 	return nil, NotFound
 }
 
-func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp *Block, e error) {
+func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp api.Block, e error) {
 	block, e := s.requestBlock(ctx, hash, peer)
 	if e == nil {
 		return block, nil
@@ -81,7 +82,7 @@ func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, p
 // Synchronously query peers for block with exact hash threshold times until we get block or reach the threshold
 // We know nothing about block structures and make simple block validations
 //TODO add ban scores for specific error handling
-func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp *Block, e error) {
+func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, peer *com.Peer) (resp api.Block, e error) {
 	payload := &pb.BlockRequestPayload{Hash: hash.Bytes()}
 
 	any, e := ptypes.MarshalAny(payload)
@@ -147,7 +148,7 @@ func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, p
 	return resp, nil
 }
 
-func (s *BlockServiceImpl) requestHeaders(ctx context.Context, low int32, high int32, peer *com.Peer) (resp []*Header, e error) {
+func (s *BlockServiceImpl) requestHeaders(ctx context.Context, low int32, high int32, peer *com.Peer) (resp []api.Header, e error) {
 	payload := &pb.HeadersRequest{Low: low, High: high}
 
 	any, e := ptypes.MarshalAny(payload)
@@ -195,7 +196,7 @@ func (s *BlockServiceImpl) requestHeaders(ctx context.Context, low int32, high i
 	for _, headerM := range rp.GetHeaders().Headers {
 		header := CreateBlockHeaderFromMessage(headerM)
 
-		log.Infof("Received new header with hash %v", header.hash.Hex())
+		log.Infof("Received new header with hash %v", header.Hash().Hex())
 		if !s.headerValidator.Supported(pb.Message_HEADERS_RESPONSE) {
 			panic("bad header validator")
 		}

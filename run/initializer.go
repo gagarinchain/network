@@ -6,6 +6,7 @@ import (
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/message"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/hotstuff"
@@ -131,7 +132,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	}
 }
 
-func getInitialState(storage net.Storage, bc blockchain.Blockchain) *hotstuff.InitialState {
+func getInitialState(storage net.Storage, bc api.Blockchain) *hotstuff.InitialState {
 	initialState := &hotstuff.InitialState{
 		View:              int32(0),
 		Epoch:             int32(-1),
@@ -223,23 +224,23 @@ END_BP:
 	c.pacer.Bootstrap(rootCtx, c.hotStuff)
 	c.pacer.SubscribeEvents(
 		rootCtx,
-		func(event hotstuff.Event) {
-			if event.T == hotstuff.EpochStarted {
+		func(event api.Event) {
+			if event.T == api.EpochStarted {
 				epoch := event.Payload.(int32)
 				vMsg := &pb.EpochStartedPayload{Epoch: epoch}
 				ev := &common.Event{T: common.EpochStarted, Payload: vMsg}
 				c.eventBuss.FireEvent(ev)
 			}
-			if event.T == hotstuff.ChangedView {
+			if event.T == api.ChangedView {
 				view := event.Payload.(int32)
 				vMsg := &pb.ViewChangedPayload{View: view}
 				ev := &common.Event{T: common.ViewChanged, Payload: vMsg}
 				c.eventBuss.FireEvent(ev)
 			}
 		},
-		map[hotstuff.EventType]interface{}{
-			hotstuff.EpochStarted: struct{}{},
-			hotstuff.ChangedView:  struct{}{},
+		map[api.EventType]interface{}{
+			api.EpochStarted: struct{}{},
+			api.ChangedView:  struct{}{},
 		})
 	go func() {
 		for {

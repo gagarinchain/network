@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/protobuff"
 )
 
@@ -59,11 +60,11 @@ func (p *ProposalValidator) IsValid(entity interface{}) (bool, error) {
 	if entity == nil {
 		return false, errors.New("entity is nil")
 	}
-	proposal := entity.(*Proposal)
+	proposal := entity.(api.Proposal)
 
 	var contains bool
 	for _, c := range p.committee {
-		if c.GetAddress() == proposal.Sender.GetAddress() {
+		if c.GetAddress() == proposal.Sender().GetAddress() {
 			contains = true
 			break
 		}
@@ -72,13 +73,13 @@ func (p *ProposalValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("signature is not valid, unknown peer")
 	}
 
-	b, e := proposal.HQC.IsValid(proposal.HQC.GetHash(), common.PeersToPubs(p.committee))
+	b, e := proposal.HQC().IsValid(proposal.HQC().GetHash(), common.PeersToPubs(p.committee))
 	if !b || e != nil {
 		return false, e
 	}
 
-	hash := blockchain.HashHeader(*proposal.NewBlock.Header())
-	if proposal.NewBlock.Header().Hash() != hash {
+	hash := blockchain.HashHeader(proposal.NewBlock().Header())
+	if proposal.NewBlock().Header().Hash() != hash {
 		return false, errors.New("block hash is not valid")
 	}
 
@@ -108,11 +109,11 @@ func (p *VoteValidator) IsValid(entity interface{}) (bool, error) {
 	if entity == nil {
 		return false, errors.New("entity is nil")
 	}
-	vote := entity.(*Vote)
+	vote := entity.(api.Vote)
 
 	var contains bool
 	for _, c := range p.committee {
-		if c.GetAddress() == vote.Sender.GetAddress() {
+		if c.GetAddress() == vote.Sender().GetAddress() {
 			contains = true
 			break
 		}
@@ -121,7 +122,7 @@ func (p *VoteValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("signature is not valid, unknown peer")
 	}
 
-	b, e := vote.HQC.IsValid(vote.HQC.GetHash(), common.PeersToPubs(p.committee))
+	b, e := vote.HQC().IsValid(vote.HQC().GetHash(), common.PeersToPubs(p.committee))
 	if !b || e != nil {
 		return false, e
 	}

@@ -5,34 +5,51 @@ import (
 	"fmt"
 	bc "github.com/gagarinchain/network/blockchain"
 	comm "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/golang/protobuf/ptypes"
 )
 
-type Proposal struct {
-	Sender   *comm.Peer
-	NewBlock *bc.Block
+type ProposalImpl struct {
+	sender   *comm.Peer
+	newBlock api.Block
 	//We should not allow to change header if we want signature to be consistent with block
-	Signature *crypto.Signature
-	HQC       *bc.QuorumCertificate
+	signature *crypto.Signature
+	hqc       api.QuorumCertificate
 }
 
-func (p *Proposal) GetMessage() *pb.ProposalPayload {
-	return &pb.ProposalPayload{Cert: p.HQC.GetMessage(), Block: p.NewBlock.GetMessage(), Signature: p.Signature.ToProto()}
+func (p *ProposalImpl) Sender() *comm.Peer {
+	return p.sender
+}
+
+func (p *ProposalImpl) NewBlock() api.Block {
+	return p.newBlock
+}
+
+func (p *ProposalImpl) Signature() *crypto.Signature {
+	return p.signature
+}
+
+func (p *ProposalImpl) HQC() api.QuorumCertificate {
+	return p.hqc
+}
+
+func (p *ProposalImpl) GetMessage() *pb.ProposalPayload {
+	return &pb.ProposalPayload{Cert: p.HQC().GetMessage(), Block: p.NewBlock().GetMessage(), Signature: p.Signature().ToProto()}
 
 }
 
-func CreateProposal(newBlock *bc.Block, hqc *bc.QuorumCertificate, peer *comm.Peer) *Proposal {
-	return &Proposal{Sender: peer, NewBlock: newBlock, HQC: hqc}
+func CreateProposal(newBlock api.Block, hqc api.QuorumCertificate, peer *comm.Peer) api.Proposal {
+	return &ProposalImpl{sender: peer, newBlock: newBlock, hqc: hqc}
 }
 
-func (p *Proposal) Sign(key *crypto.PrivateKey) {
-	p.Signature = p.NewBlock.Header().Sign(key)
+func (p *ProposalImpl) Sign(key *crypto.PrivateKey) {
+	p.signature = p.NewBlock().Header().Sign(key)
 }
 
-func CreateProposalFromMessage(msg *msg.Message) (*Proposal, error) {
+func CreateProposalFromMessage(msg *msg.Message) (api.Proposal, error) {
 	if msg.Type != pb.Message_PROPOSAL {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_PROPOSAL.String(), msg.Type))
@@ -45,7 +62,7 @@ func CreateProposalFromMessage(msg *msg.Message) (*Proposal, error) {
 	qc := bc.CreateQuorumCertificateFromMessage(pp.Cert)
 
 	sign := crypto.SignatureFromProto(pp.Signature)
-	res := crypto.Verify(bc.HashHeader(*block.Header()).Bytes(), sign)
+	res := crypto.Verify(bc.HashHeader(block.Header()).Bytes(), sign)
 	if !res {
 		return nil, errors.New("bad signature")
 	}
