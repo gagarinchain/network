@@ -10,4 +10,4 @@ Network:
 Storage:
   Dir: /var/folders/m7/c56_pk2n0dj4xbplcndc9d140000gn/T/
 Static:
-  Dir: /app/ext
+  Dir: /Users/dabasov/Projects/gagarin/network/static

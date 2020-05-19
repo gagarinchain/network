@@ -33,9 +33,9 @@ func (p *GossipDhtPubSub) SubscribeAndProvide(ctx context.Context, topic string)
 		return nil, err
 	}
 
-	id, e := (&TopicCid{topic}).CID()
+	id, e := NewTopicCid(topic).CID()
 	if e != nil {
-		return nil, err
+		return nil, e
 	}
 
 	go p.Routing.Provide(ctx, *id, true)

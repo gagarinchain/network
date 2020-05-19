@@ -24,7 +24,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common/eth"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/common/math"
@@ -261,8 +260,6 @@ func VerifyAggregate(msg []byte, pubs []*PublicKey, s *SignatureAggregate) (res 
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, 0)
 
-	spew.Dump(pubs)
-	spew.Dump(common.BytesToHash(msg))
 	return g1pubs.VerifyWithDomain(bls12_381.ToBytes32(msg), aggregatePublicKey, s.aggregate, bls12_381.ToBytes8(b))
 }
 

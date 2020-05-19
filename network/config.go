@@ -3,6 +3,7 @@ package network
 import (
 	"github.com/gagarinchain/network/common"
 	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/multiformats/go-multiaddr"
 )
 
 // NodeConfig contains basic configuration information that we'll need to
@@ -21,6 +22,9 @@ type NodeConfig struct {
 
 	// DataDir is the path to a directory to store node data.
 	DataDir string
+
+	//external address outside NAT
+	ExternalMultiaddr multiaddr.Multiaddr
 
 	Committee []*common.Peer
 }

@@ -3,22 +3,22 @@
 		{
 			"addr": "0xDd9811Cfc24aB8d56036A8ecA90C7B8C75e35950",
 			"pub": "8d00d7cea8f1f6edc961fe2867ffb94a1e78ef8b8eb416d6f5b7b3f6dd9811cfc24ab8d56036a8eca90c7b8c75e35950",
-			"MultiAddress": "/ip4/172.18.0.10/tcp/9080/p2p/16Uiu2HAmGgeX9Sr75ofG4rQbUhRiUH2AuKii5QCdD9h8NT83afo4"
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9080/p2p/16Uiu2HAmGgeX9Sr75ofG4rQbUhRiUH2AuKii5QCdD9h8NT83afo4"
 		},
 		{
 			"addr": "0xf3AA514423aE2c6f66497D69f2fc899f0ad25b00",
 			"pub": "90a33b153c8fe5c82514f4ba10d00e8df33683a61bf4a02a5a1c342af3aa514423ae2c6f66497d69f2fc899f0ad25b00",
-			"MultiAddress": "/ip4/172.18.0.11/tcp/9080/p2p/16Uiu2HAmRfSdSFGboNKPYwcWEPXWtnoanBLMVeY6Ak6A31uC5BVm"
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9081/p2p/16Uiu2HAmRfSdSFGboNKPYwcWEPXWtnoanBLMVeY6Ak6A31uC5BVm"
 		},
 		{
 			"addr": "0x41E46d84c206007982F93C0874152B8cF6127985",
 			"pub": "8b5585583daa5237fb5e2dd5dc8fceb737a2e2499aea2a194259648841e46d84c206007982f93c0874152b8cf6127985",
-			"MultiAddress": "/ip4/172.18.0.12/tcp/9080/p2p/16Uiu2HAmTXCmPX1jpwGMXU3oNHrV8Q6RWVgDegSZiuehG2hwdxdC"
+			"MultiAddress": "/ip4/127.0.0.1/tcp/9082/p2p/16Uiu2HAmTXCmPX1jpwGMXU3oNHrV8Q6RWVgDegSZiuehG2hwdxdC"
 		},
 		{
 			"addr": "0x95AC9774Cf32AdB66f76726502Fc0C223bCE13e2",
 			"pub": "8359c0099be3962f682d65b7ea8cb5836dc907f273f3b93aa450dff695ac9774cf32adb66f76726502fc0c223bce13e2",
-			"MultiAddress": "/ip4/172.18.0.13/tcp/9080/p2p/16Uiu2HAmLXFtnJEBMH8afwUGUfyEzYuebr4VyuXzEkYCU1o3GzJk"
+			"MultiAddress": "/ip4/172.168.1.1/tcp/9083/p2p/16Uiu2HAmLXFtnJEBMH8afwUGUfyEzYuebr4VyuXzEkYCU1o3GzJk"
 		},
 		{
 			"addr": "0x9448114Ad6fb2731a38c1322480067E7F700FA38",

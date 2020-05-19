@@ -1,7 +1,6 @@
 package state
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -160,9 +159,7 @@ func SnapshotFromProto(bytes []byte) (snap *Snapshot, e error) {
 		trie:     merkleTrie,
 	}
 
-	spew.Dump(common.BytesToHash(m.Hash))
 	for _, e := range m.GetEntries() {
-		spew.Dump(common.BytesToHash(e.GetAddress()))
 		merkleTrie.Add(big.NewInt(0).SetBytes(e.GetAddress()), e.Account)
 	}
 

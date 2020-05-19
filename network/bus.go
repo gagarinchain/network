@@ -163,7 +163,7 @@ func (n *GagarinEventBus) notifyPeer(req *common.Event, stream network.Stream) e
 			Type:    pb.Event_EPOCH_STARTED,
 			Payload: any,
 		}
-	case common.ChangedView:
+	case common.ViewChanged:
 		payload := req.Payload.(*pb.ViewChangedPayload)
 		any, e := ptypes.MarshalAny(payload)
 		if e != nil {
@@ -183,6 +183,17 @@ func (n *GagarinEventBus) notifyPeer(req *common.Event, stream network.Stream) e
 			Type:    pb.Event_COMMITTED,
 			Payload: any,
 		}
+	case common.BalanceUpdated:
+		payload := req.Payload.(*pb.AccountUpdatedPayload)
+		any, e := ptypes.MarshalAny(payload)
+		if e != nil {
+			log.Error(e)
+		}
+		event = &pb.Event{
+			Type:    pb.Event_ACCOUNT,
+			Payload: any,
+		}
+
 	}
 
 	if e := writer.WriteMsg(event); e != nil {

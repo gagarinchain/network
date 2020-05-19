@@ -40,10 +40,12 @@ func (d *RequestHandler) HandleAccountRequest(req *pb.Request) *pb.Event {
 	}
 	//proof := r.Proof(common2.BytesToAddress(payload.Address))
 	any, e := ptypes.MarshalAny(&pb.AccountResponsePayload{
-		Address: payload.Address,
-		Block:   hash.Bytes(),
-		Nonce:   acc.Nonce(),
-		Value:   acc.Balance().Uint64(),
+		Account: &pb.AccountE{
+			Address: payload.Address,
+			Block:   hash.Bytes(),
+			Nonce:   acc.Nonce(),
+			Value:   acc.Balance().Uint64(),
+		},
 	})
 	if e != nil {
 		log.Error("can't parse", e)

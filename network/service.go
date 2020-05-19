@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -43,10 +42,12 @@ type Service interface {
 type TopicListener interface {
 	Listen(ctx context.Context, sub *pubsub.Subscription)
 	Subscribe(ctx context.Context) (*pubsub.Subscription, error)
+	Provide(ctx context.Context) error
 }
 
-const Libp2pProtocol protocol.ID = "/Libp2pProtocol/1.0.0"
-const GagarinProtocol protocol.ID = "/gagarin/1.0.0"
+const BlockchainProtocol protocol.ID = "/gagarin/bc/1.0.0"
+const GagarinProtocol protocol.ID = "/gagarin/ext/1.0.0"
+const TransactionProtocol protocol.ID = "/gagarin/tx/1.0.0"
 const HotstuffTopic string = "/hotstuff"
 const TransactionTopic string = "/tx"
 
@@ -83,13 +84,14 @@ func CreateService(ctx context.Context, node *Node, dispatcher msg.Dispatcher, t
 		bus:              bus,
 	}
 
-	impl.node.Host.SetStreamHandler(Libp2pProtocol, impl.handleNewStreamWithContext(ctx))
+	impl.node.Host.SetStreamHandler(BlockchainProtocol, impl.handleNewStreamWithContext(ctx, dispatcher))
+	impl.node.Host.SetStreamHandler(TransactionProtocol, impl.handleNewStreamWithContext(ctx, txDispatcher))
 	impl.node.Host.SetStreamHandler(GagarinProtocol, impl.handleGagarinWithContext(ctx))
 	return impl
 }
 
 func (s *ServiceImpl) SendMessage(ctx context.Context, peer *common.Peer, m *msg.Message) {
-	resp, err := s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, m, false)
+	resp, err := s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, m, BlockchainProtocol, false)
 	select {
 	case <-resp:
 		log.Debugf("sent successfully to %v", peer.GetAddress().Hex())
@@ -106,7 +108,6 @@ func (s *ServiceImpl) SendResponse(ctx context.Context, m *msg.Message) {
 		wr := ctxio.NewWriter(timeout, stream)
 
 		writer := protoio.NewDelimitedWriter(wr)
-		spew.Dump(m)
 		if e := writer.WriteMsg(m.Message); e != nil {
 			log.Error("Response not sent", e)
 			return
@@ -116,10 +117,10 @@ func (s *ServiceImpl) SendResponse(ctx context.Context, m *msg.Message) {
 }
 
 func (s *ServiceImpl) SendRequest(ctx context.Context, peer *common.Peer, req *msg.Message) (resp chan *msg.Message, err chan error) {
-	return s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, req, true)
+	return s.sendRequestAsync(ctx, peer.GetPeerInfo().ID, req, BlockchainProtocol, true)
 }
 
-func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *msg.Message, withResponse bool) (resp chan *msg.Message, err chan error) {
+func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *msg.Message, protocol protocol.ID, withResponse bool) (resp chan *msg.Message, err chan error) {
 	resp = make(chan *msg.Message)
 	err = make(chan error)
 
@@ -136,7 +137,7 @@ func (s *ServiceImpl) sendRequestAsync(ctx context.Context, pid peer.ID, req *ms
 
 	timeout, _ := context.WithTimeout(ctx, s.connectionTimeout)
 	go func(ctx context.Context, pid peer.ID, m *msg.Message, withResponse bool) {
-		message, e := s.sendRequestSync(ctx, pid, m, withResponse)
+		message, e := s.sendRequestSync(ctx, pid, m, protocol, withResponse)
 		if e != nil {
 			err <- e
 		} else if !withResponse {
@@ -154,12 +155,12 @@ func (s *ServiceImpl) SendRequestToRandomPeer(ctx context.Context, req *msg.Mess
 	connected := s.node.Host.Network().Peers()
 	pid := randomSubsetOfIds(connected, 1)[0]
 
-	return s.sendRequestAsync(ctx, pid, req, true)
+	return s.sendRequestAsync(ctx, pid, req, BlockchainProtocol, true)
 
 }
 
-func (s *ServiceImpl) sendRequestSync(ctx context.Context, pid peer.ID, req *msg.Message, withResponse bool) (resp *msg.Message, err error) {
-	stream, e := s.node.Host.NewStream(ctx, pid, Libp2pProtocol)
+func (s *ServiceImpl) sendRequestSync(ctx context.Context, pid peer.ID, req *msg.Message, protocol protocol.ID, withResponse bool) (resp *msg.Message, err error) {
+	stream, e := s.node.Host.NewStream(ctx, pid, protocol)
 	if e != nil {
 		return nil, e
 	}
@@ -202,7 +203,22 @@ func (s *ServiceImpl) Broadcast(ctx context.Context, msg *msg.Message) {
 }
 
 func (s *ServiceImpl) BroadcastTransaction(ctx context.Context, msg *msg.Message) {
-	s.broadcast(ctx, TransactionTopic, msg)
+	connected := s.node.Host.Network().Peers()
+	size := 0
+	if len(connected) > 3 {
+		size = 3
+	} else {
+		size = len(connected)
+	}
+
+	peers := randomSubsetOfIds(connected, size)
+
+	for _, p := range peers {
+		_, err := s.sendRequestSync(ctx, p, msg, TransactionProtocol, false)
+		if err != nil {
+			log.Errorf("Can't send message to %v peer", p.Pretty(), err)
+		}
+	}
 }
 
 func (s *ServiceImpl) broadcast(ctx context.Context, topic string, msg *msg.Message) {
@@ -218,37 +234,47 @@ func (s *ServiceImpl) broadcast(ctx context.Context, topic string, msg *msg.Mess
 	}
 }
 
-func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream network.Stream) {
-	cr := ctxio.NewReader(ctx, stream)
-	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)
-
-	m := &pb.Message{}
-	err := r.ReadMsg(m)
-	if err != nil {
-		if err != io.EOF {
-			if err := stream.Reset(); err != nil {
-				log.Error("error resetting stream", err)
-			}
-			log.Infof("error reading message from %s: %s", stream.Conn().RemotePeer(), err)
-		} else {
-			// Just be nice. They probably won't read this
-			// but it doesn't hurt to send it.
-			if err := stream.Close(); err != nil {
-				log.Error("error closing stream", err)
+func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream network.Stream, d msg.Dispatcher) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("panic occurred: ", r)
+			if e := stream.Reset(); e != nil {
+				log.Error("failed reset stream ")
 			}
 		}
-		return
-	}
+	}()
+	log.Infof("Handling %v protocol", stream.Protocol())
+	cr := ctxio.NewReader(ctx, stream)
+	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)
+	for {
+		m := &pb.Message{}
+		err := r.ReadMsg(m)
+		if err != nil {
+			if err != io.EOF {
+				if err := stream.Reset(); err != nil {
+					log.Error("error resetting stream", err)
+				}
+				log.Infof("error reading message from %s: %s", stream.Conn().RemotePeer(), err)
+			} else {
+				// Just be nice. They probably won't read this
+				// but it doesn't hurt to send it.
+				if err := stream.Close(); err != nil {
+					log.Error("error closing stream", err)
+				}
+			}
+			return
+		}
 
-	info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
-	p := common.CreatePeer(nil, nil, &info)
-	log.Infof("Received Direct [%v] message from [%v]", m.Type.String(), p.GetPeerInfo().ID.Pretty())
-	s.dispatcher.Dispatch(msg.CreateMessageFromProto(m, p, stream))
+		info := s.node.Host.Peerstore().PeerInfo(stream.Conn().RemotePeer())
+		p := common.CreatePeer(nil, nil, &info)
+		log.Infof("Received Direct [%v] message from [%v]", m.Type.String(), p.GetPeerInfo().ID.Pretty())
+		d.Dispatch(msg.CreateMessageFromProto(m, p, stream))
+	}
 }
 
-func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context) network.StreamHandler {
+func (s *ServiceImpl) handleNewStreamWithContext(ctx context.Context, d msg.Dispatcher) network.StreamHandler {
 	return func(stream network.Stream) {
-		s.handleNewMessage(ctx, stream)
+		s.handleNewMessage(ctx, stream, d)
 	}
 }
 func (s *ServiceImpl) handleGagarinWithContext(ctx context.Context) network.StreamHandler {
@@ -268,7 +294,7 @@ func (s *ServiceImpl) Bootstrap(ctx context.Context, cfg *BootstrapConfig) (chan
 			return
 		}
 
-		tx, e := s.txListener.Subscribe(ctx)
+		e = s.txListener.Provide(ctx)
 		if e != nil {
 			errChan <- e
 			return
@@ -277,9 +303,11 @@ func (s *ServiceImpl) Bootstrap(ctx context.Context, cfg *BootstrapConfig) (chan
 		go func() {
 			s.hotstuffListener.Listen(ctx, p)
 		}()
-		go func() {
-			s.txListener.Listen(ctx, tx)
-		}()
+
+		//currently comment tx topic listening
+		//go func() {
+		//	s.txListener.Listen(ctx, tx)
+		//}()
 
 		statusChan <- 1
 	}()
@@ -301,6 +329,15 @@ func randomSubsetOfIds(ids []peer.ID, max int) (out []peer.ID) {
 func (l *TopicListenerImpl) Subscribe(ctx context.Context) (*pubsub.Subscription, error) {
 	// Subscribe to the topic
 	return l.node.PubSub.SubscribeAndProvide(ctx, l.topicName)
+}
+
+func (l *TopicListenerImpl) Provide(ctx context.Context) error {
+	id, e := NewTopicCid(l.topicName).CID()
+	if e != nil {
+		return e
+	}
+
+	return l.node.PubSub.Routing.Provide(ctx, *id, true)
 }
 
 func (l *TopicListenerImpl) Listen(ctx context.Context, sub *pubsub.Subscription) {

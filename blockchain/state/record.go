@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	gagarinchain "github.com/gagarinchain/network"
+	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/trie/sparse"
@@ -40,17 +40,18 @@ func (p *RecordPersister) Hashes() (hashes []common.Hash) {
 	return hashes
 }
 
+//record stores information about version tree structure and provides base account processing logic
 type Record struct {
-	snap     *Snapshot
-	pending  *Record
-	parent   *Record
-	siblings []*Record
-
+	snap      *Snapshot
+	pending   *Record
+	parent    *Record
+	siblings  []*Record
 	forUpdate map[common.Address]*Account
+	bus       cmn.EventBus
 }
 
-func NewRecord(snap *Snapshot, parent *Record) *Record {
-	return &Record{snap: snap, parent: parent, forUpdate: make(map[common.Address]*Account)}
+func NewRecord(snap *Snapshot, parent *Record, bus cmn.EventBus) *Record {
+	return &Record{snap: snap, parent: parent, forUpdate: make(map[common.Address]*Account), bus: bus}
 }
 
 func (r *Record) Pending() *Record {
@@ -66,7 +67,7 @@ func (r *Record) NewPendingRecord(proposer common.Address) *Record {
 		trie:     sparse.NewSMT(256),
 		proposer: proposer,
 	}
-	pending := NewRecord(s, r)
+	pending := NewRecord(s, r, r.bus)
 	r.SetPending(pending)
 
 	return pending
@@ -85,6 +86,8 @@ func (r *Record) Get(address common.Address) (acc *Account, found bool) {
 	return acc, found
 }
 
+//ForUpdate is used to protect us from loading instance of account several times from db. This method helps serialize updates.
+// We have to load call this method every time we want to change account, otherwise we can erase change during data duplication
 func (r *Record) GetForUpdate(address common.Address) (acc *Account, found bool) {
 	acc, found = r.forUpdate[address]
 	if found {
@@ -104,9 +107,7 @@ func (r *Record) GetForUpdate(address common.Address) (acc *Account, found bool)
 func (r *Record) Update(address common.Address, account *Account) error {
 	forUpdate, found := r.forUpdate[address]
 	if found { //already taken for update
-		if forUpdate != account {
-			spew.Dump(forUpdate)
-			spew.Dump(account)
+		if forUpdate != account { //there is another copy of this record
 			return errors.New("can't update, value is already taken")
 		}
 		r.lookupAccountAndAddNodes(address)
@@ -118,6 +119,29 @@ func (r *Record) Update(address common.Address, account *Account) error {
 		r.snap.Put(address, account)
 	}
 
+	var old *pb.AccountE
+	if found {
+		old = &pb.AccountE{
+			Address: address.Bytes(),
+			//hash can be nil, possibly we have no block hash yet6 and it's always pending account snapshot
+			Block: r.snap.hash.Bytes(),
+			Nonce: forUpdate.Nonce(),
+			Value: forUpdate.Balance().Uint64(),
+		}
+	}
+	r.bus.FireEvent(&cmn.Event{
+		T: cmn.BalanceUpdated,
+		Payload: &pb.AccountUpdatedPayload{
+			Old: old,
+			New: &pb.AccountE{
+				Address: address.Bytes(),
+				//hash can be nil, possibly we have no block hash yet6 and it's always pending account snapshot
+				Block: r.snap.hash.Bytes(),
+				Nonce: account.Nonce(),
+				Value: account.Balance().Uint64(),
+			},
+		},
+	})
 	return nil
 }
 
@@ -285,7 +309,9 @@ func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
 			voter.balance.Add(voter.balance, fraction)
 			receiver.balance.Sub(receiver.balance, fraction)
 
-			r.Update(v, voter)
+			if err := r.Update(v, voter); err != nil {
+				return err
+			}
 		}
 
 		if receiver.balance.Cmp(big.NewInt(0)) > 0 {
@@ -294,14 +320,22 @@ func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
 
 		}
 
-		r.Update(receiver.origin, origin)
+		if err := r.Update(receiver.origin, origin); err != nil {
+			return err
+		}
 
 	}
 
 	//TODO optimize it with batching several db updates and executing atomic
-	r.Update(to, receiver)
-	r.Update(t.From(), sender)
-	r.Update(r.snap.proposer, proposer)
+	if err := r.Update(to, receiver); err != nil {
+		return err
+	}
+	if err := r.Update(t.From(), sender); err != nil {
+		return err
+	}
+	if err := r.Update(r.snap.proposer, proposer); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -351,13 +385,13 @@ func GetProto(bytes []byte) (*pb.Record, error) {
 }
 
 //returns record without parent and siblings
-func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot) (*Record, error) {
+func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot, bus cmn.EventBus) (*Record, error) {
 	hash := common.BytesToHash(recPb.Snap)
 	s, f := snapshots[hash]
 	if !f {
 		return nil, fmt.Errorf("snapshot %v is not found in db", hash.Hex())
 	}
-	return NewRecord(s, nil), nil
+	return NewRecord(s, nil, bus), nil
 }
 
 func (r *Record) SetParentFromProto(recPb *pb.Record, records map[common.Hash]*Record) {

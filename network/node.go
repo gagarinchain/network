@@ -13,7 +13,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/routing"
 	"github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p-record"
 	"github.com/multiformats/go-multiaddr"
 	"path"
 )
@@ -52,6 +51,9 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip6/::/tcp/%d", config.Port)),
 		libp2p.Identity(config.PrivateKey),
 		libp2p.DisableRelay(),
+		libp2p.AddrsFactory(func(multiaddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+			return append(multiaddrs, config.ExternalMultiaddr)
+		}),
 		libp2p.DefaultSecurity,
 	}
 
@@ -70,14 +72,15 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 	}
 
 	// Create the DHT instance. It needs the Host and a datastore instance.
-	rt, err := dht.New(
-		context.Background(), peerHost,
+	options := []dht.Option{
 		dht.Datastore(dstore),
-		dht.ProtocolPrefix("/gagarin"),
-		dht.Validator(record.NamespacedValidator{
-			"pk": record.PublicKeyValidator{},
-		}),
-	)
+		dht.Mode(dht.ModeServer),
+	}
+
+	rt, err := dht.New(context.Background(), peerHost, options...)
+	if err != nil {
+		return nil, err
+	}
 
 	ps, err := pubsub.NewGossipSub(context.Background(), peerHost)
 	if err != nil {
@@ -116,9 +119,10 @@ func (n *Node) Bootstrap(ctx context.Context, cfg *BootstrapConfig) (statusChan 
 		c.MinPeerThreshold = cfg.MinPeerThreshold
 		c.ConnectionTimeout = cfg.ConnectionTimeout
 		c.Period = cfg.Period
+		c.RendezvousNs = cfg.RendezvousNs
 	}
 
-	chans, errChans := Bootstrap(ctx, n.Routing.(*dht.IpfsDHT), n.Host, c)
+	chans, errChans := Bootstrap(ctx, n.Host, n.Routing.(*dht.IpfsDHT), c)
 	return chans, errChans
 }
 

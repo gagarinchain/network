@@ -44,6 +44,14 @@ message AccountRequestPayload {
     bytes block = 2;
 }
 message AccountResponsePayload {
+    AccountE account = 1;
+}
+message AccountUpdatedPayload {
+    AccountE old = 1;
+    AccountE new = 2;
+}
+
+message AccountE {
     bytes address = 1;
     bytes block = 2;
     uint64 nonce = 3;

@@ -214,7 +214,6 @@ func (tx *Transaction) GetMessage() *pb.Transaction {
 
 //internal transaction
 func (tx *Transaction) ToStorageProto() *pb.TransactionS {
-	spew.Dump(tx)
 	var sign *pb.SignatureS
 	if !tx.confirmed {
 		sign = tx.signature.ToStorageProto()
@@ -238,24 +237,32 @@ func Deserialize(tran []byte) (*Transaction, error) {
 		return nil, err
 	}
 
-	var signature *crypto.Signature
+	return CreateTransactionFromStorage(pbt)
+}
+
+func CreateTransactionFromStorage(msg *pb.TransactionS) (*Transaction, error) {
+	var sign *crypto.Signature
 	confirmed := true
-	if pbt.Signature != nil {
-		signature = crypto.SignatureFromStorageProto(pbt.Signature)
+	from := common.BytesToAddress(msg.GetFrom())
+	if msg.GetSignature() != nil {
+		sign = crypto.SignatureFromStorageProto(msg.GetSignature())
 		confirmed = false
 	}
-	return &Transaction{
-		from:      common.BytesToAddress(pbt.From),
-		txType:    Type(pbt.Type),
-		hash:      common.BytesToHash(pbt.Hash),
-		value:     big.NewInt(pbt.Value),
-		fee:       big.NewInt(pbt.Fee),
-		signature: signature,
-		nonce:     pbt.Nonce,
-		to:        common.BytesToAddress(pbt.To),
-		data:      pbt.Data,
-		confirmed: confirmed,
-	}, nil
+
+	txType := Type(msg.Type)
+
+	tx := CreateTransaction(txType,
+		common.BytesToAddress(msg.GetTo()),
+		from,
+		msg.GetNonce(),
+		big.NewInt(msg.GetValue()),
+		big.NewInt(msg.GetFee()),
+		msg.GetData(),
+	)
+
+	tx.signature = sign
+	tx.confirmed = confirmed
+	return tx, nil
 }
 
 func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*Transaction, error) {
@@ -295,9 +302,10 @@ func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*Trans
 		big.NewInt(msg.GetFee()),
 		msg.GetData(),
 	)
+	tx.confirmed = isConfirmed
 
 	if len(fromBytes) == 20 && !bytes.Equal(common.Address{}.Bytes(), fromBytes) {
-		from = common.BytesToAddress(msg.GetFrom())
+		tx.from = common.BytesToAddress(msg.GetFrom())
 	} else {
 		sign = crypto.SignatureFromProto(msg.GetSignature())
 		from = crypto.PubkeyToAddress(crypto.NewPublicKey(sign.Pub()))
@@ -314,29 +322,7 @@ func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*Trans
 	tx.signature = sign
 	return tx, nil
 }
-func CreateTransactionFromStorage(msg *pb.TransactionS) (*Transaction, error) {
-	var sign *crypto.Signature
-	from := common.BytesToAddress(msg.GetFrom())
-	if msg.GetSignature() != nil {
-		sign = crypto.SignatureFromStorageProto(msg.GetSignature())
-	}
 
-	txType := Type(msg.Type)
-
-	tx := CreateTransaction(txType,
-		common.BytesToAddress(msg.GetTo()),
-		from,
-		msg.GetNonce(),
-		big.NewInt(msg.GetValue()),
-		big.NewInt(msg.GetFee()),
-		msg.GetData(),
-	)
-
-	tx.signature = sign
-	return tx, nil
-}
-
-//For test purposes
 func (tx *Transaction) Sign(key *crypto.PrivateKey) {
 	hash := tx.Hash()
 	sig := crypto.Sign(hash.Bytes(), key)

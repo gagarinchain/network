@@ -141,10 +141,6 @@ func (pp *ProtocolPersister) GetHQC() (*bc.QuorumCertificate, error) {
 	return bc.CreateQuorumCertificateFromMessage(pbqc), nil
 }
 
-//func (p Protocol) String() string {
-//	return fmt.Sprintf("%b", b)
-//}
-
 func (p *Protocol) Vheight() int32 {
 	return p.vheight
 }
@@ -238,10 +234,6 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 		return errors.New("peer equivocated")
 	}
 
-	if err := p.blockchain.AddBlock(proposal.NewBlock); err != nil {
-		return err
-	}
-
 	if proposal.NewBlock.Header().Height() <= p.vheight {
 		log.Infof("Received proposal for block [%v] with lower or equal number [%v] from proposer [%v], skipping it",
 			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex())
@@ -253,6 +245,10 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal *Proposal) er
 	} else {
 		log.Infof("Received proposal for block [%v] with higher number [%v] from proposer [%v], voting for it",
 			proposal.NewBlock.Header().Hash().Hex(), proposal.NewBlock.Header().Height(), proposal.Sender.GetAddress().Hex())
+
+		if err := p.blockchain.AddBlock(proposal.NewBlock); err != nil {
+			return err
+		}
 
 		p.vheight = proposal.NewBlock.Header().Height()
 		if err := p.persister.PutVHeight(p.vheight); err != nil {

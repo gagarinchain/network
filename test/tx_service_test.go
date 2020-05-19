@@ -1,14 +1,12 @@
 package test
 
 import (
-	"bytes"
 	"context"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/tx"
-	protoio "github.com/gogo/protobuf/io"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/magiconair/properties/assert"
 
@@ -27,19 +25,19 @@ var (
 	someHex = "08071ade010a1f747970652e676f6f676c65617069732e636f6d2f5472616e73616374696f6e12ba011214a60c85be9c2b8980dbd3f82cf8ce19de12f3e8291801200128013294010a308d00d7cea8f1f6edc961fe2867ffb94a1e78ef8b8eb416d6f5b7b3f6dd9811cfc24ab8d56036a8eca90c7b8c75e35950126098fe474c09be8799dbe91d93fcf6d399418659ccebe31ee1120aa8f2cbd74c5dca3e23fee25dbce26b509df18b72676205f50a82975a951416319c8af0a2ee830c0969141e4d7fd937d9d26276197aafd7cd995e6ab9ff7bd9da3fc9814682503a037177654200"
 )
 
-func TestSomeMessageParse(t *testing.T) {
-	m := &pb.Message{}
-
-	bb := common.Hex2Bytes(someHex)
-	reader := bytes.NewReader(bb)
-	spew.Dump(bb)
-	dr := protoio.NewDelimitedReader(reader, 101024)
-
-	if err := dr.ReadMsg(m); err != nil {
-		t.Error(err)
-	}
-	spew.Dump(m)
-}
+//func TestSomeMessageParse(t *testing.T) {
+//	m := &pb.Message{}
+//
+//	bb := common.Hex2Bytes(someHex)
+//	reader := bytes.NewReader(bb)
+//	spew.Dump(bb)
+//	dr := protoio.NewDelimitedReader(reader, 101024)
+//
+//	if err := dr.ReadMsg(m); err != nil {
+//		t.Error(err)
+//	}
+//	spew.Dump(m)
+//}
 func TestTransactionReceive(t *testing.T) {
 
 	ctx := initContext(t)

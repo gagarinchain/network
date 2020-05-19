@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -167,11 +168,13 @@ func CreateBlockFromMessage(block *pb.Block) *Block {
 			log.Errorf("Bad transaction, %v", e)
 			return nil
 		}
+		spew.Dump(tpb)
+		spew.Dump(t)
 		txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
 	}
 
 	var signature *crypto.SignatureAggregate
-	if block.SignatureAggregate != nil {
+	if block.GetSignatureAggregate() != nil {
 		signature = crypto.AggregateFromProto(block.SignatureAggregate)
 	}
 	return &Block{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs}

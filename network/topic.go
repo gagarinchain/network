@@ -10,6 +10,10 @@ type TopicCid struct {
 	name string
 }
 
+func NewTopicCid(name string) *TopicCid {
+	return &TopicCid{name: name}
+}
+
 func (t *TopicCid) CID() (id *cid.Cid, e error) {
 	h := sha256.Sum256([]byte(t.name))
 	encoded, err := multihash.Encode(h[:], multihash.SHA2_256)

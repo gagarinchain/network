@@ -2,6 +2,7 @@ package state
 
 import (
 	"github.com/gagarinchain/network"
+	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/eth/common"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/op/go-logging"
@@ -24,13 +25,14 @@ type DBImpl struct {
 	snapPersister   *SnapshotPersister
 	recordPersister *RecordPersister
 	lock            sync.RWMutex
+	bus             cmn.EventBus
 }
 
-func NewStateDB(storage gagarinchain.Storage) DB {
+func NewStateDB(storage gagarinchain.Storage, bus cmn.EventBus) DB {
 	snapPersister := &SnapshotPersister{storage: storage}
 	recordPersister := &RecordPersister{storage: storage}
 	records := make(map[common.Hash]*Record)
-	db := &DBImpl{records: records, snapPersister: snapPersister, recordPersister: recordPersister, lock: sync.RWMutex{}}
+	db := &DBImpl{records: records, snapPersister: snapPersister, recordPersister: recordPersister, lock: sync.RWMutex{}, bus: bus}
 
 	db.lock.RLock()
 	defer db.lock.RUnlock()
@@ -66,7 +68,7 @@ func NewStateDB(storage gagarinchain.Storage) DB {
 			log.Error("Can't parse record", e)
 			continue
 		}
-		rec, e := FromProto(record, snaps)
+		rec, e := FromProto(record, snaps, bus)
 		if e != nil {
 			log.Error("Can't parse record", e)
 			continue
@@ -92,7 +94,7 @@ func (db *DBImpl) Init(hash common.Hash, seed *Snapshot) error {
 		seed = NewSnapshot(hash, common.Address{})
 	}
 
-	rec := NewRecord(seed, nil)
+	rec := NewRecord(seed, nil, db.bus)
 	db.records[hash] = rec
 	db.persist(rec, nil)
 	return nil

@@ -1282,7 +1282,8 @@ func initContext(t *testing.T) *TestContext {
 
 	pool := blockchain.NewTransactionPool()
 	seed := blockchain.SeedFromFile("../static/seed.json")
-	stateDb := state.NewStateDB(storage)
+
+	stateDb := state.NewStateDB(storage, &common.NullBus{})
 
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		Seed:           seed,

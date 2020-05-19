@@ -45,7 +45,7 @@ func (c *Context) Node() *network.Node {
 	return c.node
 }
 
-func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common.Peer, s *Settings) *Context {
+func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common.Peer, s *common.Settings) *Context {
 	validators := []net.Validator{
 		hotstuff.NewEpochStartValidator(committee),
 		hotstuff.NewProposalValidator(committee),
@@ -75,7 +75,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	txValidator := blockchain.NewTransactionValidator(committee)
 	headerValidator := &blockchain.HeaderValidator{}
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee, txValidator, headerValidator), headerValidator)
-	db := state.NewStateDB(storage)
+	db := state.NewStateDB(storage, bus)
 	seed := blockchain.SeedFromFile(path.Join(s.Static.Dir, "seed.json"))
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
 		Seed:           seed,
@@ -178,12 +178,13 @@ func filterSelf(peers []*common.Peer, self *common.Peer) (res []*common.Peer) {
 	return res
 }
 
-func (c *Context) Bootstrap(s *Settings) {
+func (c *Context) Bootstrap(s *common.Settings) {
 	rootCtx := context.Background()
 	config := &network.BootstrapConfig{
 		Period:            time.Duration(s.Network.ReconnectPeriod) * time.Millisecond,
 		MinPeerThreshold:  s.Network.MinPeerThreshold,
 		ConnectionTimeout: time.Duration(s.Network.ConnectionTimeout) * time.Millisecond,
+		RendezvousNs:      "/hotstuff",
 	}
 	statusChan, errChan := c.node.Bootstrap(rootCtx, config)
 
@@ -232,7 +233,7 @@ END_BP:
 			if event.T == hotstuff.ChangedView {
 				view := event.Payload.(int32)
 				vMsg := &pb.ViewChangedPayload{View: view}
-				ev := &common.Event{T: common.ChangedView, Payload: vMsg}
+				ev := &common.Event{T: common.ViewChanged, Payload: vMsg}
 				c.eventBuss.FireEvent(ev)
 			}
 		},
