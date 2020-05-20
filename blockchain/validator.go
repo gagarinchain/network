@@ -8,7 +8,6 @@ import (
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )
@@ -31,32 +30,32 @@ func NewTransactionValidator(committee []*cmn.Peer) *TransactionValidator {
 }
 
 func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
-	t := entity.(*tx.Transaction)
+	t := entity.(api.Transaction)
 	switch t.TxType() {
-	case tx.Payment:
+	case api.Payment:
 		if !v.validateValue(t) {
 			return false, ValueNotValid
 		}
 		if !v.validateFee(t) {
 			return false, FeeNotValid
 		}
-	case tx.Settlement:
+	case api.Settlement:
 		if !v.validateValue(t) {
 			return false, ValueNotValid
 		}
 
-		if t.Fee().Cmp(big.NewInt(tx.DefaultSettlementReward)) <= 0 {
+		if t.Fee().Cmp(big.NewInt(api.DefaultSettlementReward)) <= 0 {
 			return false, FeeNotValid
 		}
 
-		if !bytes.Equal(t.To().Bytes(), common.HexToAddress(tx.SettlementAddressHex).Bytes()) {
+		if !bytes.Equal(t.To().Bytes(), common.HexToAddress(api.SettlementAddressHex).Bytes()) {
 			return false, SettlementAddressNotValid
 		}
 		isValidOracle := true //make remote grpc
 		if !isValidOracle {
 			return false, OracleProofNotValid
 		}
-	case tx.Agreement:
+	case api.Agreement:
 		if t.Value().Cmp(big.NewInt(0)) != 0 {
 			return false, ValueNotValid
 		}
@@ -81,7 +80,7 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 		if !bytes.Equal(a.Bytes(), t.From().Bytes()) {
 			return false, CustodianProofNotValid
 		}
-	case tx.Proof:
+	case api.Proof:
 		if t.Value().Cmp(big.NewInt(0)) != 0 {
 			return false, ValueNotValid
 		}
@@ -116,11 +115,11 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 	return true, nil
 }
 
-func (v *TransactionValidator) validateFee(t *tx.Transaction) bool {
+func (v *TransactionValidator) validateFee(t api.Transaction) bool {
 	return t.Fee().Cmp(big.NewInt(0)) > 0
 }
 
-func (v *TransactionValidator) validateValue(t *tx.Transaction) bool {
+func (v *TransactionValidator) validateValue(t api.Transaction) bool {
 	return t.Value().Cmp(big.NewInt(0)) > 0
 }
 

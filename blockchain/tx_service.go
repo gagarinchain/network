@@ -3,12 +3,12 @@ package blockchain
 import (
 	"context"
 	net "github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/api"
 	common2 "github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
 )
@@ -45,7 +45,7 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 				continue
 			}
 
-			if t.TxType() == tx.Settlement {
+			if t.TxType() == api.Settlement {
 				if err := s.SendAgreement(ctx, t); err != nil {
 					log.Error("Can't send agreement", err)
 					continue
@@ -63,7 +63,7 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 	}
 }
 
-func (s *TxService) SendAgreement(ctx context.Context, t *tx.Transaction) error {
+func (s *TxService) SendAgreement(ctx context.Context, t api.Transaction) error {
 	rec := s.bc.GetHeadRecord()
 	acc, found := rec.Get(s.me.GetAddress())
 	var nonce uint64

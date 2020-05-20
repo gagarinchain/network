@@ -97,19 +97,21 @@ func NewSignature(pk *g1pubs.PublicKey, sign *g1pubs.Signature) *Signature {
 }
 
 func NewSignatureFromBytes(pk []byte, sign []byte) *Signature {
+	empty := EmptySignature()
 	if len(pk) == 0 {
+		return empty
 	}
 	pkBytes := bls12_381.ToBytes48(pk)
 	key, e := g1pubs.DeserializePublicKey(pkBytes)
 	if e != nil {
 		log.Error(e)
-		return nil
+		return empty
 	}
 	signBytes := bls12_381.ToBytes96(sign)
 	signature, e := g1pubs.DeserializeSignature(signBytes)
 	if e != nil {
 		log.Error(e)
-		return nil
+		return empty
 	}
 
 	return NewSignature(key, signature)

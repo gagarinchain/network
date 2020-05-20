@@ -2,8 +2,9 @@ package blockchain
 
 import (
 	"context"
+	"github.com/gagarinchain/network/blockchain/tx"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
@@ -14,27 +15,27 @@ func TestTransactionPoolImpl_Drain(t *testing.T) {
 	pool := NewTransactionPool()
 
 	go func() {
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(90), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(30), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(10), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(0), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(50), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(90), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(30), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(10), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(0), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(50), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
 
 		time.Sleep(250 * time.Millisecond)
 
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(30), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(10), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(30), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(10), nil))
 
 		time.Sleep(300 * time.Millisecond)
 
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(40), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(40), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(10), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
-		pool.Add(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(30), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(40), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(40), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(10), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(20), nil))
+		pool.Add(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 0, big.NewInt(0), big.NewInt(30), nil))
 	}()
 
 	background := context.Background()
@@ -43,7 +44,7 @@ func TestTransactionPoolImpl_Drain(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	chunks := pool.Drain(timeout)
 
-	var txChunked [][]*tx.Transaction
+	var txChunked [][]api.Transaction
 	for chunk := range chunks {
 		txChunked = append(txChunked, chunk)
 	}

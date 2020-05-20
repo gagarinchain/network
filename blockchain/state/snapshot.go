@@ -2,6 +2,7 @@ package state
 
 import (
 	"github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/trie/sparse"
@@ -51,7 +52,7 @@ func NewSnapshot(hash common.Hash, proposer common.Address) *Snapshot {
 	}
 }
 
-func NewSnapshotWithAccounts(hash common.Hash, proposer common.Address, acc map[common.Address]*Account) *Snapshot {
+func NewSnapshotWithAccounts(hash common.Hash, proposer common.Address, acc map[common.Address]api.Account) *Snapshot {
 	s := &Snapshot{
 		trie:     sparse.NewSMT(256),
 		hash:     hash,
@@ -65,12 +66,12 @@ func NewSnapshotWithAccounts(hash common.Hash, proposer common.Address, acc map[
 }
 
 // Puts <address, account> pair to state storage
-func (snap *Snapshot) Put(address common.Address, account *Account) {
+func (snap *Snapshot) Put(address common.Address, account api.Account) {
 	var addrBytes [][]byte
-	for _, v := range account.voters {
+	for _, v := range account.Voters() {
 		addrBytes = append(addrBytes, v.Bytes())
 	}
-	pbAcc := &pb.Account{Nonce: account.nonce, Value: account.balance.Bytes(), Origin: account.origin.Bytes(), Voters: addrBytes}
+	pbAcc := &pb.Account{Nonce: account.Nonce(), Value: account.Balance().Bytes(), Origin: account.Origin().Bytes(), Voters: addrBytes}
 	b, e := proto.Marshal(pbAcc)
 	if e != nil {
 		log.Error("can't marshall balance", e)
@@ -97,7 +98,7 @@ func (snap *Snapshot) RootProof() common.Hash {
 
 type Entry struct {
 	Key   common.Address
-	Value *Account
+	Value api.Account
 }
 
 //returns accounts stored in state storage
@@ -137,7 +138,7 @@ func (snap *Snapshot) Serialize() []byte {
 }
 
 // returns account associated with address
-func (snap *Snapshot) Get(address common.Address) (*Account, bool) {
+func (snap *Snapshot) Get(address common.Address) (api.Account, bool) {
 	val, found := snap.trie.Get(address.Big())
 	if !found {
 		return nil, false

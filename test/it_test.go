@@ -7,13 +7,13 @@ import (
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/api"
 	common2 "github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	msg "github.com/gagarinchain/network/common/message"
 	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/gogo/protobuf/proto"
@@ -901,7 +901,7 @@ func TestScenario8a(t *testing.T) {
 
 	ctx.StartFirstEpoch()
 
-	s := ctx.generateSettlement(ctx.me.GetAddress(), big.NewInt(553), big.NewInt(tx.DefaultSettlementReward+3))
+	s := ctx.generateSettlement(ctx.me.GetAddress(), big.NewInt(553), big.NewInt(api.DefaultSettlementReward+3))
 	any, _ := ptypes.MarshalAny(s.GetMessage())
 	m := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
 	ctx.txChan <- m
@@ -919,8 +919,8 @@ func TestScenario8a(t *testing.T) {
 	t1 := <-fromPool
 	t2 := <-fromPool
 
-	assert.Equal(t, tx.Settlement, t1.TxType())
-	assert.Equal(t, tx.Agreement, t2.TxType())
+	assert.Equal(t, api.Settlement, t1.TxType())
+	assert.Equal(t, api.Agreement, t2.TxType())
 }
 
 //Scenario 8b:
@@ -949,7 +949,7 @@ func TestScenario8b(t *testing.T) {
 
 	ctx.StartFirstEpoch()
 
-	s := ctx.generateSettlement(ctx.me.GetAddress(), big.NewInt(553), big.NewInt(tx.DefaultSettlementReward+3))
+	s := ctx.generateSettlement(ctx.me.GetAddress(), big.NewInt(553), big.NewInt(api.DefaultSettlementReward+3))
 	any, _ := ptypes.MarshalAny(s.GetMessage())
 	sm := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
 	ctx.txChan <- sm
@@ -1003,7 +1003,7 @@ func TestScenario8b(t *testing.T) {
 	prAggr := aggregate.ToProto()
 	aggrBytes, _ := proto.Marshal(prAggr)
 
-	proofTran := tx.CreateTransaction(tx.Proof, to, ctx.me.GetAddress(), 3, big.NewInt(0), big.NewInt(10), aggrBytes)
+	proofTran := tx.CreateTransaction(api.Proof, to, ctx.me.GetAddress(), 3, big.NewInt(0), big.NewInt(10), aggrBytes)
 	proofTran.Sign(ctx.me.GetPrivateKey())
 	pany, _ := ptypes.MarshalAny(proofTran.GetMessage())
 	pm := msg.CreateMessage(pb.Message_TRANSACTION, pany, ctx.me)
@@ -1036,8 +1036,8 @@ func TestScenario8b(t *testing.T) {
 	assert.Equal(t, big.NewInt(0), as.Balance())
 }
 
-func poolToChan(timeout context.Context, ctx *TestContext) chan *tx.Transaction {
-	fromPool := make(chan *tx.Transaction)
+func poolToChan(timeout context.Context, ctx *TestContext) chan api.Transaction {
+	fromPool := make(chan api.Transaction)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	go func() {
 		for {
@@ -1085,7 +1085,7 @@ func waitPoolTransactions(timeout context.Context, ctx *TestContext, count int) 
 	return fromPool
 }
 
-func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int, txType tx.Type) *tx.Transaction {
+func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int, txType api.Type) api.Transaction {
 	trans := tx.CreateTransaction(txType, to, from, 1, amount, fee, []byte(""))
 	for _, peer := range ctx.peers {
 		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
@@ -1097,12 +1097,12 @@ func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fe
 	return trans
 }
 
-func (ctx *TestContext) generatePayment(from, to common2.Address, amount, fee *big.Int) *tx.Transaction {
-	return ctx.generateTransaction(from, to, amount, fee, tx.Payment)
+func (ctx *TestContext) generatePayment(from, to common2.Address, amount, fee *big.Int) api.Transaction {
+	return ctx.generateTransaction(from, to, amount, fee, api.Payment)
 }
 
-func (ctx *TestContext) generateSettlement(from common2.Address, amount, fee *big.Int) *tx.Transaction {
-	trans := tx.CreateTransaction(tx.Settlement, common2.HexToAddress(tx.SettlementAddressHex), from, 1, amount, fee, []byte(""))
+func (ctx *TestContext) generateSettlement(from common2.Address, amount, fee *big.Int) api.Transaction {
+	trans := tx.CreateTransaction(api.Settlement, common2.HexToAddress(api.SettlementAddressHex), from, 1, amount, fee, []byte(""))
 	for _, peer := range ctx.peers {
 		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
 			trans.Sign(peer.GetPrivateKey())
@@ -1131,7 +1131,7 @@ type TestContext struct {
 	headersChan  chan *msg.Message
 	blocksToSend map[common2.Hash]*msg.Message
 	blocksChan   chan *msg.Message
-	seed         map[common2.Address]*state.Account
+	seed         map[common2.Address]api.Account
 	stateDB      state.DB
 	txService    *blockchain.TxService
 }

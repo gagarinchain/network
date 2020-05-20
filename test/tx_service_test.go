@@ -3,10 +3,10 @@ package test
 import (
 	"context"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/message"
 	pb "github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/magiconair/properties/assert"
 

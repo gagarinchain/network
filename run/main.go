@@ -26,12 +26,17 @@ func main() {
 	level, _ := golog.LevelFromString("INFO")
 	golog.SetAllLoggers(level)
 
-	backend := logging.NewLogBackend(os.Stderr, "", 0)
+	backend := logging.NewLogBackend(os.Stdout, "", 0)
+	errBackend := logging.NewLogBackend(os.Stderr, "", 0)
 	backendFormatter := logging.NewBackendFormatter(backend, stdoutLogFormat)
-	backendLeveled := logging.AddModuleLevel(backend)
+	errBackendFormatter := logging.NewBackendFormatter(errBackend, stdoutLogFormat)
+	backendLeveled := logging.AddModuleLevel(errBackendFormatter)
+	errBackendLeveled := logging.AddModuleLevel(backend)
 	backendLeveled.SetLevel(logging.INFO, "")
+	errBackendLeveled.SetLevel(logging.ERROR, "")
 
 	logging.SetBackend(backendLeveled, backendFormatter)
+	logging.SetBackend(errBackendLeveled, errBackendFormatter)
 
 	ind := -1
 	env, found := os.LookupEnv("GN_IND")

@@ -2,6 +2,7 @@
 
 package mocks
 
+import api "github.com/gagarinchain/network/common/api"
 import common "github.com/gagarinchain/network/common/eth/common"
 import mock "github.com/stretchr/testify/mock"
 import state "github.com/gagarinchain/network/blockchain/state"
@@ -12,15 +13,15 @@ type DB struct {
 }
 
 // Commit provides a mock function with given fields: parent, pending
-func (_m *DB) Commit(parent common.Hash, pending common.Hash) (*state.Record, error) {
+func (_m *DB) Commit(parent common.Hash, pending common.Hash) (api.Record, error) {
 	ret := _m.Called(parent, pending)
 
-	var r0 *state.Record
-	if rf, ok := ret.Get(0).(func(common.Hash, common.Hash) *state.Record); ok {
+	var r0 api.Record
+	if rf, ok := ret.Get(0).(func(common.Hash, common.Hash) api.Record); ok {
 		r0 = rf(parent, pending)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*state.Record)
+			r0 = ret.Get(0).(api.Record)
 		}
 	}
 
@@ -35,15 +36,15 @@ func (_m *DB) Commit(parent common.Hash, pending common.Hash) (*state.Record, er
 }
 
 // Create provides a mock function with given fields: parent, proposer
-func (_m *DB) Create(parent common.Hash, proposer common.Address) (*state.Record, error) {
+func (_m *DB) Create(parent common.Hash, proposer common.Address) (api.Record, error) {
 	ret := _m.Called(parent, proposer)
 
-	var r0 *state.Record
-	if rf, ok := ret.Get(0).(func(common.Hash, common.Address) *state.Record); ok {
+	var r0 api.Record
+	if rf, ok := ret.Get(0).(func(common.Hash, common.Address) api.Record); ok {
 		r0 = rf(parent, proposer)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*state.Record)
+			r0 = ret.Get(0).(api.Record)
 		}
 	}
 
@@ -58,15 +59,15 @@ func (_m *DB) Create(parent common.Hash, proposer common.Address) (*state.Record
 }
 
 // Get provides a mock function with given fields: hash
-func (_m *DB) Get(hash common.Hash) (*state.Record, bool) {
+func (_m *DB) Get(hash common.Hash) (api.Record, bool) {
 	ret := _m.Called(hash)
 
-	var r0 *state.Record
-	if rf, ok := ret.Get(0).(func(common.Hash) *state.Record); ok {
+	var r0 api.Record
+	if rf, ok := ret.Get(0).(func(common.Hash) api.Record); ok {
 		r0 = rf(hash)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*state.Record)
+			r0 = ret.Get(0).(api.Record)
 		}
 	}
 

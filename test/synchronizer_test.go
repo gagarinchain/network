@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/gagarinchain/network/blockchain"
-	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
@@ -469,7 +468,7 @@ func (m *MockBlockchain) GetHead() (res api.Block) {
 	return res
 }
 
-func (m *MockBlockchain) GetHeadRecord() *state.Record {
+func (m *MockBlockchain) GetHeadRecord() api.Record {
 	panic("implement me")
 }
 

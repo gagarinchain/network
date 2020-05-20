@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
@@ -12,27 +13,8 @@ import (
 	"math/big"
 )
 
-type Type int
-
-const (
-	SettlementAddressHex         = "0x6522b1ac0c0c078f1fcc696b9cf72c59bb3624b7d2a9d82059b2f3832fd9973d"
-	DefaultSettlementReward      = 10 //probably this value should be set from config or via consensus or moved to different TX field
-	DefaultAgreementFee          = 2
-	Payment                 Type = iota
-	Slashing                Type = iota
-	Settlement              Type = iota
-	Agreement               Type = iota
-	Proof                   Type = iota
-	Redeem                  Type = iota
-)
-
-type Iterator interface {
-	Next() *Transaction
-	HasNext() bool
-}
-
-type Transaction struct {
-	txType     Type
+type TransactionImpl struct {
+	txType     api.Type
 	to         common.Address
 	from       common.Address
 	nonce      uint64
@@ -45,7 +27,7 @@ type Transaction struct {
 	serialized []byte
 }
 
-func (tx *Transaction) Serialized() []byte {
+func (tx *TransactionImpl) Serialized() []byte {
 	if tx.serialized == nil { //self issued transaction
 		m := tx.ToStorageProto()
 		b, e := proto.Marshal(m)
@@ -58,43 +40,43 @@ func (tx *Transaction) Serialized() []byte {
 	return tx.serialized
 }
 
-func (tx *Transaction) Data() []byte {
+func (tx *TransactionImpl) Data() []byte {
 	return tx.data
 }
 
-func (tx *Transaction) Signature() *crypto.Signature {
+func (tx *TransactionImpl) Signature() *crypto.Signature {
 	return tx.signature
 }
 
-func (tx *Transaction) Value() *big.Int {
+func (tx *TransactionImpl) Value() *big.Int {
 	return tx.value
 }
 
-func (tx *Transaction) Nonce() uint64 {
+func (tx *TransactionImpl) Nonce() uint64 {
 	return tx.nonce
 }
 
-func (tx *Transaction) From() common.Address {
+func (tx *TransactionImpl) From() common.Address {
 	return tx.from
 }
 
-func (tx *Transaction) To() common.Address {
+func (tx *TransactionImpl) To() common.Address {
 	return tx.to
 }
 
-func (tx *Transaction) SetTo(to common.Address) {
+func (tx *TransactionImpl) SetTo(to common.Address) {
 	tx.to = to
 }
 
-func (tx *Transaction) TxType() Type {
+func (tx *TransactionImpl) TxType() api.Type {
 	return tx.txType
 }
 
-func (tx *Transaction) Fee() *big.Int {
+func (tx *TransactionImpl) Fee() *big.Int {
 	return tx.fee
 }
 
-type ByFeeAndNonce []*Transaction
+type ByFeeAndNonce []api.Transaction
 
 var log = logging.MustGetLogger("tx")
 
@@ -103,9 +85,9 @@ func (t ByFeeAndNonce) Len() int {
 }
 
 func (t ByFeeAndNonce) Less(i, j int) bool {
-	r := t[i].fee.Cmp(t[j].fee)
+	r := t[i].Fee().Cmp(t[j].Fee())
 	if r == 0 {
-		return t[i].nonce < t[j].nonce
+		return t[i].Nonce() < t[j].Nonce()
 	}
 	return r < 0
 }
@@ -114,8 +96,8 @@ func (t ByFeeAndNonce) Swap(i, j int) {
 	t[i], t[j] = t[j], t[i]
 }
 
-func CreateTransaction(txType Type, to common.Address, from common.Address, nonce uint64, value *big.Int, fee *big.Int, data []byte) *Transaction {
-	return &Transaction{
+func CreateTransaction(txType api.Type, to common.Address, from common.Address, nonce uint64, value *big.Int, fee *big.Int, data []byte) *TransactionImpl {
+	return &TransactionImpl{
 		txType:    txType,
 		to:        to,
 		from:      from,
@@ -127,25 +109,25 @@ func CreateTransaction(txType Type, to common.Address, from common.Address, nonc
 	}
 }
 
-func CreateAgreement(t *Transaction, nonce uint64, proof []byte) *Transaction {
-	return &Transaction{
-		txType:    Agreement,
+func CreateAgreement(t api.Transaction, nonce uint64, proof []byte) *TransactionImpl {
+	return &TransactionImpl{
+		txType:    api.Agreement,
 		to:        common.BytesToAddress(t.Hash().Bytes()[12:]),
 		from:      t.From(),
 		nonce:     nonce,
 		value:     big.NewInt(0),
-		fee:       big.NewInt(DefaultAgreementFee),
+		fee:       big.NewInt(api.DefaultAgreementFee),
 		data:      proof,
 		signature: crypto.EmptySignature(),
 	}
 }
 
-func (tx *Transaction) SetFrom(from common.Address) {
+func (tx *TransactionImpl) SetFrom(from common.Address) {
 	tx.from = from
 }
 
-func (tx *Transaction) CreateProof(pk *crypto.PrivateKey) (e error) {
-	if tx.txType != Agreement {
+func (tx *TransactionImpl) CreateProof(pk *crypto.PrivateKey) (e error) {
+	if tx.txType != api.Agreement {
 		return errors.New("proof is allowed only for agreements")
 	}
 	sig := crypto.Sign(crypto.Keccak256(tx.to.Bytes()), pk)
@@ -162,8 +144,8 @@ func (tx *Transaction) CreateProof(pk *crypto.PrivateKey) (e error) {
 
 	return
 }
-func (tx *Transaction) RecoverProver() (aggregate *crypto.SignatureAggregate, e error) {
-	if tx.txType != Proof {
+func (tx *TransactionImpl) RecoverProver() (aggregate *crypto.SignatureAggregate, e error) {
+	if tx.txType != api.Proof {
 		return aggregate, errors.New("proof is allowed only for proof tx")
 	}
 
@@ -175,21 +157,21 @@ func (tx *Transaction) RecoverProver() (aggregate *crypto.SignatureAggregate, e 
 	return crypto.AggregateFromProto(aggr), nil
 }
 
-func (tx *Transaction) GetMessage() *pb.Transaction {
+func (tx *TransactionImpl) GetMessage() *pb.Transaction {
 	var txType pb.Transaction_Type
 
 	switch tx.txType {
-	case Payment:
+	case api.Payment:
 		txType = pb.Transaction_PAYMENT
-	case Slashing:
+	case api.Slashing:
 		txType = pb.Transaction_SLASHING
-	case Settlement:
+	case api.Settlement:
 		txType = pb.Transaction_SETTLEMENT
-	case Agreement:
+	case api.Agreement:
 		txType = pb.Transaction_AGREEMENT
-	case Proof:
+	case api.Proof:
 		txType = pb.Transaction_PROOF
-	case Redeem:
+	case api.Redeem:
 		txType = pb.Transaction_REDEEM
 	}
 
@@ -213,7 +195,7 @@ func (tx *Transaction) GetMessage() *pb.Transaction {
 }
 
 //internal transaction
-func (tx *Transaction) ToStorageProto() *pb.TransactionS {
+func (tx *TransactionImpl) ToStorageProto() *pb.TransactionS {
 	var sign *pb.SignatureS
 	if !tx.confirmed {
 		sign = tx.signature.ToStorageProto()
@@ -231,7 +213,7 @@ func (tx *Transaction) ToStorageProto() *pb.TransactionS {
 	}
 }
 
-func Deserialize(tran []byte) (*Transaction, error) {
+func Deserialize(tran []byte) (*TransactionImpl, error) {
 	pbt := &pb.TransactionS{}
 	if err := proto.Unmarshal(tran, pbt); err != nil {
 		return nil, err
@@ -240,7 +222,7 @@ func Deserialize(tran []byte) (*Transaction, error) {
 	return CreateTransactionFromStorage(pbt)
 }
 
-func CreateTransactionFromStorage(msg *pb.TransactionS) (*Transaction, error) {
+func CreateTransactionFromStorage(msg *pb.TransactionS) (*TransactionImpl, error) {
 	var sign *crypto.Signature
 	confirmed := true
 	from := common.BytesToAddress(msg.GetFrom())
@@ -249,7 +231,7 @@ func CreateTransactionFromStorage(msg *pb.TransactionS) (*Transaction, error) {
 		confirmed = false
 	}
 
-	txType := Type(msg.Type)
+	txType := api.Type(msg.Type)
 
 	tx := CreateTransaction(txType,
 		common.BytesToAddress(msg.GetTo()),
@@ -265,7 +247,7 @@ func CreateTransactionFromStorage(msg *pb.TransactionS) (*Transaction, error) {
 	return tx, nil
 }
 
-func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*Transaction, error) {
+func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*TransactionImpl, error) {
 	fromBytes := msg.GetFrom()
 	var from common.Address
 	var sign *crypto.Signature
@@ -278,20 +260,20 @@ func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*Trans
 		return nil, errors.New("no signature for unconfirmed transaction")
 	}
 
-	var txType Type
+	var txType api.Type
 	switch msg.Type {
 	case pb.Transaction_PAYMENT:
-		txType = Payment
+		txType = api.Payment
 	case pb.Transaction_SLASHING:
-		txType = Slashing
+		txType = api.Slashing
 	case pb.Transaction_SETTLEMENT:
-		txType = Settlement
+		txType = api.Settlement
 	case pb.Transaction_AGREEMENT:
-		txType = Agreement
+		txType = api.Agreement
 	case pb.Transaction_PROOF:
-		txType = Proof
+		txType = api.Proof
 	case pb.Transaction_REDEEM:
-		txType = Redeem
+		txType = api.Redeem
 	}
 
 	tx := CreateTransaction(txType,
@@ -323,7 +305,7 @@ func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*Trans
 	return tx, nil
 }
 
-func (tx *Transaction) Sign(key *crypto.PrivateKey) {
+func (tx *TransactionImpl) Sign(key *crypto.PrivateKey) {
 	hash := tx.Hash()
 	sig := crypto.Sign(hash.Bytes(), key)
 
@@ -337,49 +319,55 @@ func (tx *Transaction) Sign(key *crypto.PrivateKey) {
 	tx.signature = sig
 }
 
-func (tx *Transaction) Hash() common.Hash {
+func (tx *TransactionImpl) Hash() common.Hash {
 	if bytes.Equal(tx.hash.Bytes(), common.Hash{}.Bytes()) { //not initialized
 		return Hash(tx)
 	}
 	return tx.hash
 }
 
-func Hash(tx *Transaction) common.Hash {
-	var txType pb.Transaction_Type
+func Hash(tx api.Transaction) common.Hash {
+	switch typ := tx.(type) {
+	case *TransactionImpl:
+		t := *typ
+		var txType pb.Transaction_Type
 
-	switch tx.txType {
-	case Payment:
-		txType = pb.Transaction_PAYMENT
-	case Slashing:
-		txType = pb.Transaction_SLASHING
-	case Settlement:
-		txType = pb.Transaction_SETTLEMENT
-	case Agreement:
-		txType = pb.Transaction_AGREEMENT
-	case Proof:
-		txType = pb.Transaction_PROOF
-	case Redeem:
-		txType = pb.Transaction_REDEEM
-	}
+		switch t.txType {
+		case api.Payment:
+			txType = pb.Transaction_PAYMENT
+		case api.Slashing:
+			txType = pb.Transaction_SLASHING
+		case api.Settlement:
+			txType = pb.Transaction_SETTLEMENT
+		case api.Agreement:
+			txType = pb.Transaction_AGREEMENT
+		case api.Proof:
+			txType = pb.Transaction_PROOF
+		case api.Redeem:
+			txType = pb.Transaction_REDEEM
+		}
 
-	msg := &pb.Transaction{
-		Type:  txType,
-		To:    tx.to.Bytes(),
-		From:  tx.from.Bytes(),
-		Nonce: tx.nonce,
-		Value: tx.value.Int64(),
-		Fee:   tx.fee.Int64(),
-		Data:  tx.data,
-	}
-	b, e := proto.Marshal(msg)
-	if e != nil {
-		log.Error("Can't calculate hash")
-	}
+		msg := &pb.Transaction{
+			Type:  txType,
+			To:    t.to.Bytes(),
+			From:  t.from.Bytes(),
+			Nonce: t.nonce,
+			Value: t.value.Int64(),
+			Fee:   t.fee.Int64(),
+			Data:  t.data,
+		}
+		b, e := proto.Marshal(msg)
+		if e != nil {
+			log.Error("Can't calculate hash")
+		}
 
-	return crypto.Keccak256Hash(b)
+		return crypto.Keccak256Hash(b)
+	default:
+		panic("unknown tx implementation")
+	}
 }
 
-func (tx *Transaction) DropSignature() {
+func (tx *TransactionImpl) DropSignature() {
 	tx.signature = nil
 	tx.confirmed = true
 

@@ -19,7 +19,7 @@ func TestNewRecordFirst(t *testing.T) {
 
 	acc, f := record.Get(somebody)
 	assert.True(t, f)
-	assert.Equal(t, big.NewInt(5), acc.balance)
+	assert.Equal(t, big.NewInt(5), acc.Balance())
 }
 
 func TestNewRecordWithParent(t *testing.T) {
@@ -39,9 +39,9 @@ func TestNewRecordWithParent(t *testing.T) {
 
 	acc, f := secondRecord.Get(somebody)
 	assert.True(t, f)
-	assert.Equal(t, big.NewInt(5), acc.balance)
+	assert.Equal(t, big.NewInt(5), acc.Balance())
 
 	acc2, f := secondRecord.Get(somebody2)
 	assert.True(t, f)
-	assert.Equal(t, big.NewInt(10), acc2.balance)
+	assert.Equal(t, big.NewInt(10), acc2.Balance())
 }

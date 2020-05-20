@@ -243,7 +243,6 @@ func (s *ServiceImpl) handleNewMessage(ctx context.Context, stream network.Strea
 			}
 		}
 	}()
-	log.Infof("Handling %v protocol", stream.Protocol())
 	cr := ctxio.NewReader(ctx, stream)
 	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)
 	for {

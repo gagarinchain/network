@@ -14,7 +14,7 @@ import "github.com/gagarinchain/network/common/eth/common"
 import cmn "github.com/gagarinchain/network/common"
 
 type BlockchainConfig struct {
-	Seed           map[common.Address]*state.Account
+	Seed           map[common.Address]api.Account
 	BlockPerister  *BlockPersister
 	ProposerGetter api.ProposerForHeight
 	ChainPersister *BlockchainPersister
@@ -35,8 +35,8 @@ type AccountData struct {
 	Nonce   uint64 `json:"nonce"`
 }
 
-func SeedFromFile(filePath string) map[common.Address]*state.Account {
-	res := make(map[common.Address]*state.Account)
+func SeedFromFile(filePath string) map[common.Address]api.Account {
+	res := make(map[common.Address]api.Account)
 	file, e := os.Open(filePath)
 	if e != nil {
 		log.Fatal("Can't load seed", e)

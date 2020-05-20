@@ -2,12 +2,12 @@ package blockchain
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/trie"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/golang/protobuf/proto"
 	"time"
 )
@@ -24,8 +24,8 @@ func (b *BlockImpl) TxsCount() int {
 	return len(b.txs.Values())
 }
 
-func (b *BlockImpl) Txs() tx.Iterator {
-	var transactions []*tx.Transaction
+func (b *BlockImpl) Txs() api.Iterator {
+	var transactions []api.Transaction
 	for _, bytes := range b.txs.Values() {
 		//todo be careful we unmarshal and recover key here, think about storing deserialized entities in the trie
 		t, e := tx.Deserialize(bytes)
@@ -39,7 +39,7 @@ func (b *BlockImpl) Txs() tx.Iterator {
 	return newIterator(transactions)
 }
 
-func (b *BlockImpl) AddTransaction(t *tx.Transaction) {
+func (b *BlockImpl) AddTransaction(t api.Transaction) {
 	key := []byte(t.Hash().Hex())
 	b.txs.InsertOrUpdate(key, t.Serialized())
 }

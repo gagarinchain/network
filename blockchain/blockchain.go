@@ -405,7 +405,7 @@ func (bc *BlockchainImpl) GetHead() api.Block {
 	return b[0]
 }
 
-func (bc *BlockchainImpl) GetHeadRecord() *state.Record {
+func (bc *BlockchainImpl) GetHeadRecord() api.Record {
 	r, f := bc.stateDB.Get(bc.GetHead().Header().Hash())
 	if !f {
 		log.Error("Can't find head snapshot")
@@ -629,7 +629,7 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 	return block
 }
 
-func (bc *BlockchainImpl) collectTransactions(s *state.Record, txs *trie.FixedLengthHexKeyMerkleTrie) {
+func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengthHexKeyMerkleTrie) {
 	c := context.Background()
 	timeout, _ := context.WithTimeout(c, bc.delta)
 	chunks := bc.txPool.Drain(timeout)

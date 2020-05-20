@@ -2,10 +2,11 @@ package state
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/network/blockchain/tx"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
@@ -25,7 +26,7 @@ func TestSnapshot_ApplyTransactionNoAccount(t *testing.T) {
 	from := generate()
 	to := generate()
 
-	tr := tx.CreateTransaction(tx.Payment, to, from, 0, big.NewInt(100), big.NewInt(1), []byte("123456"))
+	tr := tx.CreateTransaction(api.Payment, to, from, 0, big.NewInt(100), big.NewInt(1), []byte("123456"))
 	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, FutureTransactionError)
@@ -41,7 +42,7 @@ func TestSnapshot_ApplyTransactionInsufficientFunds(t *testing.T) {
 	snapshot.Put(Me, NewAccount(0, big.NewInt(0)))
 	snapshot.Put(from, NewAccount(0, big.NewInt(90)))
 
-	tr := tx.CreateTransaction(tx.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, InsufficientFundsError)
@@ -58,7 +59,7 @@ func TestSnapshot_ApplyTransactionFutureNonce(t *testing.T) {
 	snapshot.Put(from, NewAccount(0, big.NewInt(100)))
 	snapshot.Put(to, NewAccount(0, big.NewInt(90)))
 
-	tr := tx.CreateTransaction(tx.Payment, to, from, 5, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx.CreateTransaction(api.Payment, to, from, 5, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, FutureTransactionError)
@@ -73,7 +74,7 @@ func TestSnapshot_ApplyTransactionNoMe(t *testing.T) {
 
 	snapshot.Put(from, NewAccount(0, big.NewInt(90)))
 
-	tr := tx.CreateTransaction(tx.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	err := record.ApplyTransaction(tr)
 
 	assert.Equal(t, err, InsufficientFundsError)
@@ -91,20 +92,20 @@ func TestSnapshot_ApplyTransactionSingleSnapshot(t *testing.T) {
 	snapshot.Put(to, NewAccount(0, big.NewInt(90)))
 
 	proofBefore := snapshot.RootProof()
-	tr := tx.CreateTransaction(tx.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	err := rec.ApplyTransaction(tr)
 	proofAfter := snapshot.RootProof()
 
 	assert.Nil(t, err)
 
 	acc, _ := rec.Get(Me)
-	assert.Equal(t, big.NewInt(1), acc.balance)
+	assert.Equal(t, big.NewInt(1), acc.Balance())
 
 	acc, _ = rec.Get(to)
-	assert.Equal(t, big.NewInt(190), acc.balance)
+	assert.Equal(t, big.NewInt(190), acc.Balance())
 
 	acc, _ = rec.Get(from)
-	assert.Equal(t, big.NewInt(10), acc.balance)
+	assert.Equal(t, big.NewInt(10), acc.Balance())
 
 	assert.NotEqual(t, proofBefore, proofAfter)
 }
@@ -129,9 +130,11 @@ func TestStateDB_Create(t *testing.T) {
 	storage, _ := cmn.NewStorage("", nil)
 	db := NewStateDB(storage, &cmn.NullBus{})
 	db.Init(valeera, nil)
-	ma, _ := db.Create(valeera, Me)
+	maI, _ := db.Create(valeera, Me)
+	ma := maI.(*RecordImpl)
 	db.Commit(valeera, maiev)
-	gu, _ := db.Create(valeera, Me)
+	guI, _ := db.Create(valeera, Me)
+	gu := guI.(*RecordImpl)
 	db.Commit(valeera, guldan)
 
 	Me = generate()
@@ -148,8 +151,8 @@ func TestStateDB_Create(t *testing.T) {
 	g, _ := db.Get(guldan)
 	fromGu, _ := g.Get(from)
 
-	assert.Equal(t, big.NewInt(111), fromMa.balance)
-	assert.Equal(t, big.NewInt(90), fromGu.balance)
+	assert.Equal(t, big.NewInt(111), fromMa.Balance())
+	assert.Equal(t, big.NewInt(90), fromGu.Balance())
 }
 
 func TestStateDB_Release(t *testing.T) {
@@ -192,7 +195,7 @@ func TestStorageIntegration(t *testing.T) {
 	storage, _ := cmn.NewStorage("", nil)
 	db := NewStateDB(storage, &cmn.NullBus{})
 
-	seed := make(map[common.Address]*Account)
+	seed := make(map[common.Address]api.Account)
 	a, b, c, d := generate(), generate(), generate(), generate()
 	seed[a] = NewAccount(0, big.NewInt(10))
 	seed[b] = NewAccount(1, big.NewInt(20))
@@ -208,7 +211,8 @@ func TestStorageIntegration(t *testing.T) {
 	maiev := crypto.Keccak256Hash([]byte("eeeeeee Maiev"))
 	maievRec, _ := db.Create(valeera, a)
 
-	bforUpdate, _ := maievRec.GetForUpdate(b)
+	bforUpdateI, _ := maievRec.GetForUpdate(b)
+	bforUpdate := bforUpdateI.(*AccountImpl)
 	bforUpdate.nonce = 2
 	bforUpdate.balance = big.NewInt(25)
 	_ = maievRec.Update(b, bforUpdate)
@@ -218,13 +222,15 @@ func TestStorageIntegration(t *testing.T) {
 	maievRec, _ = db.Commit(valeera, maiev)
 
 	guldan := crypto.Keccak256Hash([]byte("eeeeeee Guldan"))
-	guldanRec, _ := db.Create(maiev, a)
-	cforUpdate, _ := guldanRec.GetForUpdate(c)
+	guldanRecI, _ := db.Create(maiev, a)
+	guldanRec := guldanRecI.(*RecordImpl)
+	cforUpdateI, _ := guldanRec.GetForUpdate(c)
+	cforUpdate := cforUpdateI.(*AccountImpl)
 	cforUpdate.nonce = 1
 	cforUpdate.balance = big.NewInt(33)
 	_ = guldanRec.Update(c, cforUpdate)
 
-	guldanRec, _ = db.Commit(maiev, guldan)
+	guldanRecI, _ = db.Commit(maiev, guldan)
 
 	db2 := NewStateDB(storage, &cmn.NullBus{})
 
@@ -237,8 +243,8 @@ func TestStorageIntegration(t *testing.T) {
 
 	spew.Dump(guldanRec.Get(c))
 	spew.Dump(cFromDb)
-	assert.Equal(t, cFromDb.balance, big.NewInt(33))
-	assert.Equal(t, aFromDb.balance, big.NewInt(10))
+	assert.Equal(t, cFromDb.Balance(), big.NewInt(33))
+	assert.Equal(t, aFromDb.Balance(), big.NewInt(10))
 }
 
 func generate() common.Address {

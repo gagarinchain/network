@@ -1,40 +1,57 @@
 package state
 
 import (
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )
 
-type Account struct {
+type AccountImpl struct {
 	nonce   uint64
 	balance *big.Int
 	origin  common.Address
 	voters  []common.Address
 }
 
-func (a *Account) Voters() []common.Address {
+func (a *AccountImpl) IncrementNonce() {
+	a.nonce += 1
+}
+
+func (a *AccountImpl) SetOrigin(origin common.Address) {
+	a.origin = origin
+}
+
+func (a *AccountImpl) Origin() common.Address {
+	return a.origin
+}
+
+func (a *AccountImpl) Voters() []common.Address {
 	return a.voters
 }
 
-func (a *Account) Balance() *big.Int {
+func (a *AccountImpl) AddVoters(from common.Address) {
+	a.voters = append(a.voters, from)
+}
+
+func (a *AccountImpl) Balance() *big.Int {
 	return a.balance
 }
 
-func (a *Account) Nonce() uint64 {
+func (a *AccountImpl) Nonce() uint64 {
 	return a.nonce
 }
 
-func NewAccount(nonce uint64, balance *big.Int) *Account {
-	return &Account{nonce: nonce, balance: balance}
+func NewAccount(nonce uint64, balance *big.Int) *AccountImpl {
+	return &AccountImpl{nonce: nonce, balance: balance}
 }
 
-func (a *Account) Copy() *Account {
+func (a *AccountImpl) Copy() api.Account {
 	return NewAccount(a.nonce, new(big.Int).Set(a.balance))
 }
 
-func DeserializeAccount(serialized []byte) *Account {
+func DeserializeAccount(serialized []byte) *AccountImpl {
 	pbAcc := &pb.Account{}
 	if err := proto.Unmarshal(serialized, pbAcc); err != nil {
 		log.Error(err)
@@ -45,5 +62,5 @@ func DeserializeAccount(serialized []byte) *Account {
 	for _, pbv := range pbAcc.Voters {
 		voters = append(voters, common.BytesToAddress(pbv))
 	}
-	return &Account{nonce: pbAcc.Nonce, balance: balance.SetBytes(pbAcc.Value), origin: common.BytesToAddress(pbAcc.Origin), voters: voters}
+	return &AccountImpl{nonce: pbAcc.Nonce, balance: balance.SetBytes(pbAcc.Value), origin: common.BytesToAddress(pbAcc.Origin), voters: voters}
 }

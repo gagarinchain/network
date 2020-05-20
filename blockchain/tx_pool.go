@@ -3,7 +3,8 @@ package blockchain
 import (
 	"bytes"
 	"context"
-	"github.com/gagarinchain/network/common/tx"
+	"github.com/gagarinchain/network/blockchain/tx"
+	"github.com/gagarinchain/network/common/api"
 	"sort"
 	"sync"
 	"time"
@@ -12,7 +13,7 @@ import (
 const Interval = 100 * time.Millisecond
 
 type TransactionPoolImpl struct {
-	pending []*tx.Transaction
+	pending []api.Transaction
 	lock    sync.RWMutex
 }
 
@@ -20,33 +21,33 @@ func NewTransactionPool() TransactionPool {
 	return &TransactionPoolImpl{lock: sync.RWMutex{}}
 }
 
-func (tp *TransactionPoolImpl) Add(tx *tx.Transaction) {
+func (tp *TransactionPoolImpl) Add(tx api.Transaction) {
 	tp.lock.Lock()
 	defer tp.lock.Unlock()
 
 	tp.pending = append(tp.pending, tx)
 }
 
-func (tp *TransactionPoolImpl) getTopByFee() []*tx.Transaction {
+func (tp *TransactionPoolImpl) getTopByFee() []api.Transaction {
 	pendingCopy := append(tp.pending[:0:0], tp.pending...)
 	//TODO we can sort only top n elements in array with optimized sorting algorithms
 	sort.Sort(sort.Reverse(tx.ByFeeAndNonce(pendingCopy)))
 	return pendingCopy
 }
 
-func (tp *TransactionPoolImpl) Iterator() tx.Iterator {
+func (tp *TransactionPoolImpl) Iterator() api.Iterator {
 	tp.lock.RLock()
 	defer tp.lock.RUnlock()
 	return newIterator(tp.getTopByFee())
 }
 
-func (tp *TransactionPoolImpl) Remove(transaction *tx.Transaction) {
+func (tp *TransactionPoolImpl) Remove(transaction api.Transaction) {
 	tp.lock.Lock()
 	defer tp.lock.Unlock()
 	tp.remove(transaction)
 }
 
-func (tp *TransactionPoolImpl) remove(transaction *tx.Transaction) {
+func (tp *TransactionPoolImpl) remove(transaction api.Transaction) {
 	for i, k := range tp.pending {
 		if bytes.Equal(k.Hash().Bytes(), transaction.Hash().Bytes()) {
 			tp.pending = append(tp.pending[:i], tp.pending[i+1:]...)
@@ -55,7 +56,7 @@ func (tp *TransactionPoolImpl) remove(transaction *tx.Transaction) {
 	}
 }
 
-func (tp *TransactionPoolImpl) RemoveAll(transactions ...*tx.Transaction) {
+func (tp *TransactionPoolImpl) RemoveAll(transactions ...api.Transaction) {
 	tp.lock.Lock()
 	defer tp.lock.Unlock()
 
@@ -65,15 +66,15 @@ func (tp *TransactionPoolImpl) RemoveAll(transactions ...*tx.Transaction) {
 }
 
 type orderedIterator struct {
-	txs   []*tx.Transaction
+	txs   []api.Transaction
 	state int
 }
 
-func newIterator(txs []*tx.Transaction) tx.Iterator {
+func newIterator(txs []api.Transaction) api.Iterator {
 	return &orderedIterator{txs: txs, state: 0}
 }
 
-func (i *orderedIterator) Next() *tx.Transaction {
+func (i *orderedIterator) Next() api.Transaction {
 	if i.state < len(i.txs) {
 		cur := i.txs[i.state]
 		i.state++
@@ -88,21 +89,21 @@ func (i *orderedIterator) HasNext() bool {
 }
 
 //For drain to work correctly we must guarantee that pending transactions are never reordered and are only appended
-func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []*tx.Transaction) {
+func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []api.Transaction) {
 	//this channel is used by child goroutines to write result if it's work
-	chunks = make(chan []*tx.Transaction)
+	chunks = make(chan []api.Transaction)
 	//this channel which is used by child goroutines in tick to  notify main about job finishing.
 	//when routine is done it is safe to close channel
 	done := make(chan bool)
 	//ticker to notify head routine it's time to start new child
 	ticker := time.NewTicker(Interval)
 
-	tick := func(pending []*tx.Transaction, index int) int {
+	tick := func(pending []api.Transaction, index int) int {
 		last := len(pending)
-		part := make([]*tx.Transaction, len(tp.pending[index:last]))
+		part := make([]api.Transaction, len(tp.pending[index:last]))
 		copy(part, tp.pending[index:last])
 		sort.Sort(sort.Reverse(tx.ByFeeAndNonce(part)))
-		go func(txs chan []*tx.Transaction) {
+		go func(txs chan []api.Transaction) {
 			select {
 			case txs <- part:
 				done <- true //notify we ended work

@@ -2,10 +2,11 @@ package test
 
 import (
 	"github.com/gagarinchain/network/blockchain"
+	"github.com/gagarinchain/network/blockchain/tx"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
@@ -65,7 +66,7 @@ func TestIsValidBlockWithSignature(t *testing.T) {
 	bc.UpdateGenesisBlockQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
 	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
-	newBlock1.AddTransaction(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
+	newBlock1.AddTransaction(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
 	hash1 := newBlock1.Header().Hash()
 	aggregate1 := mockSignatureAggregateValid(hash1.Bytes(), committee)
 	certificate := blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header())
@@ -94,7 +95,7 @@ func TestIsValidBlockWithTransaction(t *testing.T) {
 	certificate := blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header())
 
 	newBlock2 := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
-	newBlock2.AddTransaction(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
+	newBlock2.AddTransaction(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
 
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)
@@ -119,7 +120,7 @@ func TestIsNotValidBlockWithTransaction(t *testing.T) {
 	certificate := blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header())
 
 	newBlock2 := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
-	newBlock2.AddTransaction(tx.CreateTransaction(tx.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(0), nil))
+	newBlock2.AddTransaction(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(0), nil))
 
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)

@@ -3,6 +3,7 @@ package state
 import (
 	"github.com/gagarinchain/network"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/op/go-logging"
@@ -21,7 +22,7 @@ var (
 )
 
 type DBImpl struct {
-	records         map[common.Hash]*Record
+	records         map[common.Hash]api.Record
 	snapPersister   *SnapshotPersister
 	recordPersister *RecordPersister
 	lock            sync.RWMutex
@@ -31,7 +32,7 @@ type DBImpl struct {
 func NewStateDB(storage gagarinchain.Storage, bus cmn.EventBus) DB {
 	snapPersister := &SnapshotPersister{storage: storage}
 	recordPersister := &RecordPersister{storage: storage}
-	records := make(map[common.Hash]*Record)
+	records := make(map[common.Hash]api.Record)
 	db := &DBImpl{records: records, snapPersister: snapPersister, recordPersister: recordPersister, lock: sync.RWMutex{}, bus: bus}
 
 	db.lock.RLock()
@@ -79,7 +80,7 @@ func NewStateDB(storage gagarinchain.Storage, bus cmn.EventBus) DB {
 	}
 
 	for _, s := range records {
-		s.SetParentFromProto(pbRecs[s.snap.hash], records)
+		SetParentFromProto(s, pbRecs[s.Hash()], records)
 	}
 
 	return db
@@ -100,7 +101,7 @@ func (db *DBImpl) Init(hash common.Hash, seed *Snapshot) error {
 	return nil
 }
 
-func (db *DBImpl) Get(hash common.Hash) (r *Record, f bool) {
+func (db *DBImpl) Get(hash common.Hash) (r api.Record, f bool) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 	sn, f := db.records[hash]
@@ -108,7 +109,7 @@ func (db *DBImpl) Get(hash common.Hash) (r *Record, f bool) {
 	return sn, f
 }
 
-func (db *DBImpl) Create(parent common.Hash, proposer common.Address) (r *Record, e error) {
+func (db *DBImpl) Create(parent common.Hash, proposer common.Address) (r api.Record, e error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -121,7 +122,7 @@ func (db *DBImpl) Create(parent common.Hash, proposer common.Address) (r *Record
 	return pending, nil
 }
 
-func (db *DBImpl) Commit(parent, pending common.Hash) (r *Record, e error) {
+func (db *DBImpl) Commit(parent, pending common.Hash) (r api.Record, e error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -131,18 +132,20 @@ func (db *DBImpl) Commit(parent, pending common.Hash) (r *Record, e error) {
 	}
 
 	pendingRecord := parentRecord.Pending()
-	pendingRecord.snap.hash = pending
-	parentRecord.pending = nil
-	parentRecord.siblings = append(parentRecord.siblings, pendingRecord)
+	pendingRecord.SetHash(pending)
+	parentRecord.SetPending(nil)
+	parentRecord.AddSibling(pendingRecord)
 	db.records[pending] = pendingRecord
 	db.persist(pendingRecord, parentRecord)
 
 	return pendingRecord, nil
 }
 
-func (db *DBImpl) persist(pendingRecord *Record, parentRecord *Record) {
-	if e := db.snapPersister.Put(pendingRecord.snap); e != nil {
-		log.Error("Can't persist snapshot")
+func (db *DBImpl) persist(pendingRecord api.Record, parentRecord api.Record) {
+	if pr, c := pendingRecord.(*RecordImpl); c {
+		if e := db.snapPersister.Put(pr.snap); e != nil {
+			log.Error("Can't persist snapshot")
+		}
 	}
 	if e := db.recordPersister.Put(pendingRecord); e != nil {
 		log.Error("Can't persist record")
@@ -152,8 +155,8 @@ func (db *DBImpl) persist(pendingRecord *Record, parentRecord *Record) {
 			log.Error("Can't persist parent parent record")
 		}
 	}
-	if parentRecord != nil {
-		if e := db.snapPersister.Put(parentRecord.snap); e != nil {
+	if parent, c := parentRecord.(*RecordImpl); c {
+		if e := db.snapPersister.Put(parent.snap); e != nil {
 			log.Error("Can't persist parent snapshot")
 		}
 	}
@@ -169,15 +172,15 @@ func (db *DBImpl) Release(blockHash common.Hash) error {
 	return nil
 }
 
-func (db *DBImpl) release(record *Record) {
-	delete(db.records, record.snap.hash)
-	if e := db.recordPersister.Delete(record.snap.hash); e != nil {
+func (db *DBImpl) release(record api.Record) {
+	delete(db.records, record.Hash())
+	if e := db.recordPersister.Delete(record.Hash()); e != nil {
 		log.Error("Can't delete record from storage")
 	}
-	if e := db.snapPersister.Delete(record.snap.hash); e != nil {
+	if e := db.snapPersister.Delete(record.Hash()); e != nil {
 		log.Error("Can't delete snapshot from storage")
 	}
-	for _, sibl := range record.siblings {
+	for _, sibl := range record.Siblings() {
 		db.release(sibl)
 	}
 }

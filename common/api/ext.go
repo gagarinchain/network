@@ -11,6 +11,10 @@ type OnReceiveProposal interface {
 	AfterVoted(pacer Pacer, bc Blockchain, vote Vote)
 }
 
+type OnProposal interface {
+	CreateBlock(pacer Pacer, bc Blockchain) Block
+}
+
 type OnVoteReceived interface {
 	OnVoteReceived(pacer Pacer, bc Blockchain, vote Vote)
 	OnQCFinished(pacer Pacer, bc Blockchain, qc QuorumCertificate)
@@ -63,4 +67,10 @@ func (NullOnNextEpoch) OnNewEpoch(pacer Pacer, bc Blockchain, newEpoch int32) {
 type NullOnBlockCommit struct{}
 
 func (NullOnBlockCommit) OnBlockCommit(bc Blockchain, block Block, orphans *treemap.Map) {
+}
+
+type NullOnProposal struct{}
+
+func (NullOnProposal) CreateBlock(pacer Pacer, bc Blockchain) Block {
+	return nil
 }

@@ -40,6 +40,7 @@ type ProtocolConfig struct {
 	InitialState      *InitialState
 	OnReceiveProposal api.OnReceiveProposal
 	OnVoteReceived    api.OnVoteReceived
+	OnProposal        api.OnProposal
 	OnBlockCommit     api.OnBlockCommit
 }
 
@@ -77,6 +78,7 @@ type Protocol struct {
 	persister         *ProtocolPersister
 	onReceiveProposal api.OnReceiveProposal
 	onVoteReceived    api.OnVoteReceived
+	onProposal        api.OnProposal
 	onBlockCommit     api.OnBlockCommit
 }
 
@@ -163,6 +165,11 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		p.onBlockCommit = api.NullOnBlockCommit{}
 	} else {
 		p.onBlockCommit = cfg.OnBlockCommit
+	}
+	if cfg.OnProposal == nil {
+		p.onProposal = api.NullOnProposal{}
+	} else {
+		p.onProposal = cfg.OnProposal
 	}
 
 	return p
@@ -388,8 +395,11 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 		head = p.blockchain.PadEmptyBlock(head, p.hqc)
 	}
 
-	//todo remove rand data
-	block := p.blockchain.NewBlock(head, p.hqc, []byte(strconv.Itoa(rand.Int())))
+	var block api.Block
+	if block = p.onProposal.CreateBlock(p.pacer, p.blockchain); block == nil {
+		//todo remove rand data
+		block = p.blockchain.NewBlock(head, p.hqc, []byte(strconv.Itoa(rand.Int())))
+	}
 	proposal := CreateProposal(block, p.hqc, p.me)
 
 	proposal.Sign(p.me.GetPrivateKey())

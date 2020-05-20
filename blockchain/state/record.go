@@ -6,10 +6,10 @@ import (
 	"fmt"
 	gagarinchain "github.com/gagarinchain/network"
 	cmn "github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/common/trie/sparse"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )
@@ -18,8 +18,8 @@ type RecordPersister struct {
 	storage gagarinchain.Storage
 }
 
-func (p *RecordPersister) Put(r *Record) error {
-	return p.storage.Put(gagarinchain.Record, r.snap.hash.Bytes(), r.Serialize())
+func (p *RecordPersister) Put(r api.Record) error {
+	return p.storage.Put(gagarinchain.Record, r.Hash().Bytes(), r.Serialize())
 }
 
 func (p *RecordPersister) Contains(hash common.Hash) bool {
@@ -40,29 +40,56 @@ func (p *RecordPersister) Hashes() (hashes []common.Hash) {
 	return hashes
 }
 
-//record stores information about version tree structure and provides base account processing logic
-type Record struct {
+type RecordImpl struct {
 	snap      *Snapshot
-	pending   *Record
-	parent    *Record
-	siblings  []*Record
-	forUpdate map[common.Address]*Account
+	pending   api.Record
+	parent    api.Record
+	siblings  []api.Record
+	forUpdate map[common.Address]api.Account
 	bus       cmn.EventBus
 }
 
-func NewRecord(snap *Snapshot, parent *Record, bus cmn.EventBus) *Record {
-	return &Record{snap: snap, parent: parent, forUpdate: make(map[common.Address]*Account), bus: bus}
+func (r *RecordImpl) Siblings() []api.Record {
+	return r.siblings
 }
 
-func (r *Record) Pending() *Record {
+func (r *RecordImpl) AddSibling(sibling api.Record) {
+	r.siblings = append(r.siblings, sibling)
+}
+
+func (r *RecordImpl) Trie() *sparse.SMT {
+	return r.snap.trie
+}
+func (r *RecordImpl) Hash() common.Hash {
+	if r.snap == nil {
+		return common.Hash{}
+	}
+	return r.snap.hash
+}
+func (r *RecordImpl) SetHash(pending common.Hash) {
+	r.snap.hash = pending
+}
+func (r *RecordImpl) Parent() api.Record {
+	return r.parent
+}
+
+func (r *RecordImpl) SetParent(parent api.Record) {
+	r.parent = parent
+}
+
+func NewRecord(snap *Snapshot, parent api.Record, bus cmn.EventBus) *RecordImpl {
+	return &RecordImpl{snap: snap, parent: parent, forUpdate: make(map[common.Address]api.Account), bus: bus}
+}
+
+func (r *RecordImpl) Pending() api.Record {
 	return r.pending
 }
 
-func (r *Record) SetPending(pending *Record) {
+func (r *RecordImpl) SetPending(pending api.Record) {
 	r.pending = pending
 }
 
-func (r *Record) NewPendingRecord(proposer common.Address) *Record {
+func (r *RecordImpl) NewPendingRecord(proposer common.Address) api.Record {
 	s := &Snapshot{
 		trie:     sparse.NewSMT(256),
 		proposer: proposer,
@@ -73,7 +100,7 @@ func (r *Record) NewPendingRecord(proposer common.Address) *Record {
 	return pending
 }
 
-func (r *Record) Get(address common.Address) (acc *Account, found bool) {
+func (r *RecordImpl) Get(address common.Address) (acc api.Account, found bool) {
 	acc, found = r.snap.Get(address)
 	if !found {
 		if r.parent != nil {
@@ -88,7 +115,7 @@ func (r *Record) Get(address common.Address) (acc *Account, found bool) {
 
 //ForUpdate is used to protect us from loading instance of account several times from db. This method helps serialize updates.
 // We have to load call this method every time we want to change account, otherwise we can erase change during data duplication
-func (r *Record) GetForUpdate(address common.Address) (acc *Account, found bool) {
+func (r *RecordImpl) GetForUpdate(address common.Address) (acc api.Account, found bool) {
 	acc, found = r.forUpdate[address]
 	if found {
 		return acc, found
@@ -104,7 +131,7 @@ func (r *Record) GetForUpdate(address common.Address) (acc *Account, found bool)
 
 // Updates taken value forUpdate.
 // Copies from previous snapshots latest versions of needed hashes to calculate proof for current account
-func (r *Record) Update(address common.Address, account *Account) error {
+func (r *RecordImpl) Update(address common.Address, account api.Account) error {
 	forUpdate, found := r.forUpdate[address]
 	if found { //already taken for update
 		if forUpdate != account { //there is another copy of this record
@@ -146,7 +173,7 @@ func (r *Record) Update(address common.Address, account *Account) error {
 }
 
 //LookUp all needed for proof calculation nodes in all known snapshots and add them to current record state tree
-func (r *Record) lookupAccountAndAddNodes(address common.Address) {
+func (r *RecordImpl) lookupAccountAndAddNodes(address common.Address) {
 	path := sparse.GetPath(address.Big(), 256)
 	relativePath := sparse.GetRelativePath(path) //nodes we need to calculate proof
 	ids, hashes := lookUp(r, relativePath)
@@ -156,10 +183,10 @@ func (r *Record) lookupAccountAndAddNodes(address common.Address) {
 }
 
 //LookUp recursively all state tree to find toLookup nodes, returns found ids and its values in state smt
-func lookUp(record *Record, toLookup []*sparse.NodeId) (ids []*sparse.NodeId, hashes []common.Hash) {
+func lookUp(record api.Record, toLookup []*sparse.NodeId) (ids []*sparse.NodeId, hashes []common.Hash) {
 	var reduced []*sparse.NodeId
 	for _, id := range toLookup {
-		b, found := record.snap.trie.GetById(id) //todo probably should hide under snapshot this trie manipulation
+		b, found := record.Trie().GetById(id) //todo probably should hide under snapshot this trie manipulation
 		if found {
 			ids = append(ids, id)
 			hashes = append(hashes, common.BytesToHash(b))
@@ -168,12 +195,12 @@ func lookUp(record *Record, toLookup []*sparse.NodeId) (ids []*sparse.NodeId, ha
 		}
 	}
 
-	if record == record.parent {
+	if record == record.Parent() {
 		log.Error("Self reference in records")
 		return
 	}
 
-	parent := record.parent
+	parent := record.Parent()
 	if parent == nil || reduced == nil { //we are done if we iterated all known states
 		return
 	}
@@ -182,7 +209,7 @@ func lookUp(record *Record, toLookup []*sparse.NodeId) (ids []*sparse.NodeId, ha
 	return append(ids, retIds...), append(hashes, retHashes...)
 }
 
-func (r *Record) Proof(address common.Address) (proof *sparse.Proof) {
+func (r *RecordImpl) Proof(address common.Address) (proof *sparse.Proof) {
 	p, found := r.snap.Proof(address)
 	if !found {
 		return nil
@@ -190,29 +217,29 @@ func (r *Record) Proof(address common.Address) (proof *sparse.Proof) {
 	return p
 }
 
-func (r *Record) RootProof() common.Hash {
+func (r *RecordImpl) RootProof() common.Hash {
 	return r.snap.RootProof()
 }
 
-func (r *Record) IsApplicable(t *tx.Transaction) (err error) {
+func (r *RecordImpl) IsApplicable(t api.Transaction) (err error) {
 	sender, found := r.GetForUpdate(t.From())
 	if !found {
 		return FutureTransactionError
 	}
-	if t.Nonce() < sender.nonce+1 {
+	if t.Nonce() < sender.Nonce()+1 {
 		return ExpiredTransactionError
 	}
-	if t.Nonce() > sender.nonce+1 {
+	if t.Nonce() > sender.Nonce()+1 {
 		return FutureTransactionError
 	}
 	cost := t.Fee()
-	if sender.balance.Cmp(cost) < 0 {
+	if sender.Balance().Cmp(cost) < 0 {
 		return InsufficientFundsError
 	}
 	return nil
 }
 
-func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
+func (r *RecordImpl) ApplyTransaction(t api.Transaction) (err error) {
 	if err := r.IsApplicable(t); err != nil {
 		return err
 	}
@@ -223,20 +250,20 @@ func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
 		return FutureTransactionError
 	}
 
-	sender.nonce += 1
+	sender.IncrementNonce()
 
 	proposer, found := r.GetForUpdate(r.snap.proposer)
 	if !found {
 		proposer = NewAccount(0, big.NewInt(0))
 	}
 
-	var receiver *Account
+	var receiver api.Account
 	to := t.To()
 
 	switch t.TxType() {
-	case tx.Payment:
+	case api.Payment:
 		cost := big.NewInt(0).Add(t.Value(), t.Fee())
-		if sender.balance.Cmp(cost) < 0 {
+		if sender.Balance().Cmp(cost) < 0 {
 			return InsufficientFundsError
 		}
 
@@ -244,26 +271,26 @@ func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
 		if !found {
 			receiver = NewAccount(0, big.NewInt(0))
 		}
-		sender.balance.Sub(sender.balance, cost)
-		receiver.balance.Add(receiver.balance, t.Value())
-		proposer.balance.Add(proposer.balance, t.Fee())
-	case tx.Settlement:
+		sender.Balance().Sub(sender.Balance(), cost)
+		receiver.Balance().Add(receiver.Balance(), t.Value())
+		proposer.Balance().Add(proposer.Balance(), t.Fee())
+	case api.Settlement:
 		cost := t.Fee()
-		if sender.balance.Cmp(cost) < 0 {
+		if sender.Balance().Cmp(cost) < 0 {
 			return InsufficientFundsError
 		}
 
 		receiver, found = r.GetForUpdate(t.To())
 		if !found {
-			receiver = NewAccount(0, big.NewInt(0).Add(t.Value(), big.NewInt(tx.DefaultSettlementReward))) //store reward at account while assets are not separate
+			receiver = NewAccount(0, big.NewInt(0).Add(t.Value(), big.NewInt(api.DefaultSettlementReward))) //store reward at account while assets are not separate
 		}
-		proposer.balance.Add(proposer.balance, big.NewInt(0).Sub(t.Fee(), big.NewInt(tx.DefaultSettlementReward)))
-		sender.balance.Sub(sender.balance, cost)
-		receiver.origin = t.From()
+		proposer.Balance().Add(proposer.Balance(), big.NewInt(0).Sub(t.Fee(), big.NewInt(api.DefaultSettlementReward)))
+		sender.Balance().Sub(sender.Balance(), cost)
+		receiver.SetOrigin(t.From())
 
-	case tx.Agreement:
+	case api.Agreement:
 		cost := t.Fee()
-		if sender.balance.Cmp(cost) < 0 {
+		if sender.Balance().Cmp(cost) < 0 {
 			return InsufficientFundsError
 		}
 
@@ -271,16 +298,16 @@ func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
 		if !found {
 			return FutureTransactionError
 		}
-		sender.balance.Sub(sender.balance, cost)
-		proposer.balance.Add(proposer.balance, t.Fee())
-		receiver.voters = append(receiver.voters, t.From())
-	case tx.Proof:
+		sender.Balance().Sub(sender.Balance(), cost)
+		proposer.Balance().Add(proposer.Balance(), t.Fee())
+		receiver.AddVoters(t.From())
+	case api.Proof:
 		cost := big.NewInt(0).Add(t.Value(), t.Fee())
-		if sender.balance.Cmp(cost) < 0 {
+		if sender.Balance().Cmp(cost) < 0 {
 			return InsufficientFundsError
 		}
-		proposer.balance.Add(proposer.balance, t.Fee())
-		sender.balance.Sub(sender.balance, t.Fee())
+		proposer.Balance().Add(proposer.Balance(), t.Fee())
+		sender.Balance().Sub(sender.Balance(), t.Fee())
 
 		receiver, found = r.GetForUpdate(t.To())
 		if !found {
@@ -288,39 +315,39 @@ func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
 			return FutureTransactionError
 		}
 
-		if !bytes.Equal(t.From().Bytes(), receiver.origin.Bytes()) {
+		if !bytes.Equal(t.From().Bytes(), receiver.Origin().Bytes()) {
 			return WrongProofOrigin
 		}
 
-		origin, found := r.GetForUpdate(receiver.origin)
+		origin, found := r.GetForUpdate(receiver.Origin())
 		if !found {
 			log.Infof("Origin %v not found", t.From().Hex())
 			return FutureTransactionError
 		}
 
-		n := len(receiver.voters)
-		for _, v := range receiver.voters {
+		n := len(receiver.Voters())
+		for _, v := range receiver.Voters() {
 			voter, f := r.GetForUpdate(v)
 			if !f {
 				voter = NewAccount(0, big.NewInt(0))
 
 			}
-			fraction := big.NewInt(0).Div(big.NewInt(tx.DefaultSettlementReward), big.NewInt(int64(n)))
-			voter.balance.Add(voter.balance, fraction)
-			receiver.balance.Sub(receiver.balance, fraction)
+			fraction := big.NewInt(0).Div(big.NewInt(api.DefaultSettlementReward), big.NewInt(int64(n)))
+			voter.Balance().Add(voter.Balance(), fraction)
+			receiver.Balance().Sub(receiver.Balance(), fraction)
 
 			if err := r.Update(v, voter); err != nil {
 				return err
 			}
 		}
 
-		if receiver.balance.Cmp(big.NewInt(0)) > 0 {
-			origin.balance.Add(origin.balance, receiver.balance)
-			receiver.balance.Set(big.NewInt(0))
+		if receiver.Balance().Cmp(big.NewInt(0)) > 0 {
+			origin.Balance().Add(origin.Balance(), receiver.Balance())
+			receiver.Balance().Set(big.NewInt(0))
 
 		}
 
-		if err := r.Update(receiver.origin, origin); err != nil {
+		if err := r.Update(receiver.Origin(), origin); err != nil {
 			return err
 		}
 
@@ -340,7 +367,7 @@ func (r *Record) ApplyTransaction(t *tx.Transaction) (err error) {
 	return nil
 }
 
-func (r *Record) Put(address common.Address, account *Account) {
+func (r *RecordImpl) Put(address common.Address, account api.Account) {
 	_, found := r.Get(address)
 	if found {
 		log.Errorf("Account for %v is already stored in db, update it instead!", address.Hex())
@@ -350,15 +377,15 @@ func (r *Record) Put(address common.Address, account *Account) {
 	r.snap.Put(address, account)
 }
 
-func (r *Record) Serialize() []byte {
+func (r *RecordImpl) Serialize() []byte {
 	var siblMess [][]byte
 	for _, s := range r.siblings {
-		siblMess = append(siblMess, s.snap.hash.Bytes())
+		siblMess = append(siblMess, s.Hash().Bytes())
 	}
 
 	var parent []byte
 	if r.parent != nil {
-		parent = r.parent.snap.hash.Bytes()
+		parent = r.parent.Hash().Bytes()
 	}
 	record := &pb.Record{
 		Snap:     r.snap.hash.Bytes(),
@@ -385,7 +412,7 @@ func GetProto(bytes []byte) (*pb.Record, error) {
 }
 
 //returns record without parent and siblings
-func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot, bus cmn.EventBus) (*Record, error) {
+func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot, bus cmn.EventBus) (*RecordImpl, error) {
 	hash := common.BytesToHash(recPb.Snap)
 	s, f := snapshots[hash]
 	if !f {
@@ -394,19 +421,19 @@ func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot, bus cmn.Ev
 	return NewRecord(s, nil, bus), nil
 }
 
-func (r *Record) SetParentFromProto(recPb *pb.Record, records map[common.Hash]*Record) {
+func SetParentFromProto(r api.Record, recPb *pb.Record, records map[common.Hash]api.Record) {
 	parentHash := common.BytesToHash(recPb.Parent)
 	parent, f := records[parentHash]
 	if !f {
 		log.Errorf("parent record %v is not found in db", parentHash.Hex())
 	}
-	r.parent = parent
+	r.SetParent(parent)
 
 	for _, shash := range recPb.Siblings {
 		sibl, f := records[common.BytesToHash(shash)]
 		if !f {
 			log.Errorf("sibling record %v is not found in db", common.Bytes2Hex(shash))
 		}
-		r.siblings = append(r.siblings, sibl)
+		r.AddSibling(sibl)
 	}
 }

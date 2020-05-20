@@ -9,7 +9,6 @@ import (
 	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
 	"github.com/gagarinchain/network/common/eth/crypto"
-	"github.com/gagarinchain/network/common/tx"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -352,7 +351,7 @@ func mockPool() bch.TransactionPool {
 	pool := &mocks.TransactionPool{}
 	pool.On("RemoveAll")
 
-	txs := make(chan []*tx.Transaction)
+	txs := make(chan []api.Transaction)
 	close(txs)
 
 	pool.On("Drain", mock.MatchedBy(func(ctx context.Context) bool { return true })).Return(txs)
