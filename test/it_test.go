@@ -221,14 +221,20 @@ func TestScenario2b(t *testing.T) {
 	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
 	defer f()
 
-	trigger := make(chan interface{})
+	epochChanged := make(chan api.Event)
 	ctx.pacer.SubscribeEpochChange(timeout, func(event api.Event) {
-		trigger <- event
+		epochChanged <- event
+	})
+	viewChanged := make(chan api.Event)
+	ctx.pacer.SubscribeViewChange(timeout, func(event api.Event) {
+		viewChanged <- event
 	})
 	ctx.sendStartEpochMessages(2, 2*ctx.cfg.F/3+1, nil)
-	<-trigger
+	event := <-epochChanged
+	assert.Equal(t, int32(2), event.Payload.(int32))
 
-	assert.Equal(t, int32(21), ctx.pacer.GetCurrentView())
+	event = <-viewChanged
+	assert.Equal(t, int32(21), event.Payload.(int32))
 
 }
 
