@@ -1118,7 +1118,7 @@ type TestContext struct {
 	cfg          *hotstuff.ProtocolConfig
 	bc           api.Blockchain
 	bsrv         blockchain.BlockService
-	pool         blockchain.TransactionPool
+	pool         tx.TransactionPool
 	eventChan    chan api.Event
 	voteChan     chan *DirectMessage
 	startChan    chan *msg.Message
@@ -1133,7 +1133,7 @@ type TestContext struct {
 	blocksChan   chan *msg.Message
 	seed         map[common2.Address]api.Account
 	stateDB      state.DB
-	txService    *blockchain.TxService
+	txService    *tx.TxService
 }
 
 type DirectMessage struct {
@@ -1281,7 +1281,7 @@ func initContext(t *testing.T) *TestContext {
 		hotstuff.NewVoteValidator(peers),
 	}
 
-	pool := blockchain.NewTransactionPool()
+	pool := tx.NewTransactionPool()
 	seed := blockchain.SeedFromFile("../static/seed.json")
 
 	stateDb := state.NewStateDB(storage, &common.NullBus{})
@@ -1355,7 +1355,7 @@ func initContext(t *testing.T) *TestContext {
 			}()
 		}).Return(blocksChan, nil)
 
-	txService := blockchain.NewService(blockchain.NewTransactionValidator(peers), pool, srv, bc, identity)
+	txService := tx.NewService(blockchain.NewTransactionValidator(peers), pool, srv, bc, identity)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer

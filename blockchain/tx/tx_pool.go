@@ -1,9 +1,8 @@
-package blockchain
+package tx
 
 import (
 	"bytes"
 	"context"
-	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common/api"
 	"sort"
 	"sync"
@@ -31,14 +30,14 @@ func (tp *TransactionPoolImpl) Add(tx api.Transaction) {
 func (tp *TransactionPoolImpl) getTopByFee() []api.Transaction {
 	pendingCopy := append(tp.pending[:0:0], tp.pending...)
 	//TODO we can sort only top n elements in array with optimized sorting algorithms
-	sort.Sort(sort.Reverse(tx.ByFeeAndNonce(pendingCopy)))
+	sort.Sort(sort.Reverse(ByFeeAndNonce(pendingCopy)))
 	return pendingCopy
 }
 
 func (tp *TransactionPoolImpl) Iterator() api.Iterator {
 	tp.lock.RLock()
 	defer tp.lock.RUnlock()
-	return newIterator(tp.getTopByFee())
+	return NewIterator(tp.getTopByFee())
 }
 
 func (tp *TransactionPoolImpl) Remove(transaction api.Transaction) {
@@ -70,7 +69,7 @@ type orderedIterator struct {
 	state int
 }
 
-func newIterator(txs []api.Transaction) api.Iterator {
+func NewIterator(txs []api.Transaction) api.Iterator {
 	return &orderedIterator{txs: txs, state: 0}
 }
 
@@ -102,7 +101,7 @@ func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []api.Tra
 		last := len(pending)
 		part := make([]api.Transaction, len(tp.pending[index:last]))
 		copy(part, tp.pending[index:last])
-		sort.Sort(sort.Reverse(tx.ByFeeAndNonce(part)))
+		sort.Sort(sort.Reverse(ByFeeAndNonce(part)))
 		go func(txs chan []api.Transaction) {
 			select {
 			case txs <- part:

@@ -5,6 +5,7 @@ import (
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/message"
@@ -22,7 +23,7 @@ type Context struct {
 	hotStuff          *hotstuff.Protocol
 	pacer             *hotstuff.StaticPacer
 	srv               network.Service
-	txService         *blockchain.TxService
+	txService         *tx.TxService
 	eventBuss         *network.GagarinEventBus
 	hotstuffChan      chan *message.Message
 	epochChan         chan *message.Message
@@ -66,7 +67,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	}
 
 	log.Infof("This is my id %v", node.Host.ID().Pretty())
-	pool := blockchain.NewTransactionPool()
+	pool := tx.NewTransactionPool()
 
 	events := make(chan *common.Event)
 	bus := network.NewGagarinEventBus(events)
@@ -109,7 +110,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		Storage:      storage,
 	}
 
-	txService := blockchain.NewService(txValidator, pool, hotstuffSrv, bc, me)
+	txService := tx.NewService(txValidator, pool, hotstuffSrv, bc, me)
 
 	pacer := hotstuff.CreatePacer(config)
 	config.Pacer = pacer

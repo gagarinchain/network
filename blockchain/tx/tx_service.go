@@ -1,9 +1,8 @@
-package blockchain
+package tx
 
 import (
 	"context"
 	net "github.com/gagarinchain/network"
-	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/api"
 	common2 "github.com/gagarinchain/network/common/eth/common"
@@ -34,7 +33,7 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 				log.Error("Can't parse transaction message", err)
 				continue
 			}
-			t, e := tx.CreateTransactionFromMessage(pbt, false)
+			t, e := CreateTransactionFromMessage(pbt, false)
 			if e != nil {
 				log.Error("Can't create transaction", e)
 				continue
@@ -71,7 +70,7 @@ func (s *TxService) SendAgreement(ctx context.Context, t api.Transaction) error 
 		nonce = acc.Nonce()
 	}
 
-	agreement := tx.CreateAgreement(t, nonce, nil)
+	agreement := CreateAgreement(t, nonce, nil)
 	if err := agreement.CreateProof(s.me.GetPrivateKey()); err != nil {
 		return err
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/emirpasic/gods/utils"
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/blockchain/tx"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
@@ -101,7 +102,7 @@ type BlockchainImpl struct {
 	//indexes for storing block arrays according to their height, while not committed head may contain forks,
 	//<int32, []*Block>
 	uncommittedTreeByHeight *treemap.Map
-	txPool                  TransactionPool
+	txPool                  tx.TransactionPool
 	stateDB                 state.DB
 	proposerGetter          api.ProposerForHeight
 	blockPersister          *BlockPersister

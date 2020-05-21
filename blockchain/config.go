@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/common/api"
 	"io/ioutil"
 	"math/big"
@@ -18,7 +19,7 @@ type BlockchainConfig struct {
 	BlockPerister  *BlockPersister
 	ProposerGetter api.ProposerForHeight
 	ChainPersister *BlockchainPersister
-	Pool           TransactionPool
+	Pool           tx.TransactionPool
 	Db             state.DB
 	Storage        gagarinchain.Storage
 	Delta          time.Duration

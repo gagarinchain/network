@@ -36,7 +36,7 @@ func (b *BlockImpl) Txs() api.Iterator {
 		transactions = append(transactions, t)
 	}
 
-	return newIterator(transactions)
+	return tx.NewIterator(transactions)
 }
 
 func (b *BlockImpl) AddTransaction(t api.Transaction) {

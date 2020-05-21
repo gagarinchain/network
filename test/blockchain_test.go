@@ -5,6 +5,7 @@ import (
 	"github.com/gagarinchain/network"
 	bch "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/blockchain/tx"
 	cmn "github.com/gagarinchain/network/common"
 	"github.com/gagarinchain/network/common/api"
 	"github.com/gagarinchain/network/common/eth/common"
@@ -347,7 +348,7 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 
 }
 
-func mockPool() bch.TransactionPool {
+func mockPool() tx.TransactionPool {
 	pool := &mocks.TransactionPool{}
 	pool.On("RemoveAll")
 
