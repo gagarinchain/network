@@ -9,8 +9,8 @@ BINARY_UNIX=$(BINARY_NAME)_unix
 all: test build
 protos:
 	cd common/protobuff/protos && PATH=$(PATH):$(GOPATH)/bin protoc --go_out=$(PKGMAP):.. *.proto
-build: protos
-	$(GOBUILD) -o $(BINARY_NAME) -v ./run
+build:
+	$(GOBUILD) -o $(BINARY_NAME) -x -trimpath -v ./run
 	chmod 775 $(BINARY_NAME)
 test:
 	$(GOTEST) -v ./...

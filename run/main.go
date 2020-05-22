@@ -2,7 +2,8 @@ package main
 
 import (
 	"flag"
-	cmn "github.com/gagarinchain/network/common"
+	cmn "github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/network/network"
 	golog "github.com/ipfs/go-log"
 	"github.com/multiformats/go-multiaddr"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"plugin"
 	"strconv"
 )
 
@@ -60,6 +62,20 @@ func main() {
 	var extMA multiaddr.Multiaddr
 	if found {
 		extMA, _ = multiaddr.NewMultiaddr(extAddr)
+	}
+
+	plugPath, found := os.LookupEnv("GN_PLUGIN")
+	if found {
+		if plug, err := plugin.Open(plugPath); err == nil {
+			if lookup, err := plug.Lookup("RollupsPlugin"); err == nil {
+				onBlockCommit := lookup.(api.OnBlockCommit)
+				onBlockCommit.OnBlockCommit(nil, nil, nil)
+			} else {
+				log.Error("RollupsPlugin export is not found")
+			}
+		} else {
+			log.Error("Can't open plugin", err)
+		}
 	}
 
 	s := cmn.ReadSettings()

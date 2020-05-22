@@ -2,7 +2,7 @@
 
 package mocks
 
-import common "github.com/gagarinchain/network/common"
+import common "github.com/gagarinchain/common"
 import context "context"
 import mock "github.com/stretchr/testify/mock"
 

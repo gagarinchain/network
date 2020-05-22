@@ -3,9 +3,9 @@ package blockchain
 import (
 	"bytes"
 	"context"
-	comm "github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
+	comm "github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
 	"github.com/pkg/errors"
 	"sort"
 	"sync"

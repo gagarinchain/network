@@ -1,12 +1,12 @@
 package test
 
 import (
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/eth/crypto"
+	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/tx"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/eth/crypto"
-	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"

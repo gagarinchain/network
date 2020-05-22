@@ -2,10 +2,10 @@ package blockchain
 
 import (
 	"errors"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	pb "github.com/gagarinchain/common/protobuff"
 	net "github.com/gagarinchain/network"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/golang/protobuf/proto"
 )
 

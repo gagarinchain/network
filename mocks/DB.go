@@ -2,8 +2,8 @@
 
 package mocks
 
-import api "github.com/gagarinchain/network/common/api"
-import common "github.com/gagarinchain/network/common/eth/common"
+import api "github.com/gagarinchain/common/api"
+import common "github.com/gagarinchain/common/eth/common"
 import mock "github.com/stretchr/testify/mock"
 import state "github.com/gagarinchain/network/blockchain/state"
 

@@ -3,7 +3,7 @@ package tx
 import (
 	"bytes"
 	"context"
-	"github.com/gagarinchain/network/common/api"
+	"github.com/gagarinchain/common/api"
 	"sort"
 	"sync"
 	"time"

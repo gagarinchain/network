@@ -1,10 +1,10 @@
 package test
 
 import (
+	"github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/network"
-	"github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/mock"
 	"math/big"

@@ -1,9 +1,9 @@
 package state
 
 import (
-	common2 "github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/eth/crypto"
+	common2 "github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"

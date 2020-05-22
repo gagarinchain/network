@@ -2,7 +2,7 @@ package tx
 
 import (
 	"context"
-	"github.com/gagarinchain/network/common/api"
+	"github.com/gagarinchain/common/api"
 )
 
 type TransactionPool interface {

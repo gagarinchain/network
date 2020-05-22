@@ -2,9 +2,9 @@ package test
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/network/blockchain"
-	"github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/stretchr/testify/assert"
 	"os"

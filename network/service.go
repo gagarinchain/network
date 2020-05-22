@@ -2,9 +2,9 @@ package network
 
 import (
 	"context"
-	"github.com/gagarinchain/network/common"
-	msg "github.com/gagarinchain/network/common/message"
-	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/common"
+	msg "github.com/gagarinchain/common/message"
+	"github.com/gagarinchain/common/protobuff"
 	protoio "github.com/gogo/protobuf/io"
 	"github.com/gogo/protobuf/proto"
 	"github.com/jbenet/go-context/io"

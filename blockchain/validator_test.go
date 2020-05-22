@@ -2,11 +2,11 @@ package blockchain
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	common2 "github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/network/blockchain/tx"
-	common2 "github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/eth/crypto"
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"

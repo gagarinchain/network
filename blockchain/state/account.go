@@ -1,9 +1,9 @@
 package state
 
 import (
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	pb "github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )

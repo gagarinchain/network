@@ -2,9 +2,9 @@
 
 package mocks
 
-import api "github.com/gagarinchain/network/common/api"
-import common "github.com/gagarinchain/network/common/eth/common"
-import crypto "github.com/gagarinchain/network/common/eth/crypto"
+import api "github.com/gagarinchain/common/api"
+import common "github.com/gagarinchain/common/eth/common"
+import crypto "github.com/gagarinchain/common/eth/crypto"
 import mock "github.com/stretchr/testify/mock"
 import treemap "github.com/emirpasic/gods/maps/treemap"
 

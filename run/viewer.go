@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/network/blockchain"
-	"github.com/gagarinchain/network/common"
 	"os"
 	"path"
 	"strconv"

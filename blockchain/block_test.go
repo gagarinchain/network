@@ -1,8 +1,8 @@
 package blockchain
 
 import (
-	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"

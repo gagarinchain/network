@@ -1,7 +1,7 @@
 package gagarinchain
 
 import (
-	"github.com/gagarinchain/network/common/protobuff"
+	"github.com/gagarinchain/common/protobuff"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 

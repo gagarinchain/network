@@ -1,8 +1,8 @@
 package tx
 
 import (
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
 	"math/big"
 	"testing"
 )

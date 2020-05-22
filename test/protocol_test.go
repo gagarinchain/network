@@ -2,12 +2,12 @@ package test
 
 import (
 	"context"
+	"github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/crypto"
+	msg "github.com/gagarinchain/common/message"
+	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/blockchain"
-	"github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/crypto"
-	msg "github.com/gagarinchain/network/common/message"
-	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/golang/protobuf/ptypes"

@@ -2,10 +2,10 @@ package hotstuff
 
 import (
 	"errors"
+	"github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/blockchain"
-	"github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/protobuff"
 )
 
 type EpochStartValidator struct {

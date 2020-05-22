@@ -1,6 +1,6 @@
 package hotstuff
 
-import "github.com/gagarinchain/network/common/api"
+import "github.com/gagarinchain/common/api"
 
 //Implementations of slashing should be specific to different crypto's
 type Slashing interface {

@@ -3,7 +3,7 @@ package test
 import (
 	"encoding/binary"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/gagarinchain/network/common/eth/crypto"
+	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/phoreproject/bls/g1pubs"
 	"math/big"
 	"testing"

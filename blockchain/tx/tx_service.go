@@ -2,12 +2,12 @@ package tx
 
 import (
 	"context"
+	"github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	common2 "github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/message"
+	"github.com/gagarinchain/common/protobuff"
 	net "github.com/gagarinchain/network"
-	"github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	common2 "github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/message"
-	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
 )

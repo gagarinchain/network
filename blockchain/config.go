@@ -2,17 +2,17 @@ package blockchain
 
 import (
 	"encoding/json"
+	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
-	"github.com/gagarinchain/network/common/api"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"time"
 )
-import "github.com/gagarinchain/network/common/eth/common"
-import cmn "github.com/gagarinchain/network/common"
+import "github.com/gagarinchain/common/eth/common"
+import cmn "github.com/gagarinchain/common"
 
 type BlockchainConfig struct {
 	Seed           map[common.Address]api.Account

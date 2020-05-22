@@ -1,11 +1,11 @@
 package state
 
 import (
+	cmn "github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network"
-	cmn "github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"sync"

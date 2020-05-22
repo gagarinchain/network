@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
+	"github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/message"
+	pb "github.com/gagarinchain/common/protobuff"
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
-	"github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/message"
-	pb "github.com/gagarinchain/network/common/protobuff"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
 	"path"

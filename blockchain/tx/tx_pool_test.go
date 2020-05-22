@@ -2,8 +2,8 @@ package tx
 
 import (
 	"context"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"

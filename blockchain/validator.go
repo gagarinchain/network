@@ -3,11 +3,11 @@ package blockchain
 import (
 	"bytes"
 	"errors"
-	cmn "github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/eth/crypto"
-	"github.com/gagarinchain/network/common/protobuff"
+	cmn "github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/eth/crypto"
+	"github.com/gagarinchain/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )

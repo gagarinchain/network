@@ -2,7 +2,7 @@
 
 package mocks
 
-import common "github.com/gagarinchain/network/common"
+import common "github.com/gagarinchain/common"
 import crypto "github.com/libp2p/go-libp2p-core/crypto"
 import mock "github.com/stretchr/testify/mock"
 

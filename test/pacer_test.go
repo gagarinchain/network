@@ -2,7 +2,7 @@ package test
 
 import (
 	"context"
-	msg "github.com/gagarinchain/network/common/message"
+	msg "github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/mocks"
 	"github.com/stretchr/testify/assert"

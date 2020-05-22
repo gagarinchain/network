@@ -1,11 +1,11 @@
 package state
 
 import (
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/protobuff"
+	"github.com/gagarinchain/common/trie/sparse"
 	"github.com/gagarinchain/network"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/trie/sparse"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )

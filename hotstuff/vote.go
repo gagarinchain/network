@@ -2,12 +2,12 @@ package hotstuff
 
 import (
 	"fmt"
+	comm "github.com/gagarinchain/common"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/crypto"
+	msg "github.com/gagarinchain/common/message"
+	"github.com/gagarinchain/common/protobuff"
 	bc "github.com/gagarinchain/network/blockchain"
-	comm "github.com/gagarinchain/network/common"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/crypto"
-	msg "github.com/gagarinchain/network/common/message"
-	"github.com/gagarinchain/network/common/protobuff"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/pkg/errors"
 )

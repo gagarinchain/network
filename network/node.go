@@ -3,7 +3,7 @@ package network
 import (
 	"context"
 	"fmt"
-	"github.com/gagarinchain/network/common"
+	"github.com/gagarinchain/common"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ds-leveldb"
 	"github.com/libp2p/go-libp2p"

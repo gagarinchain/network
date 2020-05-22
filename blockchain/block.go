@@ -2,12 +2,12 @@ package blockchain
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/eth/crypto"
+	"github.com/gagarinchain/common/protobuff"
+	"github.com/gagarinchain/common/trie"
 	"github.com/gagarinchain/network/blockchain/tx"
-	"github.com/gagarinchain/network/common/api"
-	"github.com/gagarinchain/network/common/eth/common"
-	"github.com/gagarinchain/network/common/eth/crypto"
-	"github.com/gagarinchain/network/common/protobuff"
-	"github.com/gagarinchain/network/common/trie"
 	"github.com/golang/protobuf/proto"
 	"time"
 )
