@@ -71,3 +71,9 @@ Storage:
 ## Tests
 There are several tests in the project. We have very light unit tests which are placed near scripts to test and integration tests in the network/test directory.
 Main integration tests are in it_test.go. Each test implements specific scenario and runs main hotstuff processes. Important: for now we mock block service and tx services and they are not covered in it_tests, tests for these services can be found in block_protocol_test.go and tx_service_test.go.
+
+## Modules
+To allow import of private modules do:
+```
+go env -w GOPRIVATE=github.com/<<path to repo>>
+```
