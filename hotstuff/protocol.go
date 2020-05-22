@@ -14,6 +14,7 @@ import (
 	main "github.com/gagarinchain/network"
 	bc "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/network"
+	"github.com/gagarinchain/network/storage"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
@@ -87,15 +88,15 @@ type ProtocolPersister struct {
 }
 
 func (pp *ProtocolPersister) PutVHeight(vheight int32) error {
-	vhb := comm.Int32ToByte(vheight)
+	vhb := storage.Int32ToByte(vheight)
 	return pp.Storage.Put(main.VHeight, nil, vhb)
 }
 func (pp *ProtocolPersister) GetVHeight() (int32, error) {
 	value, err := pp.Storage.Get(main.VHeight, nil)
 	if err != nil {
-		return comm.DefaultIntValue, err
+		return storage.DefaultIntValue, err
 	}
-	return comm.ByteToInt32(value)
+	return storage.ByteToInt32(value)
 }
 
 func (pp *ProtocolPersister) PutLastExecutedBlockHash(hash common.Hash) error {

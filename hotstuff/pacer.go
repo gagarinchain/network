@@ -11,6 +11,7 @@ import (
 	msg "github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/storage"
 	"math/big"
 	"sync"
 	"time"
@@ -30,28 +31,28 @@ type PacerPersister struct {
 }
 
 func (pp *PacerPersister) PutCurrentEpoch(currentEpoch int32) error {
-	epoch := cmn.Int32ToByte(currentEpoch)
+	epoch := storage.Int32ToByte(currentEpoch)
 	return pp.Storage.Put(gagarinchain.CurrentEpoch, nil, epoch)
 }
 
 func (pp *PacerPersister) GetCurrentEpoch() (int32, error) {
 	value, err := pp.Storage.Get(gagarinchain.CurrentEpoch, nil)
 	if err != nil {
-		return cmn.DefaultIntValue, err
+		return storage.DefaultIntValue, err
 	}
-	return cmn.ByteToInt32(value)
+	return storage.ByteToInt32(value)
 }
 func (pp *PacerPersister) PutCurrentView(currentView int32) error {
-	epoch := cmn.Int32ToByte(currentView)
+	epoch := storage.Int32ToByte(currentView)
 	return pp.Storage.Put(gagarinchain.CurrentView, nil, epoch)
 }
 
 func (pp *PacerPersister) GetCurrentView() (int32, error) {
 	value, err := pp.Storage.Get(gagarinchain.CurrentView, nil)
 	if err != nil {
-		return cmn.DefaultIntValue, err
+		return storage.DefaultIntValue, err
 	}
-	return cmn.ByteToInt32(value)
+	return storage.ByteToInt32(value)
 }
 
 //Static pacer that store validator set in file and round-robin elect proposer each 2 Delta-periods

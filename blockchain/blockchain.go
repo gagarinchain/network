@@ -15,6 +15,7 @@ import (
 	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
+	"github.com/gagarinchain/network/storage"
 	"github.com/op/go-logging"
 	"sync"
 	"time"
@@ -32,27 +33,27 @@ type BlockchainPersister struct {
 }
 
 func (bp *BlockchainPersister) PutCurrentTopHeight(currentTopHeight int32) error {
-	return bp.Storage.Put(net.CurrentTopHeight, nil, cmn.Int32ToByte(currentTopHeight))
+	return bp.Storage.Put(net.CurrentTopHeight, nil, storage.Int32ToByte(currentTopHeight))
 }
 
 func (bp *BlockchainPersister) GetCurrentTopHeight() (val int32, err error) {
 	value, err := bp.Storage.Get(net.CurrentTopHeight, nil)
 	if err != nil {
-		return cmn.DefaultIntValue, nil
+		return storage.DefaultIntValue, nil
 	}
-	return cmn.ByteToInt32(value)
+	return storage.ByteToInt32(value)
 }
 
 func (bp *BlockchainPersister) PutTopCommittedHeight(currentTopHeight int32) error {
-	return bp.Storage.Put(net.TopCommittedHeight, nil, cmn.Int32ToByte(currentTopHeight))
+	return bp.Storage.Put(net.TopCommittedHeight, nil, storage.Int32ToByte(currentTopHeight))
 }
 
 func (bp *BlockchainPersister) GetTopCommittedHeight() (val int32, err error) {
 	value, err := bp.Storage.Get(net.TopCommittedHeight, nil)
 	if err != nil {
-		return cmn.DefaultIntValue, nil
+		return storage.DefaultIntValue, nil
 	}
-	return cmn.ByteToInt32(value)
+	return storage.ByteToInt32(value)
 }
 
 func (bp *BlockchainPersister) PutHeightIndexRecord(b api.Block) error {

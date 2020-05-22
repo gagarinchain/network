@@ -92,6 +92,8 @@ github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/gagarinchain/common v0.1.0 h1:i7J3VDyLygyT1M5XIU8OKbWOHSON5M+M16lZRb7w+ZA=
 github.com/gagarinchain/common v0.1.0/go.mod h1:TgAeeHYDSzgqhF2FSvE1OZ9vU6kCPE3X8n1y2G2gLe8=
+github.com/gagarinchain/common v0.1.1 h1:oxa+XUxaErJiy8nUQl72gm1vH/oRWY2o7zuaVh3S61k=
+github.com/gagarinchain/common v0.1.1/go.mod h1:CeNMeewd/iaIFcvL4TqUGw0LzeyWDtQ/IlKUavw1NkA=
 github.com/gagarinchain/network v0.1.0/go.mod h1:Yx5+sq5nd9yU2JQ38OoniqT6r5stw0FxOcvwGOQz61Q=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff/go.mod h1:x7DCsMOv1taUwEWCzT4cmDeAkigA5/QCwUodaVOe8Ww=
 github.com/go-check/check v0.0.0-20180628173108-788fd7840127 h1:0gkP6mzaMqkmpcJYCFOLkIBwI7xFExG03bbkOkCvUPI=

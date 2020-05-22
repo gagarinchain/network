@@ -12,6 +12,7 @@ import (
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
+	"github.com/gagarinchain/network/storage"
 	"path"
 	"time"
 )
@@ -73,7 +74,7 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	bus := network.NewGagarinEventBus(events)
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher, bus)
-	storage, _ := common.NewStorage(cfg.DataDir, nil)
+	storage, _ := storage.NewStorage(cfg.DataDir, nil)
 	txValidator := blockchain.NewTransactionValidator(committee)
 	headerValidator := &blockchain.HeaderValidator{}
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee, txValidator, headerValidator), headerValidator)
