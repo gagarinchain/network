@@ -12,7 +12,6 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/common/trie"
-	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/storage"
@@ -29,15 +28,15 @@ var (
 )
 
 type BlockchainPersister struct {
-	Storage net.Storage
+	Storage storage.Storage
 }
 
 func (bp *BlockchainPersister) PutCurrentTopHeight(currentTopHeight int32) error {
-	return bp.Storage.Put(net.CurrentTopHeight, nil, storage.Int32ToByte(currentTopHeight))
+	return bp.Storage.Put(storage.CurrentTopHeight, nil, storage.Int32ToByte(currentTopHeight))
 }
 
 func (bp *BlockchainPersister) GetCurrentTopHeight() (val int32, err error) {
-	value, err := bp.Storage.Get(net.CurrentTopHeight, nil)
+	value, err := bp.Storage.Get(storage.CurrentTopHeight, nil)
 	if err != nil {
 		return storage.DefaultIntValue, nil
 	}
@@ -45,11 +44,11 @@ func (bp *BlockchainPersister) GetCurrentTopHeight() (val int32, err error) {
 }
 
 func (bp *BlockchainPersister) PutTopCommittedHeight(currentTopHeight int32) error {
-	return bp.Storage.Put(net.TopCommittedHeight, nil, storage.Int32ToByte(currentTopHeight))
+	return bp.Storage.Put(storage.TopCommittedHeight, nil, storage.Int32ToByte(currentTopHeight))
 }
 
 func (bp *BlockchainPersister) GetTopCommittedHeight() (val int32, err error) {
-	value, err := bp.Storage.Get(net.TopCommittedHeight, nil)
+	value, err := bp.Storage.Get(storage.TopCommittedHeight, nil)
 	if err != nil {
 		return storage.DefaultIntValue, nil
 	}
@@ -60,11 +59,11 @@ func (bp *BlockchainPersister) PutHeightIndexRecord(b api.Block) error {
 	key := make([]byte, binary.MaxVarintLen64)
 	binary.PutVarint(key, int64(b.Height()))
 
-	found := bp.Storage.Contains(net.HeightIndex, key)
+	found := bp.Storage.Contains(storage.HeightIndex, key)
 	var indexValue []byte
 
 	if found {
-		value, err := bp.Storage.Get(net.HeightIndex, key)
+		value, err := bp.Storage.Get(storage.HeightIndex, key)
 		if err != nil {
 			return err
 		}
@@ -72,14 +71,14 @@ func (bp *BlockchainPersister) PutHeightIndexRecord(b api.Block) error {
 	}
 
 	indexValue = append(indexValue, b.Header().Hash().Bytes()...)
-	return bp.Storage.Put(net.HeightIndex, key, indexValue)
+	return bp.Storage.Put(storage.HeightIndex, key, indexValue)
 }
 
 func (bp *BlockchainPersister) GetHeightIndexRecord(height int32) (hashes []common.Hash, err error) {
 	key := make([]byte, binary.MaxVarintLen64)
 	binary.PutVarint(key, int64(height))
 
-	val, err := bp.Storage.Get(net.HeightIndex, key)
+	val, err := bp.Storage.Get(storage.HeightIndex, key)
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +108,7 @@ type BlockchainImpl struct {
 	blockPersister          *BlockPersister
 	chainPersister          *BlockchainPersister
 	delta                   time.Duration
+	onNewBlockCreated       api.OnNewBlockCreated
 	bus                     cmn.EventBus
 }
 
@@ -118,10 +118,16 @@ func (bc *BlockchainImpl) SetProposerGetter(proposerGetter api.ProposerForHeight
 
 var log = logging.MustGetLogger("blockchain")
 
-func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) api.Blockchain {
+func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) *BlockchainImpl {
 	zero := CreateGenesisBlock()
 	if cfg.EventBus == nil {
 		cfg.EventBus = &cmn.NullBus{}
+	}
+	var onBlock api.OnNewBlockCreated
+	if cfg.OnNewBlockCreated == nil {
+		onBlock = &api.NullOnNewBlockCreated{}
+	} else {
+		onBlock = cfg.OnNewBlockCreated
 	}
 	blockchain := &BlockchainImpl{
 		blocksByHash:            make(map[common.Hash]api.Block),
@@ -135,6 +141,7 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) api.Blockchain {
 		chainPersister:          cfg.ChainPersister,
 		delta:                   cfg.Delta,
 		bus:                     cfg.EventBus,
+		onNewBlockCreated:       onBlock,
 	}
 
 	var s *state.Snapshot
@@ -144,14 +151,14 @@ func CreateBlockchainFromGenesisBlock(cfg *BlockchainConfig) api.Blockchain {
 	if e := cfg.Db.Init(zero.Header().Hash(), s); e != nil {
 		panic("can't init state DB")
 	}
-	if err := blockchain.AddBlock(zero); err != nil {
+	if _, err := blockchain.AddBlock(zero); err != nil {
 		log.Error(err)
 		panic("can't add genesis block")
 	}
 	return blockchain
 }
 
-func CreateBlockchainFromStorage(cfg *BlockchainConfig) api.Blockchain {
+func CreateBlockchainFromStorage(cfg *BlockchainConfig) *BlockchainImpl {
 	pblock := &BlockPersister{Storage: cfg.Storage}
 	pchain := &BlockchainPersister{Storage: cfg.Storage}
 
@@ -165,6 +172,12 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) api.Blockchain {
 	if cfg.EventBus == nil {
 		cfg.EventBus = &cmn.NullBus{}
 	}
+	var onBlock api.OnNewBlockCreated
+	if cfg.OnNewBlockCreated == nil {
+		onBlock = &api.NullOnNewBlockCreated{}
+	} else {
+		onBlock = cfg.OnNewBlockCreated
+	}
 	blockchain := &BlockchainImpl{
 		blocksByHash:            make(map[common.Hash]api.Block),
 		committedChainByHeight:  treemap.NewWith(utils.Int32Comparator),
@@ -176,6 +189,7 @@ func CreateBlockchainFromStorage(cfg *BlockchainConfig) api.Blockchain {
 		chainPersister:          pchain,
 		delta:                   cfg.Delta,
 		bus:                     cfg.EventBus,
+		onNewBlockCreated:       onBlock,
 	}
 
 	topCommittedHeight, err := pchain.GetTopCommittedHeight()
@@ -427,7 +441,7 @@ func (bc *BlockchainImpl) GetTopHeightBlocks() []api.Block {
 	return b
 }
 
-func (bc *BlockchainImpl) AddBlock(block api.Block) error {
+func (bc *BlockchainImpl) AddBlock(block api.Block) ([]api.Receipt, error) {
 	log.Infof("Adding block with hash [%v]", block.Header().Hash().Hex())
 	//spew.Dump(block)
 
@@ -436,33 +450,37 @@ func (bc *BlockchainImpl) AddBlock(block api.Block) error {
 
 	if bc.blocksByHash[block.Header().Hash()] != nil || bc.blockPersister.Contains(block.Header().Hash()) {
 		log.Debugf("Block with hash [%v] already exists, updating", block.Header().Hash().Hex())
-		return bc.blockPersister.Persist(block)
+		//TODO mb store receipts and return produced previously
+		return nil, bc.blockPersister.Persist(block)
 	}
 
 	if bc.blocksByHash[block.Header().Parent()] == nil && !bc.blockPersister.Contains(block.Header().Parent()) && block.Height() != 0 {
-		return errors.New(fmt.Sprintf("block with hash [%v] don't have parent loaded to blockchain", block.Header().Hash().Hex()))
+		return nil, errors.New(fmt.Sprintf("block with hash [%v] don't have parent loaded to blockchain", block.Header().Hash().Hex()))
 	}
 
 	if block.QC() != nil {
 		bc.updateBlockSignature(block)
 	}
 
+	var receipts []api.Receipt
 	//todo remove this hack by handling genesis in special way
 	if block.Height() != 0 {
-		if err := bc.applyTransactionsAndValidate(block); err != nil {
-			return err
+		var err error
+		if receipts, err = bc.applyTransactionsAndValidate(block); err != nil {
+			return nil, err
 		}
+		log.Debugf("%v receipts produced", len(receipts))
 	}
 
 	if err := bc.addUncommittedBlock(block); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := bc.blockPersister.Persist(block); err != nil {
-		return err
+		return nil, err
 	}
 	if err := bc.chainPersister.PutHeightIndexRecord(block); err != nil {
-		return err
+		return nil, err
 	}
 
 	bc.bus.FireEvent(&cmn.Event{
@@ -470,7 +488,7 @@ func (bc *BlockchainImpl) AddBlock(block api.Block) error {
 		Payload: block.GetMessage(),
 	})
 
-	return nil
+	return receipts, nil
 }
 
 func (bc *BlockchainImpl) updateBlockSignature(b api.Block) {
@@ -583,7 +601,7 @@ func (bc BlockchainImpl) IsSibling(sibling api.Header, ancestor api.Header) bool
 		return false
 	}
 
-	if parent.Header().Hash() == ancestor.Hash() {
+	if bytes.Equal(parent.Header().Hash().Bytes(), ancestor.Hash().Bytes()) {
 		return true
 	}
 
@@ -602,9 +620,10 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 		return nil
 	}
 
+	var receipts []api.Receipt
 	txs := trie.New()
 	if withTransactions {
-		bc.collectTransactions(r, txs)
+		receipts = bc.collectTransactions(r, txs)
 	}
 
 	header := createHeader(
@@ -616,22 +635,26 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 		crypto.Keccak256Hash(data),
 		parent.Header().Hash(),
 		time.Now().UTC().Round(time.Second))
-	header.SetHash()
 
+	builder := NewBlockBuilderImpl()
+	builder.SetHeader(header).SetQC(qc).SetData(data).SetTxs(txs)
+	created, e := bc.onNewBlockCreated.OnNewBlockCreated(context.Background(), builder, receipts)
+	if e != nil {
+		log.Error(e)
+		return nil
+	}
+	block := created
 	_, err := bc.stateDB.Commit(parent.Header().Hash(), header.Hash())
-	//bc.txPool.RemoveAll(txs_arr...)
 
 	if err != nil {
 		log.Error("Can't create new block", err)
 		return nil
 	}
 
-	block := &BlockImpl{header: header, data: data, qc: qc, txs: txs}
-
 	return block
 }
 
-func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengthHexKeyMerkleTrie) {
+func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengthHexKeyMerkleTrie) (receipts []api.Receipt) {
 	c := context.Background()
 	timeout, _ := context.WithTimeout(c, bc.delta)
 	chunks := bc.txPool.Drain(timeout)
@@ -639,7 +662,9 @@ func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengt
 	for chunk := range chunks {
 		for _, t := range chunk {
 			log.Debugf("tx hash %v", t.Hash().Hex())
-			if s.ApplyTransaction(t) != nil {
+			var err error
+			receipts, err = s.ApplyTransaction(t)
+			if err != nil {
 				continue
 			}
 			txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
@@ -652,12 +677,13 @@ func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengt
 	}
 
 	log.Debugf("Collected %v txs", i)
+	return receipts
 }
 
 func (bc *BlockchainImpl) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) api.Block {
 	block := bc.newBlock(head, qc, []byte(""), false)
 
-	if e := bc.AddBlock(block); e != nil {
+	if _, e := bc.AddBlock(block); e != nil {
 		log.Error("Can't add empty block")
 		return nil
 	}
@@ -700,34 +726,37 @@ func (bc *BlockchainImpl) UpdateGenesisBlockQC(certificate api.QuorumCertificate
 	}
 }
 
-func (bc *BlockchainImpl) applyTransactionsAndValidate(block api.Block) error {
+func (bc *BlockchainImpl) applyTransactionsAndValidate(block api.Block) (receipts []api.Receipt, err error) {
 	_, f := bc.stateDB.Get(block.Header().Hash())
 	if f {
 		log.Debug("Found block that was created by us and already processed, skip this step")
-		return nil
+		//TODO think about storing receipts and returning them here
+		return receipts, nil
 	}
 
 	r, e := bc.stateDB.Create(block.Header().Parent(), bc.proposerGetter.ProposerForHeight(block.Height()).GetAddress())
 	if e != nil {
-		return e
+		return receipts, e
 	}
 
 	iterator := block.Txs()
 	for iterator.HasNext() {
 		next := iterator.Next()
-		if err := r.ApplyTransaction(next); err != nil {
-			return err
+		if r, err := r.ApplyTransaction(next); err != nil {
+			return r, err
+		} else {
+			receipts = r
 		}
 	}
 
 	if !bytes.Equal(r.RootProof().Bytes(), block.Header().StateHash().Bytes()) {
 		log.Debugf("Not equal state hash: expected %v, calculated %v", block.Header().StateHash().Hex(), r.RootProof().Hex())
-		return InvalidStateHashError
+		return nil, InvalidStateHashError
 	}
-	_, err := bc.stateDB.Commit(block.Header().Parent(), block.Header().Hash())
+	_, err = bc.stateDB.Commit(block.Header().Parent(), block.Header().Hash())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return receipts, nil
 }

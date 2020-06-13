@@ -60,7 +60,7 @@ func (h *HeaderImpl) Timestamp() time.Time {
 }
 
 func createHeader(height int32, hash common.Hash, qcHash common.Hash, txHash common.Hash,
-	stateHash common.Hash, dataHash common.Hash, parent common.Hash, timestamp time.Time) api.Header {
+	stateHash common.Hash, dataHash common.Hash, parent common.Hash, timestamp time.Time) *HeaderImpl {
 	return &HeaderImpl{
 		height:    height,
 		hash:      hash,
@@ -137,7 +137,7 @@ func (h *HeaderImpl) Sign(key *crypto.PrivateKey) *crypto.Signature {
 	return sig
 }
 
-func CreateBlockHeaderFromMessage(header *pb.BlockHeader) api.Header {
+func CreateBlockHeaderFromMessage(header *pb.BlockHeader) *HeaderImpl {
 	return createHeader(
 		header.Height,
 		common.BytesToHash(header.Hash),
@@ -149,7 +149,7 @@ func CreateBlockHeaderFromMessage(header *pb.BlockHeader) api.Header {
 		time.Unix(0, header.Timestamp).UTC(),
 	)
 }
-func CreateBlockHeaderFromStorage(header *pb.BlockHeaderS) api.Header {
+func CreateBlockHeaderFromStorage(header *pb.BlockHeaderS) *HeaderImpl {
 	return createHeader(
 		header.Height,
 		common.BytesToHash(header.Hash),

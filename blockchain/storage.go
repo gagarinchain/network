@@ -5,7 +5,7 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
-	net "github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/storage"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -14,7 +14,7 @@ var (
 )
 
 type BlockPersister struct {
-	Storage net.Storage
+	Storage storage.Storage
 }
 
 func (bp *BlockPersister) Persist(b api.Block) error {
@@ -23,7 +23,7 @@ func (bp *BlockPersister) Persist(b api.Block) error {
 		return i
 	}
 
-	return bp.Storage.Put(net.Block, b.Header().Hash().Bytes(), bytes)
+	return bp.Storage.Put(storage.Block, b.Header().Hash().Bytes(), bytes)
 }
 
 func (bp *BlockPersister) Update(b api.Block) error {
@@ -34,7 +34,7 @@ func (bp *BlockPersister) Update(b api.Block) error {
 }
 
 func (bp *BlockPersister) Load(hash common.Hash) (b api.Block, er error) {
-	value, er := bp.Storage.Get(net.Block, hash.Bytes())
+	value, er := bp.Storage.Get(storage.Block, hash.Bytes())
 	if er != nil {
 		return nil, er
 	}
@@ -51,5 +51,5 @@ func (bp *BlockPersister) Load(hash common.Hash) (b api.Block, er error) {
 }
 
 func (bp *BlockPersister) Contains(hash common.Hash) bool {
-	return bp.Storage.Contains(net.Block, hash.Bytes())
+	return bp.Storage.Contains(storage.Block, hash.Bytes())
 }

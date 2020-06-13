@@ -15,6 +15,23 @@ type AccountImpl struct {
 	voters  []common.Address
 }
 
+func (a *AccountImpl) Serialize() []byte {
+	b, e := proto.Marshal(a.ToStorageProto())
+	if e != nil {
+		log.Error("can't marshall account", e)
+		return nil
+	}
+	return b
+}
+
+func (a *AccountImpl) ToStorageProto() *pb.Account {
+	var addrBytes [][]byte
+	for _, v := range a.Voters() {
+		addrBytes = append(addrBytes, v.Bytes())
+	}
+	return &pb.Account{Nonce: a.Nonce(), Value: a.Balance().Bytes(), Origin: a.Origin().Bytes(), Voters: addrBytes}
+}
+
 func (a *AccountImpl) IncrementNonce() {
 	a.nonce += 1
 }

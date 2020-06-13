@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
@@ -13,7 +12,7 @@ import (
 )
 
 type BlockImpl struct {
-	header    api.Header
+	header    *HeaderImpl
 	qc        api.QuorumCertificate
 	signature *crypto.SignatureAggregate
 	txs       *trie.FixedLengthHexKeyMerkleTrie
@@ -107,8 +106,8 @@ func CreateBlockFromMessage(block *pb.Block) api.Block {
 			log.Errorf("Bad transaction, %v", e)
 			return nil
 		}
-		spew.Dump(tpb)
-		spew.Dump(t)
+		//spew.Dump(tpb)
+		//spew.Dump(t)
 		txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
 	}
 
@@ -204,4 +203,81 @@ func (b *BlockImpl) Serialize() ([]byte, error) {
 		return nil, e
 	}
 	return bytes, nil
+}
+
+type BlockBuilderImpl struct {
+	block *BlockImpl
+}
+
+func (b BlockBuilderImpl) AddTx(tx api.Transaction) api.BlockBuilder {
+	b.block.AddTransaction(tx)
+	return b
+}
+
+func NewBlockBuilderImpl() *BlockBuilderImpl {
+	return &BlockBuilderImpl{block: &BlockImpl{txs: trie.New()}}
+}
+
+func (b BlockBuilderImpl) SetHeader(header api.Header) api.BlockBuilder {
+	impl, f := header.(*HeaderImpl)
+	if !f {
+		log.Critical("Can't set anything except *HeaderImpl as header for BlockImpl")
+	}
+	b.block.header = impl
+	return b
+}
+
+func (b BlockBuilderImpl) SetQC(qc api.QuorumCertificate) api.BlockBuilder {
+	b.block.qc = qc
+	return b
+}
+
+func (b BlockBuilderImpl) SetTxs(txs *trie.FixedLengthHexKeyMerkleTrie) api.BlockBuilder {
+	b.block.txs = txs
+	return b
+}
+
+func (b BlockBuilderImpl) SetData(data []byte) api.BlockBuilder {
+	b.block.data = data
+	return b
+}
+
+func (b BlockBuilderImpl) Header() api.Header {
+	return b.block.header
+}
+
+func (b BlockBuilderImpl) QC() api.QuorumCertificate {
+	return b.block.qc
+}
+
+func (b BlockBuilderImpl) Txs() *trie.FixedLengthHexKeyMerkleTrie {
+	return b.block.txs
+}
+
+func (b BlockBuilderImpl) Data() []byte {
+	return b.block.data
+}
+
+func (b BlockBuilderImpl) Build() api.Block {
+	if b.block.header == nil {
+		panic("nil header")
+	}
+	if b.block.txs == nil {
+		panic("nil txs")
+	}
+	if b.block.qc == nil {
+		panic("nil qc")
+	}
+	if b.block.data == nil {
+		panic("nil data")
+	}
+	//refresh hashes
+
+	b.block.header.txHash = b.Txs().Proof()
+	b.block.header.qcHash = b.QC().GetHash()
+	b.block.header.dataHash = crypto.Keccak256Hash(b.Data())
+
+	b.block.header.SetHash()
+
+	return b.block
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/gagarinchain/common/eth/crypto"
 	msg "github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
-	main "github.com/gagarinchain/network"
 	bc "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/network"
 	"github.com/gagarinchain/network/storage"
@@ -35,8 +34,8 @@ type ProtocolConfig struct {
 	Srv               network.Service
 	Sync              bc.Synchronizer
 	Pacer             api.Pacer
-	Validators        []main.Validator
-	Storage           main.Storage
+	Validators        []api.Validator
+	Storage           storage.Storage
 	Committee         []*comm.Peer
 	InitialState      *InitialState
 	OnReceiveProposal api.OnReceiveProposal
@@ -73,7 +72,7 @@ type Protocol struct {
 	hqc               api.QuorumCertificate
 	me                *comm.Peer
 	pacer             api.Pacer
-	validators        []main.Validator
+	validators        []api.Validator
 	srv               network.Service
 	sync              bc.Synchronizer
 	persister         *ProtocolPersister
@@ -84,15 +83,15 @@ type Protocol struct {
 }
 
 type ProtocolPersister struct {
-	Storage main.Storage
+	Storage storage.Storage
 }
 
 func (pp *ProtocolPersister) PutVHeight(vheight int32) error {
 	vhb := storage.Int32ToByte(vheight)
-	return pp.Storage.Put(main.VHeight, nil, vhb)
+	return pp.Storage.Put(storage.VHeight, nil, vhb)
 }
 func (pp *ProtocolPersister) GetVHeight() (int32, error) {
-	value, err := pp.Storage.Get(main.VHeight, nil)
+	value, err := pp.Storage.Get(storage.VHeight, nil)
 	if err != nil {
 		return storage.DefaultIntValue, err
 	}
@@ -100,10 +99,10 @@ func (pp *ProtocolPersister) GetVHeight() (int32, error) {
 }
 
 func (pp *ProtocolPersister) PutLastExecutedBlockHash(hash common.Hash) error {
-	return pp.Storage.Put(main.LastExecutedBlock, nil, hash.Bytes())
+	return pp.Storage.Put(storage.LastExecutedBlock, nil, hash.Bytes())
 }
 func (pp *ProtocolPersister) GetLastExecutedBlockHash() (common.Hash, error) {
-	value, err := pp.Storage.Get(main.LastExecutedBlock, nil)
+	value, err := pp.Storage.Get(storage.LastExecutedBlock, nil)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -116,10 +115,10 @@ func (pp *ProtocolPersister) PutHQC(hqc api.QuorumCertificate) error {
 	if e != nil {
 		return e
 	}
-	return pp.Storage.Put(main.HQC, nil, bytes)
+	return pp.Storage.Put(storage.HQC, nil, bytes)
 }
 func (pp *ProtocolPersister) GetHQC() (api.QuorumCertificate, error) {
-	value, err := pp.Storage.Get(main.HQC, nil)
+	value, err := pp.Storage.Get(storage.HQC, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +192,10 @@ func (p *Protocol) CheckCommit() bool {
 			log.Error(err)
 			return false
 		}
-		p.onBlockCommit.OnBlockCommit(p.blockchain, zero, orphans)
+		if err := p.onBlockCommit.OnBlockCommit(context.Background(), zero, orphans); err != nil {
+			log.Error(err)
+			return false
+		}
 
 		p.lastExecutedBlock = toCommit[len(toCommit)-1].Header()
 
@@ -262,11 +264,16 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal api.Proposal)
 		log.Infof("Received proposal for block [%v] with higher number [%v] from proposer [%v], voting for it",
 			proposal.NewBlock().Header().Hash().Hex(), proposal.NewBlock().Header().Height(), proposal.Sender().GetAddress().Hex())
 
-		p.onReceiveProposal.BeforeProposedBlockAdded(p.pacer, p.blockchain, proposal)
-		if err := p.blockchain.AddBlock(proposal.NewBlock()); err != nil {
+		if err := p.onReceiveProposal.BeforeProposedBlockAdded(context.Background(), proposal); err != nil {
 			return err
 		}
-		p.onReceiveProposal.AfterProposedBlockAdded(p.pacer, p.blockchain, proposal)
+		if receipts, err := p.blockchain.AddBlock(proposal.NewBlock()); err != nil {
+			return err
+		} else {
+			if err := p.onReceiveProposal.AfterProposedBlockAdded(context.Background(), proposal, receipts); err != nil {
+				return err
+			}
+		}
 
 		p.vheight = proposal.NewBlock().Header().Height()
 		if err := p.persister.PutVHeight(p.vheight); err != nil {
@@ -284,9 +291,13 @@ func (p *Protocol) OnReceiveProposal(ctx context.Context, proposal api.Proposal)
 		}
 		p.lastVote = msg.CreateMessage(pb.Message_VOTE, any, p.me)
 
-		p.onReceiveProposal.BeforeVoted(p.pacer, p.blockchain, vote)
+		if err := p.onReceiveProposal.BeforeVoted(context.Background(), vote); err != nil {
+			return err
+		}
 		p.Vote(ctx)
-		p.onReceiveProposal.AfterVoted(p.pacer, p.blockchain, vote)
+		if err := p.onReceiveProposal.AfterVoted(context.Background(), vote); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -396,19 +407,19 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 		head = p.blockchain.PadEmptyBlock(head, p.hqc)
 	}
 
-	var block api.Block
-	if block = p.onProposal.CreateBlock(p.pacer, p.blockchain); block == nil {
-		//todo remove rand data
-		block = p.blockchain.NewBlock(head, p.hqc, []byte(strconv.Itoa(rand.Int())))
-	}
+	block := p.blockchain.NewBlock(head, p.hqc, []byte(strconv.Itoa(rand.Int())))
 	proposal := CreateProposal(block, p.hqc, p.me)
 
+	if err := p.onProposal.OnProposal(context.Background(), proposal); err != nil {
+		log.Error(err)
+		return
+	}
 	proposal.Sign(p.me.GetPrivateKey())
-
 	payload := proposal.GetMessage()
 	any, e := ptypes.MarshalAny(payload)
 	if e != nil {
 		log.Error(e)
+		return
 	}
 	m := msg.CreateMessage(pb.Message_PROPOSAL, any, p.me)
 
@@ -496,7 +507,7 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 			if err != nil {
 				return err
 			}
-			err = p.blockchain.AddBlock(pr.NewBlock())
+			_, err = p.blockchain.AddBlock(pr.NewBlock())
 			if err != nil {
 				return err
 			}

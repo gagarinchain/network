@@ -51,10 +51,14 @@ func CreateNode(config *NodeConfig) (*Node, error) {
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip6/::/tcp/%d", config.Port)),
 		libp2p.Identity(config.PrivateKey),
 		libp2p.DisableRelay(),
-		libp2p.AddrsFactory(func(multiaddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-			return append(multiaddrs, config.ExternalMultiaddr)
-		}),
 		libp2p.DefaultSecurity,
+	}
+
+	if config.ExternalMultiaddr != nil {
+		opts = append(opts,
+			libp2p.AddrsFactory(func(multiaddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+				return append(multiaddrs, config.ExternalMultiaddr)
+			}))
 	}
 
 	// This function will initialize a new libp2p Host with our options plus a bunch of default options

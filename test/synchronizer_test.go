@@ -487,13 +487,13 @@ func (m *MockBlockchain) GetTopHeightBlocks() (res []api.Block) {
 	return res
 }
 
-func (m *MockBlockchain) AddBlock(block api.Block) error {
+func (m *MockBlockchain) AddBlock(block api.Block) ([]api.Receipt, error) {
 	_, f := m.blocks[block.Header().Parent()]
 	if !f {
-		return errors.New("error")
+		return nil, errors.New("error")
 	}
 	m.blocks[block.Header().Hash()] = block
-	return nil
+	return nil, nil
 }
 
 func (m *MockBlockchain) RemoveBlock(block api.Block) error {

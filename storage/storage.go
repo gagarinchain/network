@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/binary"
-	net "github.com/gagarinchain/network"
 	"github.com/op/go-logging"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
@@ -22,7 +21,7 @@ type StorageImpl struct {
 
 var log = logging.MustGetLogger("storage")
 
-func NewStorage(p string, opts *opt.Options) (net.Storage, error) {
+func NewStorage(p string, opts *opt.Options) (Storage, error) {
 	var nopts opt.Options
 
 	var err error
@@ -49,32 +48,32 @@ func NewStorage(p string, opts *opt.Options) (net.Storage, error) {
 	}, nil
 }
 
-func (s *StorageImpl) Put(rtype net.ResourceType, key []byte, value []byte) error {
+func (s *StorageImpl) Put(rtype ResourceType, key []byte, value []byte) error {
 	bytes := append(make([]byte, 1), byte(rtype))
 	k := append(bytes, key...)
 	return s.db.Put(k, value, &opt.WriteOptions{})
 }
 
-func (s *StorageImpl) Get(rtype net.ResourceType, key []byte) (value []byte, err error) {
+func (s *StorageImpl) Get(rtype ResourceType, key []byte) (value []byte, err error) {
 	prefix := append(make([]byte, 1), byte(rtype))
 	k := append(prefix, key...)
 	return s.db.Get(k, &opt.ReadOptions{})
 }
 
-func (s *StorageImpl) Contains(rtype net.ResourceType, key []byte) bool {
+func (s *StorageImpl) Contains(rtype ResourceType, key []byte) bool {
 	bytes := append(make([]byte, 1), byte(rtype))
 	k := append(bytes, key...)
 	b, _ := s.db.Has(k, &opt.ReadOptions{})
 	return b
 }
 
-func (s *StorageImpl) Delete(rtype net.ResourceType, key []byte) error {
+func (s *StorageImpl) Delete(rtype ResourceType, key []byte) error {
 	bytes := append(make([]byte, 1), byte(rtype))
 	k := append(bytes, key...)
 	return s.db.Delete(k, &opt.WriteOptions{})
 }
 
-func (s *StorageImpl) Keys(rtype net.ResourceType, keyPrefix []byte) (keys [][]byte) {
+func (s *StorageImpl) Keys(rtype ResourceType, keyPrefix []byte) (keys [][]byte) {
 	bytes := append(make([]byte, 1), byte(rtype))
 	iter := s.db.NewIterator(util.BytesPrefix(append(bytes, keyPrefix...)), nil)
 

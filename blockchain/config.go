@@ -3,9 +3,9 @@ package blockchain
 import (
 	"encoding/json"
 	"github.com/gagarinchain/common/api"
-	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
+	"github.com/gagarinchain/network/storage"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -15,15 +15,16 @@ import "github.com/gagarinchain/common/eth/common"
 import cmn "github.com/gagarinchain/common"
 
 type BlockchainConfig struct {
-	Seed           map[common.Address]api.Account
-	BlockPerister  *BlockPersister
-	ProposerGetter api.ProposerForHeight
-	ChainPersister *BlockchainPersister
-	Pool           tx.TransactionPool
-	Db             state.DB
-	Storage        gagarinchain.Storage
-	Delta          time.Duration
-	EventBus       cmn.EventBus
+	Seed              map[common.Address]api.Account
+	BlockPerister     *BlockPersister
+	ProposerGetter    api.ProposerForHeight
+	ChainPersister    *BlockchainPersister
+	Pool              tx.TransactionPool
+	Db                state.DB
+	Storage           storage.Storage
+	Delta             time.Duration
+	EventBus          cmn.EventBus
+	OnNewBlockCreated api.OnNewBlockCreated
 }
 
 type SeedData struct {

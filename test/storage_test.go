@@ -2,17 +2,17 @@ package test
 
 import (
 	"github.com/davecgh/go-spew/spew"
-	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/hotstuff"
+	storage "github.com/gagarinchain/network/storage"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 )
 
 func TestStorageCreation(t *testing.T) {
-	_, e := common.NewStorage("test.db", nil)
+	_, e := storage.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}
@@ -22,21 +22,21 @@ func TestStorageCreation(t *testing.T) {
 }
 
 func TestStorageBlockAddition(t *testing.T) {
-	storage, e := common.NewStorage("test.db", nil)
+	store, e := storage.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}
 	defer cleanUpDb(t)
 
-	bpersister := &blockchain.BlockPersister{storage}
-	cpersister := &blockchain.BlockchainPersister{storage}
+	bpersister := &blockchain.BlockPersister{store}
+	cpersister := &blockchain.BlockchainPersister{store}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	b := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("random data"))
-	e = bc.AddBlock(b)
+	_, e = bc.AddBlock(b)
 	if e != nil {
 		t.Error(e)
 	}
@@ -44,11 +44,11 @@ func TestStorageBlockAddition(t *testing.T) {
 	fromStorage, e := bpersister.Load(b.Header().Hash())
 
 	assert.Equal(t, b, fromStorage)
-	spew.Dump(storage.Stats())
+	spew.Dump(store.Stats())
 }
 
 func TestPutGetCurrentEpoch(t *testing.T) {
-	s, e := common.NewStorage("test.db", nil)
+	s, e := storage.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}
@@ -68,7 +68,7 @@ func TestPutGetCurrentEpoch(t *testing.T) {
 }
 
 func TestPutGetCurrentTopHeight(t *testing.T) {
-	s, e := common.NewStorage("test.db", nil)
+	s, e := storage.NewStorage("test.db", nil)
 	if e != nil {
 		t.Error(e)
 	}

@@ -1,4 +1,4 @@
-package main
+package run
 
 //todo fix it
 //func TestInitializing(t *testing.T) {

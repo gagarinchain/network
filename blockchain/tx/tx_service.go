@@ -7,20 +7,19 @@ import (
 	common2 "github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
-	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
 )
 
 type TxService struct {
-	validator net.Validator
+	validator api.Validator
 	txPool    TransactionPool
 	netserv   network.Service
 	bc        api.Blockchain
 	me        *common.Peer
 }
 
-func NewService(validator net.Validator, txPool TransactionPool, netserv network.Service, bc api.Blockchain, me *common.Peer) *TxService {
+func NewService(validator api.Validator, txPool TransactionPool, netserv network.Service, bc api.Blockchain, me *common.Peer) *TxService {
 	return &TxService{validator: validator, txPool: txPool, netserv: netserv, bc: bc, me: me}
 }
 

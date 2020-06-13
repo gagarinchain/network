@@ -10,7 +10,6 @@ import (
 	"github.com/gagarinchain/common/eth/crypto"
 	msg "github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
-	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
@@ -633,13 +632,13 @@ func TestScenario6d(t *testing.T) {
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 
-	_ = ctx.bc.AddBlock(block1)
-	_ = ctx.bc.AddBlock(block2)
-	_ = ctx.bc.AddBlock(block3)
-	_ = ctx.bc.AddBlock(block4)
-	_ = ctx.bc.AddBlock(block32)
-	_ = ctx.bc.AddBlock(block42)
-	_ = ctx.bc.AddBlock(block52)
+	_, _ = ctx.bc.AddBlock(block1)
+	_, _ = ctx.bc.AddBlock(block2)
+	_, _ = ctx.bc.AddBlock(block3)
+	_, _ = ctx.bc.AddBlock(block4)
+	_, _ = ctx.bc.AddBlock(block32)
+	_, _ = ctx.bc.AddBlock(block42)
+	_, _ = ctx.bc.AddBlock(block52)
 	ctx.bc.OnCommit(block1)
 
 	ctx.pacer.OnNextView()
@@ -819,13 +818,13 @@ func TestScenario7c(t *testing.T) {
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 
-	_ = ctx.bc.AddBlock(block1)
-	_ = ctx.bc.AddBlock(block2)
-	_ = ctx.bc.AddBlock(block3)
-	_ = ctx.bc.AddBlock(block4)
-	_ = ctx.bc.AddBlock(block32)
-	_ = ctx.bc.AddBlock(block42)
-	_ = ctx.bc.AddBlock(block52)
+	_, _ = ctx.bc.AddBlock(block1)
+	_, _ = ctx.bc.AddBlock(block2)
+	_, _ = ctx.bc.AddBlock(block3)
+	_, _ = ctx.bc.AddBlock(block4)
+	_, _ = ctx.bc.AddBlock(block32)
+	_, _ = ctx.bc.AddBlock(block42)
+	_, _ = ctx.bc.AddBlock(block52)
 	_, _, err := ctx.bc.OnCommit(block1)
 
 	assert.NoError(t, err)
@@ -848,32 +847,32 @@ func TestScenario7d(t *testing.T) {
 	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	qcb1 := ctx.createQC(block1)
-	_ = ctx.bc.AddBlock(block1)
+	_, _ = ctx.bc.AddBlock(block1)
 
 	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	qcb2 := ctx.createQC(block2)
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(1), big.NewInt(1))
-	_ = ctx.bc.AddBlock(block2)
+	_, _ = ctx.bc.AddBlock(block2)
 
 	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(2), big.NewInt(1))
-	_ = ctx.bc.AddBlock(block3)
+	_, _ = ctx.bc.AddBlock(block3)
 
 	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(3), big.NewInt(1))
-	_ = ctx.bc.AddBlock(block4)
+	_, _ = ctx.bc.AddBlock(block4)
 
 	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(4), big.NewInt(1))
-	_ = ctx.bc.AddBlock(block32)
+	_, _ = ctx.bc.AddBlock(block32)
 
 	block33 := ctx.bc.NewBlock(block2, qcb2, []byte("block 33"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(5), big.NewInt(1))
-	_ = ctx.bc.AddBlock(block33)
+	_, _ = ctx.bc.AddBlock(block33)
 
 	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(6), big.NewInt(1))
-	_ = ctx.bc.AddBlock(block42)
+	_, _ = ctx.bc.AddBlock(block42)
 
 	_, ok := ctx.stateDB.Get(block42.Header().Hash())
 	assert.True(t, ok)
@@ -982,7 +981,7 @@ func TestScenario8b(t *testing.T) {
 	<-fromPool
 
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
-	_ = ctx.bc.AddBlock(block1)
+	_, _ = ctx.bc.AddBlock(block1)
 	to := common2.BytesToAddress(s.Hash().Bytes()[12:])
 	snap := ctx.bc.GetHeadRecord()
 	_, found := snap.Get(to)
@@ -1019,7 +1018,7 @@ func TestScenario8b(t *testing.T) {
 	<-fromPool
 
 	block2 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
-	_ = ctx.bc.AddBlock(block2)
+	_, _ = ctx.bc.AddBlock(block2)
 
 	head := ctx.bc.GetHeadRecord()
 
@@ -1281,7 +1280,7 @@ func initContext(t *testing.T) *TestContext {
 		peers[i] = generateIdentity(t, i)
 	}
 
-	validators := []net.Validator{
+	validators := []api.Validator{
 		hotstuff.NewEpochStartValidator(peers),
 		hotstuff.NewProposalValidator(peers),
 		hotstuff.NewVoteValidator(peers),

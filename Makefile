@@ -10,7 +10,11 @@ all: test build
 protos:
 	cd common/protobuff/protos && PATH=$(PATH):$(GOPATH)/bin protoc --go_out=$(PKGMAP):.. *.proto
 build:
-	$(GOBUILD) -o $(BINARY_NAME) -x -trimpath -v ./run
+	$(GOBUILD) -o $(BINARY_NAME) -v .
+	chmod 775 $(BINARY_NAME)
+docker:
+	export DOCKER_BUILDKIT=0
+	docker build .
 	chmod 775 $(BINARY_NAME)
 test:
 	$(GOTEST) -v ./...
@@ -25,3 +29,5 @@ run:
 deps:
 	$(GOGET) github.com/markbates/goth
 	$(GOGET) github.com/markbates/pop
+mocks:
+	/usr/local/bin/mockery --all

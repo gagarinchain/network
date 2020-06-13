@@ -9,7 +9,6 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
-	gagarinchain "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
 )
@@ -27,12 +26,12 @@ type BlockService interface {
 
 type BlockServiceImpl struct {
 	srv             network.Service
-	validator       gagarinchain.Validator
-	headerValidator gagarinchain.Validator
+	validator       api.Validator
+	headerValidator api.Validator
 	threshold       int
 }
 
-func NewBlockService(srv network.Service, validator gagarinchain.Validator, headerValidator gagarinchain.Validator) *BlockServiceImpl {
+func NewBlockService(srv network.Service, validator api.Validator, headerValidator api.Validator) *BlockServiceImpl {
 	return &BlockServiceImpl{srv: srv, validator: validator, headerValidator: headerValidator}
 }
 

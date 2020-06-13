@@ -45,7 +45,10 @@ func TestTransactionReceive(t *testing.T) {
 	m := message.CreateFromSerialized(txMessage, ctx.me)
 
 	tran := &pb.Transaction{}
-	_ = ptypes.UnmarshalAny(m.Payload, tran)
+	if err := ptypes.UnmarshalAny(m.Payload, tran); err != nil {
+		log.Error(err)
+		return
+	}
 	spew.Dump(tran)
 	transaction, _ := tx.CreateTransactionFromMessage(tran, false)
 	spew.Dump(transaction)

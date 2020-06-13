@@ -6,6 +6,7 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/crypto"
 	msg "github.com/gagarinchain/common/message"
+	cmocks "github.com/gagarinchain/common/mocks"
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/hotstuff"
@@ -100,7 +101,7 @@ func TestProtocolUpdateWithHigherRankBroken(t *testing.T) {
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
 	newQC := blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock.Header())
-	if e := bc.AddBlock(newBlock); e != nil {
+	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error(e)
 	}
 
@@ -117,7 +118,7 @@ func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
 	log.Info("Head ", newBlock.Header().Hash().Hex())
 
 	newQC := createValidQC(newBlock, cfg)
-	if e := bc.AddBlock(newBlock); e != nil {
+	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error(e)
 	}
 
@@ -146,7 +147,7 @@ func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
 	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
 	newQC := createValidQC(newBlock, cfg)
-	if e := bc.AddBlock(newBlock); e != nil {
+	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error(e)
 	}
 
@@ -199,7 +200,7 @@ func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
 	head := bc.GetHead()
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
-	if e := bc.AddBlock(newBlock); e != nil {
+	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error("can't add block", e)
 	}
 
@@ -222,7 +223,7 @@ func TestOnReceiveVoteForNotProposer(t *testing.T) {
 func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t, 1)
 	id := generateIdentity(t, 4)
-	(cfg.Pacer).(*mocks.Pacer).On("GetCurrent").Return(cfg.Me)
+	(cfg.Pacer).(*cmocks.Pacer).On("GetCurrent").Return(cfg.Me)
 	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	newBlock2 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
 	vote1 := hotstuff.CreateVote(newBlock1.Header(), bc.GetGenesisCert(), id)
@@ -243,7 +244,7 @@ func TestQCUpdateOnVotesCollectFinish(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t, 1)
 	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
-	if e := bc.AddBlock(newBlock); e != nil {
+	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error("can't add block", e)
 	}
 
@@ -294,7 +295,7 @@ func initProtocol(t *testing.T, inds ...int) (api.Blockchain, *hotstuff.Protocol
 	cpersister := &blockchain.BlockchainPersister{storage}
 
 	//synchr := &mocks.Synchronizer{}
-	loader := &mocks.CommitteeLoader{}
+	loader := &cmocks.CommitteeLoader{}
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
@@ -320,7 +321,7 @@ func initProtocol(t *testing.T, inds ...int) (api.Blockchain, *hotstuff.Protocol
 
 	loader.On("LoadPeerListFromFile").Return(peers)
 
-	pacer := &mocks.Pacer{}
+	pacer := &cmocks.Pacer{}
 	config.Pacer = pacer
 	pacer.On("FireEvent", mock.AnythingOfType("api.EventType"))
 	pacer.On("GetCurrentView").Return(int32(1))

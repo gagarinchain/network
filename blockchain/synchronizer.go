@@ -284,7 +284,7 @@ func (s *SynchronizerImpl) addBlocksTransactional(blocks []api.Block) error {
 	sort.Sort(ByHeight(blocks))
 	for i, b := range blocks {
 		log.Debugf("Adding block %v", b.Height())
-		if err = s.bc.AddBlock(b); err != nil {
+		if _, err = s.bc.AddBlock(b); err != nil {
 			errorIndex = i
 			log.Infof("Error adding block [%v], %v", b.Header().Hash().Hex(), err.Error())
 			break

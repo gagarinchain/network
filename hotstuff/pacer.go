@@ -10,7 +10,6 @@ import (
 	"github.com/gagarinchain/common/eth/crypto"
 	msg "github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
-	"github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/storage"
 	"math/big"
 	"sync"
@@ -27,16 +26,16 @@ const (
 )
 
 type PacerPersister struct {
-	Storage gagarinchain.Storage
+	Storage storage.Storage
 }
 
 func (pp *PacerPersister) PutCurrentEpoch(currentEpoch int32) error {
 	epoch := storage.Int32ToByte(currentEpoch)
-	return pp.Storage.Put(gagarinchain.CurrentEpoch, nil, epoch)
+	return pp.Storage.Put(storage.CurrentEpoch, nil, epoch)
 }
 
 func (pp *PacerPersister) GetCurrentEpoch() (int32, error) {
-	value, err := pp.Storage.Get(gagarinchain.CurrentEpoch, nil)
+	value, err := pp.Storage.Get(storage.CurrentEpoch, nil)
 	if err != nil {
 		return storage.DefaultIntValue, err
 	}
@@ -44,11 +43,11 @@ func (pp *PacerPersister) GetCurrentEpoch() (int32, error) {
 }
 func (pp *PacerPersister) PutCurrentView(currentView int32) error {
 	epoch := storage.Int32ToByte(currentView)
-	return pp.Storage.Put(gagarinchain.CurrentView, nil, epoch)
+	return pp.Storage.Put(storage.CurrentView, nil, epoch)
 }
 
 func (pp *PacerPersister) GetCurrentView() (int32, error) {
-	value, err := pp.Storage.Get(gagarinchain.CurrentView, nil)
+	value, err := pp.Storage.Get(storage.CurrentView, nil)
 	if err != nil {
 		return storage.DefaultIntValue, err
 	}
@@ -68,7 +67,7 @@ type StaticPacer struct {
 		current int32
 		guard   *sync.RWMutex
 	}
-
+	//todo protect epoch with guard
 	epoch struct {
 		current        int32
 		toStart        int32
@@ -333,6 +332,9 @@ func (p *StaticPacer) GetCurrentView() int32 {
 	p.view.guard.RLock()
 	defer p.view.guard.RUnlock()
 	return p.view.current
+}
+func (p *StaticPacer) GetCurrentEpoch() int32 {
+	return p.epoch.current
 }
 
 func (p *StaticPacer) OnNextView() {

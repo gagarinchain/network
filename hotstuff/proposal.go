@@ -38,7 +38,6 @@ func (p *ProposalImpl) HQC() api.QuorumCertificate {
 
 func (p *ProposalImpl) GetMessage() *pb.ProposalPayload {
 	return &pb.ProposalPayload{Cert: p.HQC().GetMessage(), Block: p.NewBlock().GetMessage(), Signature: p.Signature().ToProto()}
-
 }
 
 func CreateProposal(newBlock api.Block, hqc api.QuorumCertificate, peer *comm.Peer) api.Proposal {

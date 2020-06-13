@@ -1,4 +1,4 @@
-package main
+package run
 
 import (
 	"github.com/davecgh/go-spew/spew"

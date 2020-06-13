@@ -1,5 +1,6 @@
 Hotstuff:
-  N: 4
+  CommitteeSize: 4
+  Me: 0
   Delta: 10000
   BlockDelta: 1000
   SeedPath:	static/seed.json
@@ -11,3 +12,11 @@ Storage:
   Dir: /var/folders/m7/c56_pk2n0dj4xbplcndc9d140000gn/T/
 Static:
   Dir: /Users/dabasov/Projects/gagarin/network/static
+Log:
+  Level: INFO
+Plugins:
+  Address: 'localhost:9380'
+  Interfaces: ['OnBlockCommit', 'OnReceiveProposal', 'OnNewBlockCreated']
+Rpc:
+  Address: 'localhost:9480'
+  MaxConcurrentStreams: 10

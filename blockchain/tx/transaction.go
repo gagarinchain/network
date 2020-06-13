@@ -3,7 +3,6 @@ package tx
 import (
 	"bytes"
 	"errors"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
@@ -131,7 +130,7 @@ func (tx *TransactionImpl) CreateProof(pk *crypto.PrivateKey) (e error) {
 		return errors.New("proof is allowed only for agreements")
 	}
 	sig := crypto.Sign(crypto.Keccak256(tx.to.Bytes()), pk)
-	spew.Dump("proof to sign", crypto.Keccak256(tx.to.Bytes()))
+	//spew.Dump("proof to sign", crypto.Keccak256(tx.to.Bytes()))
 	if sig == nil {
 		return errors.New("can't create proof")
 	}

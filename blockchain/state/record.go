@@ -9,31 +9,31 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/common/trie/sparse"
-	gagarinchain "github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/storage"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )
 
 type RecordPersister struct {
-	storage gagarinchain.Storage
+	storage storage.Storage
 }
 
 func (p *RecordPersister) Put(r api.Record) error {
-	return p.storage.Put(gagarinchain.Record, r.Hash().Bytes(), r.Serialize())
+	return p.storage.Put(storage.Record, r.Hash().Bytes(), r.Serialize())
 }
 
 func (p *RecordPersister) Contains(hash common.Hash) bool {
-	return p.storage.Contains(gagarinchain.Record, hash.Bytes())
+	return p.storage.Contains(storage.Record, hash.Bytes())
 }
 func (p *RecordPersister) Get(hash common.Hash) (value []byte, e error) {
-	return p.storage.Get(gagarinchain.Record, hash.Bytes())
+	return p.storage.Get(storage.Record, hash.Bytes())
 }
 func (p *RecordPersister) Delete(hash common.Hash) (e error) {
-	return p.storage.Delete(gagarinchain.Record, hash.Bytes())
+	return p.storage.Delete(storage.Record, hash.Bytes())
 }
 
 func (p *RecordPersister) Hashes() (hashes []common.Hash) {
-	keys := p.storage.Keys(gagarinchain.Record, nil)
+	keys := p.storage.Keys(storage.Record, nil)
 	for _, key := range keys {
 		hashes = append(hashes, common.BytesToHash(key))
 	}
@@ -239,15 +239,15 @@ func (r *RecordImpl) IsApplicable(t api.Transaction) (err error) {
 	return nil
 }
 
-func (r *RecordImpl) ApplyTransaction(t api.Transaction) (err error) {
+func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt, err error) {
 	if err := r.IsApplicable(t); err != nil {
-		return err
+		return nil, err
 	}
 
 	sender, found := r.GetForUpdate(t.From())
 	if !found {
 		log.Infof("Sender is not found %v", t.From().Hex())
-		return FutureTransactionError
+		return nil, FutureTransactionError
 	}
 
 	sender.IncrementNonce()
@@ -264,7 +264,7 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (err error) {
 	case api.Payment:
 		cost := big.NewInt(0).Add(t.Value(), t.Fee())
 		if sender.Balance().Cmp(cost) < 0 {
-			return InsufficientFundsError
+			return nil, InsufficientFundsError
 		}
 
 		receiver, found = r.GetForUpdate(t.To())
@@ -273,56 +273,67 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (err error) {
 		}
 		sender.Balance().Sub(sender.Balance(), cost)
 		receiver.Balance().Add(receiver.Balance(), t.Value())
+		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), to, t.Value(), receiver.Balance(), sender.Balance()))
+
 		proposer.Balance().Add(proposer.Balance(), t.Fee())
+		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
 	case api.Settlement:
 		cost := t.Fee()
 		if sender.Balance().Cmp(cost) < 0 {
-			return InsufficientFundsError
+			return nil, InsufficientFundsError
 		}
 
 		receiver, found = r.GetForUpdate(t.To())
 		if !found {
-			receiver = NewAccount(0, big.NewInt(0).Add(t.Value(), big.NewInt(api.DefaultSettlementReward))) //store reward at account while assets are not separate
+			value := big.NewInt(0).Add(t.Value(), big.NewInt(api.DefaultSettlementReward))
+			receiver = NewAccount(0, value) //store reward at account while assets are not separate
+			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), to, value, receiver.Balance(), sender.Balance()))
 		}
-		proposer.Balance().Add(proposer.Balance(), big.NewInt(0).Sub(t.Fee(), big.NewInt(api.DefaultSettlementReward)))
+		realFee := big.NewInt(0).Sub(t.Fee(), big.NewInt(api.DefaultSettlementReward))
+		proposer.Balance().Add(proposer.Balance(), realFee)
+		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+
 		sender.Balance().Sub(sender.Balance(), cost)
 		receiver.SetOrigin(t.From())
 
 	case api.Agreement:
 		cost := t.Fee()
 		if sender.Balance().Cmp(cost) < 0 {
-			return InsufficientFundsError
+			return nil, InsufficientFundsError
 		}
 
 		receiver, found = r.GetForUpdate(t.To())
 		if !found {
-			return FutureTransactionError
+			return nil, FutureTransactionError
 		}
 		sender.Balance().Sub(sender.Balance(), cost)
 		proposer.Balance().Add(proposer.Balance(), t.Fee())
+		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
 		receiver.AddVoters(t.From())
 	case api.Proof:
 		cost := big.NewInt(0).Add(t.Value(), t.Fee())
 		if sender.Balance().Cmp(cost) < 0 {
-			return InsufficientFundsError
+			return nil, InsufficientFundsError
 		}
 		proposer.Balance().Add(proposer.Balance(), t.Fee())
+		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+
 		sender.Balance().Sub(sender.Balance(), t.Fee())
 
 		receiver, found = r.GetForUpdate(t.To())
 		if !found {
 			log.Infof("Address %v not found", t.From().Hex())
-			return FutureTransactionError
+			return nil, FutureTransactionError
 		}
 
 		if !bytes.Equal(t.From().Bytes(), receiver.Origin().Bytes()) {
-			return WrongProofOrigin
+			return nil, WrongProofOrigin
 		}
 
 		origin, found := r.GetForUpdate(receiver.Origin())
 		if !found {
 			log.Infof("Origin %v not found", t.From().Hex())
-			return FutureTransactionError
+			return nil, FutureTransactionError
 		}
 
 		n := len(receiver.Voters())
@@ -334,37 +345,41 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (err error) {
 			}
 			fraction := big.NewInt(0).Div(big.NewInt(api.DefaultSettlementReward), big.NewInt(int64(n)))
 			voter.Balance().Add(voter.Balance(), fraction)
+			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.To(), v, fraction, receiver.Balance(), voter.Balance()))
+
 			receiver.Balance().Sub(receiver.Balance(), fraction)
 
 			if err := r.Update(v, voter); err != nil {
-				return err
+				return nil, err
 			}
 		}
 
 		if receiver.Balance().Cmp(big.NewInt(0)) > 0 {
 			origin.Balance().Add(origin.Balance(), receiver.Balance())
+			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.To(), receiver.Origin(), receiver.Balance(),
+				receiver.Balance(), origin.Balance()))
 			receiver.Balance().Set(big.NewInt(0))
 
 		}
 
 		if err := r.Update(receiver.Origin(), origin); err != nil {
-			return err
+			return nil, err
 		}
 
 	}
 
 	//TODO optimize it with batching several db updates and executing atomic
 	if err := r.Update(to, receiver); err != nil {
-		return err
+		return nil, err
 	}
 	if err := r.Update(t.From(), sender); err != nil {
-		return err
+		return nil, err
 	}
 	if err := r.Update(r.snap.proposer, proposer); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return receipts, nil
 }
 
 func (r *RecordImpl) Put(address common.Address, account api.Account) {

@@ -5,31 +5,31 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/common/trie/sparse"
-	"github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/storage"
 	"github.com/gogo/protobuf/proto"
 	"math/big"
 )
 
 type SnapshotPersister struct {
-	storage gagarinchain.Storage
+	storage storage.Storage
 }
 
 func (p *SnapshotPersister) Put(s *Snapshot) error {
-	return p.storage.Put(gagarinchain.Snapshot, s.hash.Bytes(), s.Serialize())
+	return p.storage.Put(storage.Snapshot, s.hash.Bytes(), s.Serialize())
 }
 
 func (p *SnapshotPersister) Contains(hash common.Hash) bool {
-	return p.storage.Contains(gagarinchain.Snapshot, hash.Bytes())
+	return p.storage.Contains(storage.Snapshot, hash.Bytes())
 }
 func (p *SnapshotPersister) Get(hash common.Hash) (value []byte, e error) {
-	return p.storage.Get(gagarinchain.Snapshot, hash.Bytes())
+	return p.storage.Get(storage.Snapshot, hash.Bytes())
 }
 func (p *SnapshotPersister) Delete(hash common.Hash) (e error) {
-	return p.storage.Delete(gagarinchain.Snapshot, hash.Bytes())
+	return p.storage.Delete(storage.Snapshot, hash.Bytes())
 }
 
 func (p *SnapshotPersister) Hashes() (hashes []common.Hash) {
-	keys := p.storage.Keys(gagarinchain.Snapshot, nil)
+	keys := p.storage.Keys(storage.Snapshot, nil)
 	for _, key := range keys {
 		hashes = append(hashes, common.BytesToHash(key))
 	}
@@ -67,17 +67,8 @@ func NewSnapshotWithAccounts(hash common.Hash, proposer common.Address, acc map[
 
 // Puts <address, account> pair to state storage
 func (snap *Snapshot) Put(address common.Address, account api.Account) {
-	var addrBytes [][]byte
-	for _, v := range account.Voters() {
-		addrBytes = append(addrBytes, v.Bytes())
-	}
-	pbAcc := &pb.Account{Nonce: account.Nonce(), Value: account.Balance().Bytes(), Origin: account.Origin().Bytes(), Voters: addrBytes}
-	b, e := proto.Marshal(pbAcc)
-	if e != nil {
-		log.Error("can't marshall balance", e)
-		return
-	}
-	snap.trie.Add(address.Big(), b)
+	serialized := account.Serialize()
+	snap.trie.Add(address.Big(), serialized)
 }
 
 //Returns merkle proof for address

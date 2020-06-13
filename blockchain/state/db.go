@@ -5,7 +5,7 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
-	"github.com/gagarinchain/network"
+	"github.com/gagarinchain/network/storage"
 	"github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"sync"
@@ -29,7 +29,7 @@ type DBImpl struct {
 	bus             cmn.EventBus
 }
 
-func NewStateDB(storage gagarinchain.Storage, bus cmn.EventBus) DB {
+func NewStateDB(storage storage.Storage, bus cmn.EventBus) DB {
 	snapPersister := &SnapshotPersister{storage: storage}
 	recordPersister := &RecordPersister{storage: storage}
 	records := make(map[common.Hash]api.Record)

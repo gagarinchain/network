@@ -4,34 +4,35 @@ import (
 	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/crypto"
-	"github.com/gagarinchain/network"
+	cmocks "github.com/gagarinchain/common/mocks"
 	"github.com/gagarinchain/network/mocks"
+	"github.com/gagarinchain/network/storage"
 	"github.com/stretchr/testify/mock"
 	"math/big"
 	"strconv"
 	"testing"
 )
 
-func SoftStorageMock() gagarinchain.Storage {
+func SoftStorageMock() storage.Storage {
 	storage := &mocks.Storage{}
 
-	storage.On("Put", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8"), mock.AnythingOfType("[]uint8")).Return(nil)
-	storage.On("Get", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8")).Return(nil, nil)
-	storage.On("Contains", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8")).Return(false)
-	storage.On("Delete", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8")).Return(nil)
-	storage.On("Keys", mock.AnythingOfType("gagarinchain.ResourceType"), mock.AnythingOfType("[]uint8")).Return(nil)
+	storage.On("Put", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8"), mock.AnythingOfType("[]uint8")).Return(nil)
+	storage.On("Get", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8")).Return(nil, nil)
+	storage.On("Contains", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8")).Return(false)
+	storage.On("Delete", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8")).Return(nil)
+	storage.On("Keys", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8")).Return(nil)
 
 	return storage
 }
 
 func MockProposerForHeight() api.ProposerForHeight {
-	proposer := &mocks.ProposerForHeight{}
+	proposer := &cmocks.ProposerForHeight{}
 	proposer.On("ProposerForHeight", mock.AnythingOfType("int32")).Return(&common.Peer{})
 
 	return proposer
 
 }
-func MockGoodBlockValidator() gagarinchain.Validator {
+func MockGoodBlockValidator() api.Validator {
 	proposer := &mocks.Validator{}
 	proposer.On("IsValid", mock.AnythingOfType("*blockchain.BlockImpl")).Return(true, nil)
 	proposer.On("Supported", mock.AnythingOfType("pb.Message_MessageType")).Return(true)
@@ -41,7 +42,7 @@ func MockGoodBlockValidator() gagarinchain.Validator {
 
 }
 
-func MockGoodHeaderValidator() gagarinchain.Validator {
+func MockGoodHeaderValidator() api.Validator {
 	proposer := &mocks.Validator{}
 	proposer.On("IsValid", mock.AnythingOfType("*blockchain.HeaderImpl")).Return(true, nil)
 	proposer.On("Supported", mock.AnythingOfType("pb.Message_MessageType")).Return(true)

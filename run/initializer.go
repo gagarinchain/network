@@ -1,4 +1,4 @@
-package main
+package run
 
 import (
 	"context"
@@ -6,14 +6,18 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/message"
 	pb "github.com/gagarinchain/common/protobuff"
-	net "github.com/gagarinchain/network"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/network"
+	"github.com/gagarinchain/network/rpc"
 	"github.com/gagarinchain/network/storage"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/multiformats/go-multiaddr"
 	"path"
+	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -26,6 +30,7 @@ type Context struct {
 	srv               network.Service
 	txService         *tx.TxService
 	eventBuss         *network.GagarinEventBus
+	rpc               *rpc.Service
 	hotstuffChan      chan *message.Message
 	epochChan         chan *message.Message
 	blockProtocolChan chan *message.Message
@@ -48,8 +53,26 @@ func (c *Context) Node() *network.Node {
 	return c.node
 }
 
-func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common.Peer, s *common.Settings) *Context {
-	validators := []net.Validator{
+func CreateContext(s *common.Settings) *Context {
+	var extMA multiaddr.Multiaddr
+	if s.Network.ExtAddr != "" {
+		extMA, _ = multiaddr.NewMultiaddr(s.Network.ExtAddr)
+	}
+
+	plugins := &rpc.PluginAdapter{}
+	if s.Plugins.Address != "" {
+		plugins.AddPlugin(s.Plugins)
+	}
+
+	var loader common.CommitteeLoader = &common.CommitteeLoaderImpl{}
+	committee := loadCommittee(s, loader, s.Hotstuff.CommitteeSize)
+
+	peerKey := loadMyKey(s, loader, committee)
+
+	me := committee[s.Hotstuff.Me]
+
+	// Next we'll create the node config
+	validators := []api.Validator{
 		hotstuff.NewEpochStartValidator(committee),
 		hotstuff.NewProposalValidator(committee),
 		hotstuff.NewVoteValidator(committee),
@@ -61,8 +84,14 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	dispatcher := message.NewHotstuffDispatcher(msgChan, epochChan, blockChan)
 	txDispatcher := message.NewTxDispatcher(txChan)
 
-	cfg.Committee = filterSelf(cfg.Committee, me)
-	node, err := network.CreateNode(cfg)
+	dataDir := path.Join(s.Storage.Dir, strconv.Itoa(s.Hotstuff.Me))
+	node, err := network.CreateNode(&network.NodeConfig{
+		PrivateKey:        peerKey,
+		Port:              9080,
+		DataDir:           dataDir,
+		ExternalMultiaddr: extMA,
+		Committee:         filterSelf(committee, me),
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,23 +103,26 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	bus := network.NewGagarinEventBus(events)
 
 	hotstuffSrv := network.CreateService(context.Background(), node, dispatcher, txDispatcher, bus)
-	storage, _ := storage.NewStorage(cfg.DataDir, nil)
+	storage, _ := storage.NewStorage(dataDir, nil)
 	txValidator := blockchain.NewTransactionValidator(committee)
 	headerValidator := &blockchain.HeaderValidator{}
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee, txValidator, headerValidator), headerValidator)
 	db := state.NewStateDB(storage, bus)
 	seed := blockchain.SeedFromFile(path.Join(s.Static.Dir, "seed.json"))
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
-		Seed:           seed,
-		BlockPerister:  &blockchain.BlockPersister{Storage: storage},
-		ChainPersister: &blockchain.BlockchainPersister{Storage: storage},
-		Pool:           pool,
-		Db:             db,
-		Storage:        storage,
-		Delta:          time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
-		EventBus:       bus,
+		Seed:              seed,
+		BlockPerister:     &blockchain.BlockPersister{Storage: storage},
+		ChainPersister:    &blockchain.BlockchainPersister{Storage: storage},
+		Pool:              pool,
+		Db:                db,
+		Storage:           storage,
+		Delta:             time.Duration(s.Hotstuff.BlockDelta) * time.Millisecond,
+		EventBus:          bus,
+		OnNewBlockCreated: plugins,
 	})
-	synchr := blockchain.CreateSynchronizer(me, bsrv, bc, -1, 20, 3, 3, 5, int32(2*s.Hotstuff.N))
+
+	//todo move parameters to settings and add config structure
+	synchr := blockchain.CreateSynchronizer(me, bsrv, bc, -1, 20, 3, 3, 5, int32(2*s.Hotstuff.CommitteeSize))
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
 	initialState := getInitialState(storage, bc)
@@ -99,16 +131,20 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	bus.AddHandler(pb.Request_BLOCK, reqDispatcher.HandleBlockRequest)
 
 	config := &hotstuff.ProtocolConfig{
-		F:            s.Hotstuff.N,
-		Delta:        time.Duration(s.Hotstuff.Delta) * time.Millisecond,
-		Blockchain:   bc,
-		Me:           me,
-		Srv:          hotstuffSrv,
-		InitialState: initialState,
-		Sync:         synchr,
-		Validators:   validators,
-		Committee:    committee,
-		Storage:      storage,
+		F:                 s.Hotstuff.CommitteeSize,
+		Delta:             time.Duration(s.Hotstuff.Delta) * time.Millisecond,
+		Blockchain:        bc,
+		Me:                me,
+		Srv:               hotstuffSrv,
+		Sync:              synchr,
+		Validators:        validators,
+		Storage:           storage,
+		Committee:         committee,
+		InitialState:      initialState,
+		OnReceiveProposal: plugins,
+		OnVoteReceived:    plugins,
+		OnProposal:        plugins,
+		OnBlockCommit:     plugins,
 	}
 
 	txService := tx.NewService(txValidator, pool, hotstuffSrv, bc, me)
@@ -118,6 +154,12 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 	p := hotstuff.CreateProtocol(config)
 	log.Debugf("%+v\n", p)
 	bc.SetProposerGetter(pacer)
+
+	var rpcService *rpc.Service
+	if s.Rpc.Address != "" {
+		rpcService = rpc.NewService(bc, pacer)
+	}
+
 	return &Context{
 		me:                me,
 		node:              node,
@@ -131,10 +173,33 @@ func CreateContext(cfg *network.NodeConfig, committee []*common.Peer, me *common
 		txService:         txService,
 		txChan:            txChan,
 		eventBuss:         bus,
+		rpc:               rpcService,
 	}
 }
 
-func getInitialState(storage net.Storage, bc api.Blockchain) *hotstuff.InitialState {
+func loadMyKey(s *common.Settings, loader common.CommitteeLoader, committee []*common.Peer) crypto.PrivKey {
+	peerPath := path.Join(s.Static.Dir, "peer"+strconv.Itoa(s.Hotstuff.Me)+".json")
+	peerKey, err := loader.LoadPeerFromFile(peerPath, committee[s.Hotstuff.Me])
+	if err != nil {
+		log.Fatal("Could't load peer credentials")
+	}
+	return peerKey
+}
+
+func loadCommittee(s *common.Settings, loader common.CommitteeLoader, size int) []*common.Peer {
+	peersPath := filepath.Join(s.Static.Dir, "peers.json")
+	committee := loader.LoadPeerListFromFile(peersPath)
+
+	if len(committee) < size {
+		log.Fatal("Can't load all committee info")
+	}
+	if len(committee) > size {
+		committee = committee[:size]
+	}
+	return committee
+}
+
+func getInitialState(storage storage.Storage, bc api.Blockchain) *hotstuff.InitialState {
 	initialState := &hotstuff.InitialState{
 		View:              int32(0),
 		Epoch:             int32(-1),
@@ -250,4 +315,12 @@ END_BP:
 		}
 	}()
 	go c.pacer.Run(rootCtx, c.hotstuffChan, c.epochChan)
+	if s.Rpc.Address != "" {
+		if err := c.rpc.Bootstrap(rpc.Config{
+			Address:              s.Rpc.Address,
+			MaxConcurrentStreams: s.Rpc.MaxConcurrentStreams,
+		}); err != nil {
+			log.Fatal("Can't start grpc service", err)
+		}
+	}
 }

@@ -9,13 +9,12 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	ctxio "github.com/jbenet/go-context/io"
 	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"io"
 	"sync"
 )
 
 type GagarinEventBus struct {
-	streams map[peer.ID]network.Stream
+	streams map[string]io.Writer
 	sl      sync.RWMutex
 
 	events   chan *common.Event
@@ -28,7 +27,7 @@ func NewGagarinEventBus(events chan *common.Event) *GagarinEventBus {
 	return &GagarinEventBus{
 		events:   events,
 		sl:       sync.RWMutex{},
-		streams:  make(map[peer.ID]network.Stream),
+		streams:  make(map[string]io.Writer),
 		handlers: make(map[pb.Request_RequestType]Handler),
 	}
 }
@@ -42,16 +41,35 @@ func (n *GagarinEventBus) FireEvent(event *common.Event) {
 	}()
 }
 
+func (n *GagarinEventBus) Subscribe(id string, writer io.Writer) {
+	n.sl.Lock()
+	if _, f := n.streams[id]; !f {
+		n.streams[id] = writer
+	}
+	n.sl.Unlock()
+}
+func (n *GagarinEventBus) Unsubscribe(id string) {
+	n.sl.Lock()
+	delete(n.streams, id)
+	n.sl.Unlock()
+}
+
+func (n *GagarinEventBus) GetStreamsCopy() map[string]io.Writer {
+	n.sl.RLock()
+	scopy := make(map[string]io.Writer)
+	for id, s := range n.streams {
+		scopy[id] = s
+	}
+	n.sl.RUnlock()
+	return scopy
+}
+
 func (n *GagarinEventBus) handleNewMessage(ctx context.Context, s *ServiceImpl, stream network.Stream) {
 	log.Debug("opened new gagarin stream")
 	cr := ctxio.NewReader(ctx, stream)
 	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)
 
-	n.sl.Lock()
-	if _, f := n.streams[stream.Conn().RemotePeer()]; !f {
-		n.streams[stream.Conn().RemotePeer()] = stream
-	}
-	n.sl.Unlock()
+	n.Subscribe(stream.Conn().RemotePeer().Pretty(), stream)
 
 	for {
 		log.Debug("reading")
@@ -70,10 +88,7 @@ func (n *GagarinEventBus) handleNewMessage(ctx context.Context, s *ServiceImpl, 
 					log.Error("error closing stream", err)
 				}
 			}
-			n.sl.Lock()
-			delete(n.streams, stream.Conn().RemotePeer())
-			n.sl.Unlock()
-
+			n.Unsubscribe(stream.Conn().RemotePeer().Pretty())
 			return
 		}
 
@@ -84,7 +99,7 @@ func (n *GagarinEventBus) handleNewMessage(ctx context.Context, s *ServiceImpl, 
 	}
 }
 
-func (n *GagarinEventBus) dispatch(req *pb.Request, stream network.Stream) {
+func (n *GagarinEventBus) dispatch(req *pb.Request, stream io.Writer) {
 	h, f := n.handlers[req.Type]
 
 	if !f {
@@ -103,43 +118,40 @@ func (n *GagarinEventBus) dispatch(req *pb.Request, stream network.Stream) {
 }
 
 func (n *GagarinEventBus) Run(ctx context.Context) {
+	errorChan := make(chan string)
 	for {
 		select {
 		case e := <-n.events:
-			if errs := n.notify(ctx, e); errs != nil && len(errs) > 0 {
-				n.sl.Lock()
-				for p, e := range errs {
-					delete(n.streams, p)
-					log.Error("error while notify", e)
-					continue
-
-				}
-				n.sl.Unlock()
-			}
+			n.notify(ctx, e, errorChan)
+		case id := <-errorChan:
+			n.Unsubscribe(id)
 		case <-ctx.Done():
 			log.Info("Stopped EventBus")
 		}
 	}
 }
 
-func (n *GagarinEventBus) notify(ctx context.Context, req *common.Event) map[peer.ID]error {
+func (n *GagarinEventBus) notify(ctx context.Context, req *common.Event, errorChan chan string) {
 	if n.streams == nil {
-		return nil
+		return
 	}
-	errors := make(map[peer.ID]error)
-	n.sl.RLock()
-	for _, v := range n.streams {
-		e := n.notifyPeer(req, v)
-		if e != nil {
-			errors[v.Conn().RemotePeer()] = e
-		}
-	}
-	n.sl.RUnlock()
 
-	return errors
+	streams := n.GetStreamsCopy()
+
+	for id, s := range streams {
+		go func(id string, s io.Writer) {
+			e := n.notifyPeer(req, s)
+			if e != nil {
+				log.Error(e)
+				errorChan <- id
+			}
+		}(id, s)
+	}
+
+	return
 }
 
-func (n *GagarinEventBus) notifyPeer(req *common.Event, stream network.Stream) error {
+func (n *GagarinEventBus) notifyPeer(req *common.Event, stream io.Writer) error {
 	writer := protoio.NewDelimitedWriter(stream)
 	var event *pb.Event
 	switch req.T {
