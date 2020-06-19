@@ -25,13 +25,8 @@ import (
 // startCmd represents the start command
 var rpcSendCmd = &cobra.Command{
 	Use:   "rpc_send",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: `Sends rpc call`,
+	Long:  "Is used to send rpc calls to the network",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := &common.Settings{}
 		if err := viper.Unmarshal(s); err != nil {

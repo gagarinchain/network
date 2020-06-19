@@ -35,7 +35,7 @@ func Start(s *cmn.Settings) {
 	// Ok now we can bootstrap the node. This could take a little bit if we're
 	// running on a live network.
 	ctx.Bootstrap(s)
-
+	log.Info("All services bootstrapped successfully")
 	select {}
 
 }

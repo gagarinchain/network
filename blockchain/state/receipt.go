@@ -27,6 +27,19 @@ func (r *ReceiptImpl) ToStorageProto() *pb.Receipt {
 	}
 }
 
+//TODO fill real tx index
+func ReceiptFromStorage(r *pb.Receipt) *ReceiptImpl {
+	return &ReceiptImpl{
+		txHash:    common.BytesToHash(r.TxHash),
+		txIndex:   0,
+		from:      common.BytesToAddress(r.From),
+		to:        common.BytesToAddress(r.To),
+		value:     big.NewInt(r.Value),
+		toValue:   big.NewInt(r.ToValue),
+		fromValue: big.NewInt(r.FromValue),
+	}
+}
+
 func (r *ReceiptImpl) FromValue() *big.Int {
 	return r.fromValue
 }

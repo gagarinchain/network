@@ -40,7 +40,7 @@ func (p *ProposalImpl) GetMessage() *pb.ProposalPayload {
 	return &pb.ProposalPayload{Cert: p.HQC().GetMessage(), Block: p.NewBlock().GetMessage(), Signature: p.Signature().ToProto()}
 }
 
-func CreateProposal(newBlock api.Block, hqc api.QuorumCertificate, peer *comm.Peer) api.Proposal {
+func CreateProposal(newBlock api.Block, hqc api.QuorumCertificate, peer *comm.Peer) *ProposalImpl {
 	return &ProposalImpl{sender: peer, newBlock: newBlock, hqc: hqc}
 }
 
@@ -48,7 +48,7 @@ func (p *ProposalImpl) Sign(key *crypto.PrivateKey) {
 	p.signature = p.NewBlock().Header().Sign(key)
 }
 
-func CreateProposalFromMessage(msg *msg.Message) (api.Proposal, error) {
+func CreateProposalFromMessage(msg *msg.Message) (*ProposalImpl, error) {
 	if msg.Type != pb.Message_PROPOSAL {
 		return nil, errors.New(fmt.Sprintf("wrong message type, expected [%v], but got [%v]",
 			pb.Message_PROPOSAL.String(), msg.Type))

@@ -124,6 +124,7 @@ func CreatePacer(cfg *ProtocolConfig) *StaticPacer {
 }
 
 func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
+	log.Info("Bootstrapping pacer")
 	p.protocol = protocol
 	p.stateId = Bootstrapped
 	p.execution.parent = ctx
@@ -142,6 +143,8 @@ func (p *StaticPacer) Bootstrap(ctx context.Context, protocol *Protocol) {
 			log.Error("Can'T persist new view")
 		}
 	})
+
+	log.Info("Pacer bootstrapped successfully")
 }
 
 func (p *StaticPacer) Committee() []*cmn.Peer {

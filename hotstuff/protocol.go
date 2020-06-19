@@ -17,8 +17,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
-	"math/rand"
-	"strconv"
 	"time"
 )
 
@@ -407,7 +405,11 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 		head = p.blockchain.PadEmptyBlock(head, p.hqc)
 	}
 
-	block := p.blockchain.NewBlock(head, p.hqc, []byte(strconv.Itoa(rand.Int())))
+	block := p.blockchain.NewBlock(head, p.hqc, []byte(""))
+	if _, err := p.blockchain.AddBlock(block); err != nil {
+		log.Error("Error while adding new block", err)
+		return
+	}
 	proposal := CreateProposal(block, p.hqc, p.me)
 
 	if err := p.onProposal.OnProposal(context.Background(), proposal); err != nil {
@@ -501,6 +503,12 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 		}
 
 		parent := pr.NewBlock().Header().Parent()
+		if p.blockchain.Contains(pr.NewBlock().Header().Hash()) {
+			log.Info("Received proposal for block that we already has, seems we are creators of this proposal")
+			//we use our block that we stored previously, because it has receipts
+			stored := p.blockchain.GetBlockByHash(pr.NewBlock().Header().Hash())
+			pr.newBlock = stored
+		}
 		if !p.blockchain.Contains(parent) {
 			log.Debugf("Requesting for fork starting at proposal parent block %v at height %v", parent.Hex(), pr.NewBlock().Height())
 			err := p.sync.LoadFork(ctx, pr.NewBlock().Header().Height()-1, pr.NewBlock().Header().Parent(), pr.Sender())

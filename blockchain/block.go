@@ -6,6 +6,7 @@ import (
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/common/trie"
+	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/golang/protobuf/proto"
 	"time"
@@ -15,32 +16,29 @@ type BlockImpl struct {
 	header    *HeaderImpl
 	qc        api.QuorumCertificate
 	signature *crypto.SignatureAggregate
-	txs       *trie.FixedLengthHexKeyMerkleTrie
+	txs       []api.Transaction
+	receipts  []api.Receipt
 	data      []byte
 }
 
+func (b *BlockImpl) Receipts() []api.Receipt {
+	return b.receipts
+}
+
+func (b *BlockImpl) SetReceipts(receipts []api.Receipt) {
+	b.receipts = receipts
+}
+
 func (b *BlockImpl) TxsCount() int {
-	return len(b.txs.Values())
+	return len(b.txs)
 }
 
 func (b *BlockImpl) Txs() api.Iterator {
-	var transactions []api.Transaction
-	for _, bytes := range b.txs.Values() {
-		//todo be careful we unmarshal and recover key here, think about storing deserialized entities in the trie
-		t, e := tx.Deserialize(bytes)
-		if e != nil {
-			log.Error(e)
-			return nil
-		}
-		transactions = append(transactions, t)
-	}
-
-	return tx.NewIterator(transactions)
+	return tx.NewIterator(b.txs)
 }
 
 func (b *BlockImpl) AddTransaction(t api.Transaction) {
-	key := []byte(t.Hash().Hex())
-	b.txs.InsertOrUpdate(key, t.Serialized())
+	b.txs = append(b.txs, t)
 }
 
 type ByHeight []api.Block
@@ -83,14 +81,13 @@ func (b *BlockImpl) QRef() api.Header {
 }
 
 func CreateGenesisBlock() (zero api.Block) {
-	data := []byte("Zero")
+	data := []byte(nil)
 	zeroHeader := createHeader(0, common.BytesToHash(make([]byte, common.HashLength)), common.BytesToHash(make([]byte, common.HashLength)),
 		common.BytesToHash(make([]byte, common.HashLength)), crypto.Keccak256Hash(),
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)),
 		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
-	zero = &BlockImpl{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader),
-		txs: trie.New(), signature: crypto.EmptyAggregateSignatures()}
+	zero = &BlockImpl{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader), signature: crypto.EmptyAggregateSignatures()}
 
 	return zero
 }
@@ -99,7 +96,7 @@ func CreateBlockFromMessage(block *pb.Block) api.Block {
 	header := CreateBlockHeaderFromMessage(block.Header)
 	aggrPb := block.Cert.GetSignatureAggregate()
 	cert := CreateQuorumCertificate(crypto.AggregateFromProto(aggrPb), CreateBlockHeaderFromMessage(block.Cert.Header))
-	var txs = trie.New()
+	var txs []api.Transaction
 	for _, tpb := range block.Txs {
 		t, e := tx.CreateTransactionFromMessage(tpb, block.GetSignatureAggregate() != nil)
 		if e != nil {
@@ -108,7 +105,7 @@ func CreateBlockFromMessage(block *pb.Block) api.Block {
 		}
 		//spew.Dump(tpb)
 		//spew.Dump(t)
-		txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
+		txs = append(txs, t)
 	}
 
 	var signature *crypto.SignatureAggregate
@@ -122,21 +119,26 @@ func CreateBlockFromStorage(block *pb.BlockS) api.Block {
 	header := CreateBlockHeaderFromStorage(block.Header)
 	aggrPb := block.Cert.GetSignatureAggregate()
 	cert := CreateQuorumCertificate(crypto.AggregateFromStorage(aggrPb), CreateBlockHeaderFromStorage(block.Cert.Header))
-	var txs = trie.New()
+	var txs []api.Transaction
 	for _, tpb := range block.Txs {
 		t, e := tx.CreateTransactionFromStorage(tpb)
 		if e != nil {
 			log.Errorf("Bad transaction, %v", e)
 			return nil
 		}
-		txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
+		txs = append(txs, t)
 	}
 
 	var signature *crypto.SignatureAggregate
 	if block.SignatureAggregate != nil {
 		signature = crypto.AggregateFromStorage(block.SignatureAggregate)
 	}
-	return &BlockImpl{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs}
+
+	var receipts []api.Receipt
+	for _, r := range block.Receipts {
+		receipts = append(receipts, state.ReceiptFromStorage(r))
+	}
+	return &BlockImpl{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs, receipts: receipts}
 }
 
 func (b *BlockImpl) GetMessage() *pb.Block {
@@ -176,25 +178,31 @@ func (b *BlockImpl) ToStorageProto() *pb.BlockS {
 		}
 	}
 
+	var receipts []*pb.Receipt
+	if len(b.Receipts()) > 0 {
+		for _, r := range b.Receipts() {
+			receipts = append(receipts, r.ToStorageProto())
+		}
+	}
+
 	var sign *pb.SignatureAggregateS
 	if b.signature != nil {
 		sign = b.signature.ToStorageProto()
 	}
 
-	return &pb.BlockS{Header: b.Header().ToStorageProto(), Cert: qc, SignatureAggregate: sign,
-		Data: &pb.BlockDataS{Data: b.Data()}, Txs: txs}
+	return &pb.BlockS{
+		Header: b.Header().ToStorageProto(),
+		Cert:   qc, SignatureAggregate: sign,
+		Data:     &pb.BlockDataS{Data: b.Data()},
+		Txs:      txs,
+		Receipts: receipts,
+	}
 }
 
 func (b *BlockImpl) pruneTxSignatures() {
-	var txs = trie.New()
-	iterator := b.Txs()
-	for iterator.HasNext() {
-		next := iterator.Next()
+	for _, next := range b.txs {
 		next.DropSignature()
-		txs.InsertOrUpdate([]byte(next.Hash().Hex()), next.Serialized())
-
 	}
-	b.txs = txs
 }
 
 func (b *BlockImpl) Serialize() ([]byte, error) {
@@ -215,7 +223,7 @@ func (b BlockBuilderImpl) AddTx(tx api.Transaction) api.BlockBuilder {
 }
 
 func NewBlockBuilderImpl() *BlockBuilderImpl {
-	return &BlockBuilderImpl{block: &BlockImpl{txs: trie.New()}}
+	return &BlockBuilderImpl{block: &BlockImpl{}}
 }
 
 func (b BlockBuilderImpl) SetHeader(header api.Header) api.BlockBuilder {
@@ -232,7 +240,7 @@ func (b BlockBuilderImpl) SetQC(qc api.QuorumCertificate) api.BlockBuilder {
 	return b
 }
 
-func (b BlockBuilderImpl) SetTxs(txs *trie.FixedLengthHexKeyMerkleTrie) api.BlockBuilder {
+func (b BlockBuilderImpl) SetTxs(txs []api.Transaction) api.BlockBuilder {
 	b.block.txs = txs
 	return b
 }
@@ -250,7 +258,7 @@ func (b BlockBuilderImpl) QC() api.QuorumCertificate {
 	return b.block.qc
 }
 
-func (b BlockBuilderImpl) Txs() *trie.FixedLengthHexKeyMerkleTrie {
+func (b BlockBuilderImpl) Txs() []api.Transaction {
 	return b.block.txs
 }
 
@@ -262,22 +270,28 @@ func (b BlockBuilderImpl) Build() api.Block {
 	if b.block.header == nil {
 		panic("nil header")
 	}
-	if b.block.txs == nil {
-		panic("nil txs")
-	}
 	if b.block.qc == nil {
 		panic("nil qc")
 	}
-	if b.block.data == nil {
-		panic("nil data")
-	}
+	//if b.block.data == nil {
+	//	panic("nil data")
+	//}
 	//refresh hashes
 
-	b.block.header.txHash = b.Txs().Proof()
+	b.block.header.txHash = BuildProof(b.Txs())
+
 	b.block.header.qcHash = b.QC().GetHash()
 	b.block.header.dataHash = crypto.Keccak256Hash(b.Data())
 
 	b.block.header.SetHash()
 
 	return b.block
+}
+
+func BuildProof(txs []api.Transaction) common.Hash {
+	txTrie := trie.New()
+	for _, t := range txs {
+		txTrie.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
+	}
+	return txTrie.Proof()
 }

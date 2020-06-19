@@ -118,6 +118,7 @@ func (n *GagarinEventBus) dispatch(req *pb.Request, stream io.Writer) {
 }
 
 func (n *GagarinEventBus) Run(ctx context.Context) {
+	log.Info("Running event buss")
 	errorChan := make(chan string)
 	for {
 		select {

@@ -8,10 +8,13 @@ import (
 )
 
 func RpcSend(s *common.Settings) {
-	client := rpc.InitOnNextViewClient(s.Rpc.Address)
+	client := rpc.InitCommonClient(s.Rpc.Address)
 
-	if _, err := client.Pbc().OnNextView(context.Background(), &pb.OnNextViewRequest{}); err != nil {
+	if view, err := client.Pbc().GetCurrentView(context.Background(), &pb.GetCurrentViewRequest{}); err != nil {
 		log.Error(err)
 		return
+	} else {
+		log.Info(view)
 	}
+
 }

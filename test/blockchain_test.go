@@ -318,8 +318,9 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	genesisBlock := bc.GetGenesisBlock()
-	genesisBlock.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header()))
-	_, _ = bc.AddBlock(genesisBlock)
+	genesisQC := bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header())
+	genesisBlock.SetQC(genesisQC)
+	bc.UpdateGenesisBlockQC(genesisQC)
 
 	block12 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 1<-2"))
 	_, _ = bc.AddBlock(block12)

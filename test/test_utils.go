@@ -53,16 +53,7 @@ func MockGoodHeaderValidator() api.Validator {
 }
 
 func mockCommittee(t *testing.T) []*common.Peer {
-	p1, _ := crypto.GenerateKey()
-	p2, _ := crypto.GenerateKey()
-	p3, _ := crypto.GenerateKey()
-	p4, _ := crypto.GenerateKey()
-	return []*common.Peer{
-		common.CreatePeer(p1.PublicKey(), p1, nil),
-		common.CreatePeer(p2.PublicKey(), p2, nil),
-		common.CreatePeer(p3.PublicKey(), p3, nil),
-		common.CreatePeer(p4.PublicKey(), p4, nil),
-	}
+	return common.GeneratePeers(4)
 }
 
 //func mockCommittee(t *testing.T) []*common.Peer {

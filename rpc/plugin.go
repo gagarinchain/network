@@ -11,6 +11,7 @@ import (
 //TODO think about organizing plugin chains, there are several moments to think about, e.g. how to transform input/output and plugin order
 //Now we operate only with one plugin in chain
 type PluginAdapter struct {
+	me   *common.Peer
 	orp  []api.OnReceiveProposal
 	op   []api.OnProposal
 	ovr  []api.OnVoteReceived
@@ -20,23 +21,27 @@ type PluginAdapter struct {
 	obc  []api.OnBlockCommit
 }
 
+func NewPluginAdapter(me *common.Peer) *PluginAdapter {
+	return &PluginAdapter{me: me}
+}
+
 func (p *PluginAdapter) AddPlugin(rpc common.Plugin) {
 	for _, i := range rpc.Interfaces {
 		switch i {
 		case "OnReceiveProposal":
-			p.AddOnReceiveProposal(&OnReceiveProposalAdapter{client: rpc2.InitOnReceiveProposalClient(rpc.Address)})
+			p.AddOnReceiveProposal(&OnReceiveProposalAdapter{me: p.me, client: rpc2.InitOnReceiveProposalClient(rpc.Address)})
 		case "OnProposal":
-			p.AddOnProposal(&OnProposalAdapter{client: rpc2.InitOnProposalClient(rpc.Address)})
+			p.AddOnProposal(&OnProposalAdapter{me: p.me, client: rpc2.InitOnProposalClient(rpc.Address)})
 		case "OnVoteReceived":
-			p.AddOnVoteReceived(&OnVoteReceivedAdapter{client: rpc2.InitOnVoteReceivedClient(rpc.Address)})
+			p.AddOnVoteReceived(&OnVoteReceivedAdapter{me: p.me, client: rpc2.InitOnVoteReceivedClient(rpc.Address)})
 		case "OnNewBlockCreated":
-			p.AddOnNewBlockCreated(&OnNewBlockCreatedAdapter{client: rpc2.InitOnNewBlockCreatedClient(rpc.Address)})
+			p.AddOnNewBlockCreated(&OnNewBlockCreatedAdapter{me: p.me, client: rpc2.InitOnNewBlockCreatedClient(rpc.Address)})
 		case "OnNextView":
-			p.AddOnNextView(&OnNextViewAdapter{client: rpc2.InitOnNextViewClient(rpc.Address)})
+			p.AddOnNextView(&OnNextViewAdapter{me: p.me, client: rpc2.InitOnNextViewClient(rpc.Address)})
 		case "OnNextEpoch":
-			p.AddOnNextEpoch(&OnNextEpochAdapter{client: rpc2.InitOnNextEpochClient(rpc.Address)})
+			p.AddOnNextEpoch(&OnNextEpochAdapter{me: p.me, client: rpc2.InitOnNextEpochClient(rpc.Address)})
 		case "OnBlockCommit":
-			p.AddOnBlockCommit(&OnBlockCommitAdapter{client: rpc2.InitOnBlockCommitClient(rpc.Address)})
+			p.AddOnBlockCommit(&OnBlockCommitAdapter{me: p.me, client: rpc2.InitOnBlockCommitClient(rpc.Address)})
 		default:
 			log.Errorf("Interface %v is not supported", i)
 		}

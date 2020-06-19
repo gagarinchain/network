@@ -59,11 +59,6 @@ func CreateContext(s *common.Settings) *Context {
 		extMA, _ = multiaddr.NewMultiaddr(s.Network.ExtAddr)
 	}
 
-	plugins := &rpc.PluginAdapter{}
-	if s.Plugins.Address != "" {
-		plugins.AddPlugin(s.Plugins)
-	}
-
 	var loader common.CommitteeLoader = &common.CommitteeLoaderImpl{}
 	committee := loadCommittee(s, loader, s.Hotstuff.CommitteeSize)
 
@@ -109,6 +104,12 @@ func CreateContext(s *common.Settings) *Context {
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee, txValidator, headerValidator), headerValidator)
 	db := state.NewStateDB(storage, bus)
 	seed := blockchain.SeedFromFile(path.Join(s.Static.Dir, "seed.json"))
+
+	plugins := rpc.NewPluginAdapter(me)
+	if s.Plugins.Address != "" {
+		plugins.AddPlugin(s.Plugins)
+	}
+
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
 		Seed:              seed,
 		BlockPerister:     &blockchain.BlockPersister{Storage: storage},

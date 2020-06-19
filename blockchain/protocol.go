@@ -32,6 +32,7 @@ func CreateBlockProtocol(srv network.Service, bc api.Blockchain, sync Synchroniz
 }
 
 func (p *BlockProtocol) Bootstrap(ctx context.Context) (respChan chan int, errChan chan error) {
+	log.Info("Bootstrapping block protocol service")
 	respChan = make(chan int)
 	errChan = make(chan error)
 	//todo move to config
@@ -62,6 +63,8 @@ func (p *BlockProtocol) Bootstrap(ctx context.Context) (respChan chan int, errCh
 		t.Stop()
 		respChan <- 0
 	}()
+	log.Info("Block protocol service bootstrapped successfully")
+
 	return respChan, errChan
 }
 

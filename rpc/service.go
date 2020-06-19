@@ -227,6 +227,7 @@ func NewService(bc api.Blockchain, pacer api.Pacer) *Service {
 }
 
 func (s *Service) Bootstrap(cfg Config) error {
+	log.Info("Bootstrapping RPC service")
 	lis, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
 		return err
@@ -238,5 +239,6 @@ func (s *Service) Bootstrap(cfg Config) error {
 	if err := grpcServer.Serve(lis); err != nil {
 		return err
 	}
+	log.Info("RPC bootstrapped successfully")
 	return nil
 }

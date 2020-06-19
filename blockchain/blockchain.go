@@ -11,7 +11,6 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
-	"github.com/gagarinchain/common/trie"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/storage"
@@ -269,12 +268,17 @@ func (bc *BlockchainImpl) GetBlockByHeight(height int32) (res []api.Block) {
 	return res
 }
 
+//Returns fork starting at block with headHash and including block at height
 func (bc *BlockchainImpl) GetFork(height int32, headHash common.Hash) (res []api.Block) {
 	bc.indexGuard.RLock()
 	defer bc.indexGuard.RUnlock()
 
 	head := bc.blocksByHash[headHash]
 	hash := headHash
+	if head.Height()-height+1 < 0 {
+		log.Error("len out of range")
+		return nil
+	}
 	res = make([]api.Block, head.Height()-height+1)
 	for i := 0; i < len(res); i++ {
 		head = bc.blocksByHash[hash]
@@ -449,9 +453,9 @@ func (bc *BlockchainImpl) AddBlock(block api.Block) ([]api.Receipt, error) {
 	defer bc.indexGuard.Unlock()
 
 	if bc.blocksByHash[block.Header().Hash()] != nil || bc.blockPersister.Contains(block.Header().Hash()) {
-		log.Debugf("Block with hash [%v] already exists, updating", block.Header().Hash().Hex())
+		log.Warningf("Block with hash [%v] already exists", block.Header().Hash().Hex())
 		//TODO mb store receipts and return produced previously
-		return nil, bc.blockPersister.Persist(block)
+		return block.Receipts(), nil
 	}
 
 	if bc.blocksByHash[block.Header().Parent()] == nil && !bc.blockPersister.Contains(block.Header().Parent()) && block.Height() != 0 {
@@ -464,12 +468,14 @@ func (bc *BlockchainImpl) AddBlock(block api.Block) ([]api.Receipt, error) {
 
 	var receipts []api.Receipt
 	//todo remove this hack by handling genesis in special way
+	//probably handle already executed blocks here with && block.Receipts() == nil
 	if block.Height() != 0 {
 		var err error
 		if receipts, err = bc.applyTransactionsAndValidate(block); err != nil {
 			return nil, err
 		}
 		log.Debugf("%v receipts produced", len(receipts))
+		block.SetReceipts(receipts)
 	}
 
 	if err := bc.addUncommittedBlock(block); err != nil {
@@ -620,17 +626,17 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 		return nil
 	}
 
+	var txs []api.Transaction
 	var receipts []api.Receipt
-	txs := trie.New()
 	if withTransactions {
-		receipts = bc.collectTransactions(r, txs)
+		txs, receipts = bc.collectTransactions(r)
 	}
 
 	header := createHeader(
 		parent.Header().Height()+1,
 		common.Hash{},
 		qc.GetHash(),
-		txs.Proof(),
+		BuildProof(txs),
 		r.RootProof(),
 		crypto.Keccak256Hash(data),
 		parent.Header().Hash(),
@@ -643,7 +649,13 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 		log.Error(e)
 		return nil
 	}
-	block := created
+
+	var block api.Block
+	if created != nil {
+		block = created
+	} else {
+		block = builder.Build()
+	}
 	_, err := bc.stateDB.Commit(parent.Header().Hash(), header.Hash())
 
 	if err != nil {
@@ -651,10 +663,11 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 		return nil
 	}
 
+	block.SetReceipts(receipts)
 	return block
 }
 
-func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengthHexKeyMerkleTrie) (receipts []api.Receipt) {
+func (bc *BlockchainImpl) collectTransactions(s api.Record) (txs []api.Transaction, receipts []api.Receipt) {
 	c := context.Background()
 	timeout, _ := context.WithTimeout(c, bc.delta)
 	chunks := bc.txPool.Drain(timeout)
@@ -662,12 +675,13 @@ func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengt
 	for chunk := range chunks {
 		for _, t := range chunk {
 			log.Debugf("tx hash %v", t.Hash().Hex())
-			var err error
-			receipts, err = s.ApplyTransaction(t)
+			rs, err := s.ApplyTransaction(t)
 			if err != nil {
 				continue
 			}
-			txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
+			//txs.InsertOrUpdate([]byte(t.Hash().Hex()), t.Serialized())
+			txs = append(txs, t)
+			receipts = append(receipts, rs...)
 			i++
 
 			if i >= TxLimit {
@@ -677,7 +691,7 @@ func (bc *BlockchainImpl) collectTransactions(s api.Record, txs *trie.FixedLengt
 	}
 
 	log.Debugf("Collected %v txs", i)
-	return receipts
+	return txs, receipts
 }
 
 func (bc *BlockchainImpl) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) api.Block {
@@ -731,7 +745,7 @@ func (bc *BlockchainImpl) applyTransactionsAndValidate(block api.Block) (receipt
 	if f {
 		log.Debug("Found block that was created by us and already processed, skip this step")
 		//TODO think about storing receipts and returning them here
-		return receipts, nil
+		return block.Receipts(), nil
 	}
 
 	r, e := bc.stateDB.Create(block.Header().Parent(), bc.proposerGetter.ProposerForHeight(block.Height()).GetAddress())

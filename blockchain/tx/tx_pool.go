@@ -87,6 +87,13 @@ func (i *orderedIterator) HasNext() bool {
 	return i.state < len(i.txs)
 }
 
+//We drain transactions with chunks, each chunk is formed after small tx_pool.Interval.
+//Chunk[0] contains all transactions that were accumulated in the pool before draining started and usually will be enough to form block.
+//But if pool had not enough transactions for block, tick draining starts until timeout for draining (settings.BlockDelta).
+//Every chunk is sorted by fee size and then by nonce. That means that if transactions are in one chunk and issued by one account,
+//they will be executed in order of their fee size and if fees are the same, then in nonce order.
+//It means that in theory it is possible to cancel transaction sending the new one with bigger fee.
+//It is possible to execute several transactions issued by one account simply sending them with the same or less fee each time.
 //For drain to work correctly we must guarantee that pending transactions are never reordered and are only appended
 func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []api.Transaction) {
 	//this channel is used by child goroutines to write result if it's work

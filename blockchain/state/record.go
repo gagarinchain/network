@@ -249,6 +249,11 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 		log.Infof("Sender is not found %v", t.From().Hex())
 		return nil, FutureTransactionError
 	}
+	withFee := true
+	if bytes.Equal(r.snap.proposer.Bytes(), t.From().Bytes()) {
+		log.Debugf("Current proposer %v, tx from", r.snap.proposer.Hex(), t.From().Hex())
+		withFee = false
+	}
 
 	sender.IncrementNonce()
 
@@ -274,9 +279,11 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 		sender.Balance().Sub(sender.Balance(), cost)
 		receiver.Balance().Add(receiver.Balance(), t.Value())
 		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), to, t.Value(), receiver.Balance(), sender.Balance()))
-
 		proposer.Balance().Add(proposer.Balance(), t.Fee())
-		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+
+		if withFee {
+			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+		}
 	case api.Settlement:
 		cost := t.Fee()
 		if sender.Balance().Cmp(cost) < 0 {
@@ -289,10 +296,12 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 			receiver = NewAccount(0, value) //store reward at account while assets are not separate
 			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), to, value, receiver.Balance(), sender.Balance()))
 		}
+
 		realFee := big.NewInt(0).Sub(t.Fee(), big.NewInt(api.DefaultSettlementReward))
 		proposer.Balance().Add(proposer.Balance(), realFee)
-		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
-
+		if withFee {
+			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+		}
 		sender.Balance().Sub(sender.Balance(), cost)
 		receiver.SetOrigin(t.From())
 
@@ -308,7 +317,9 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 		}
 		sender.Balance().Sub(sender.Balance(), cost)
 		proposer.Balance().Add(proposer.Balance(), t.Fee())
-		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+		if withFee {
+			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+		}
 		receiver.AddVoters(t.From())
 	case api.Proof:
 		cost := big.NewInt(0).Add(t.Value(), t.Fee())
@@ -316,7 +327,9 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 			return nil, InsufficientFundsError
 		}
 		proposer.Balance().Add(proposer.Balance(), t.Fee())
-		receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+		if withFee {
+			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
+		}
 
 		sender.Balance().Sub(sender.Balance(), t.Fee())
 

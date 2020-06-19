@@ -29,13 +29,8 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gnetwork",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Gagarin.network is Hotstuff based blockchain network",
+	Long:  `Run stablecoins and develop apps on blockchain with Gagarin.network`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
@@ -57,17 +52,17 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/settings.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Path to settings.yaml file(default is $HOME/settings.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.Flags().BoolP("toggle", "t", false, "Toggle")
 
-	rootCmd.PersistentFlags().StringP("rpc.address", "r", viper.GetString("rpc.address"), "enable grpc service")
+	rootCmd.PersistentFlags().StringP("rpc.address", "r", viper.GetString("rpc.address"), "Enables grpc service on this address")
 	rootCmd.PersistentFlags().StringP("me", "m", viper.GetString("hotstuff.me"), "Current node index in committee")
 	rootCmd.PersistentFlags().StringP("extaddr", "a", viper.GetString("network.ExtAddr"), "Current node external address for NAT lookup")
-	rootCmd.PersistentFlags().StringP("plugins.address", "p", viper.GetString("plugins.address"), "plugin service address")
-	rootCmd.PersistentFlags().StringArrayP("plugins.interfaces", "i", viper.GetStringSlice("plugins.interfaces"), "plugin interfaces")
+	rootCmd.PersistentFlags().StringP("plugins.address", "p", viper.GetString("plugins.address"), "Plugin service address")
+	rootCmd.PersistentFlags().StringArrayP("plugins.interfaces", "i", viper.GetStringSlice("plugins.interfaces"), "Plugin interfaces")
 
 	if err := viper.BindPFlag("hotstuff.Me", rootCmd.PersistentFlags().Lookup("me")); err != nil {
 		println(err.Error())
