@@ -3,6 +3,30 @@
 [Go to link](FAQ.md)
 ## Network
 Network expose 2 different ports 9080 for network communication between peers and 9180 for websocket communication
+### Environment
+Since we use cobra, environment variables can be passed in three different ways. Further you can find mapping
+| Parameter (short) | Env | Settings | Desc |
+|---|---|---|---|
+| config | GN_SETTINGS | - | Path to settings.yaml file |
+| me (m) | GN_INDEX | hotstuff.me | Current node index in committee |
+| rpc.address (r) | GN_RPC | rpc.address | Enables grpc service on this address |
+| extaddr (a) | GN_EXTADDR | network.ExtAddr | Current node external address for NAT lookup |
+| plugins.address (p) | GN_PLUGIN | plugins.address | Plugin service address |
+| plugins.interfaces (i) | GN_PLUGIN_I | plugins.interfaces | Plugin interfaces |
+
+Variables are overridden in order. The most common variables are loaded from config, then more specific are taken from program parameters and then the most specific are loaded from ENV variables.
+
+### Commands
+Network can be run in different modes^ which can be set with run commends
+#### start
+Is used to start network node
+#### tx_send
+Utilit program. Is used to send transactions to the network
+#### rpc_send
+Utilit program. Is used to send rpc calls to the network
+#### version
+Outputs network version
+
 ### Common shell commands
 * generates protobuf classes
     * ```make protos```
@@ -58,15 +82,27 @@ Common way to start network cluster is via Docker.
 * settings.yaml
 ```
 Hotstuff: #hotstuff settings 
-  N: 10 #total node amount, must be 3 * n + 1, here n = 3
+  CommitteeSize: 10 #total node amount, must be 3 * n + 1, here n = 3
+  Me: 0 #my index in committee
   Delta: 5000 #stage duration in milliseconds, 2*Delta is v iew change duration, 4* Delta is GST
   BlockDelta: 10 #max time in millisecinds to wait for transactions 
+  SeedPath: #path to seed file eg static/seed.json
 Network:
   MinPeerThreshold: 3 #minimum peer count to bootstrap connection, from bootstrap list
-  ReconnectPeriod: 10000 #period after watchdog checks bootstrap connections and reconnects whether count less then MinPeerThreshold
-  ConnectionTimeout: 3000 # timeout
+  ReconnectPeriod: 10000 #period after watchdog checks bootstrap connections and reconnects whether count less then 
+  ConnectionTimeout: 3000 #common connection timeout
 Storage:
   Dir: /var/folders/m7/c56_pk2n0dj4xbplcndc9d140000gn/T/ #storage dir
+Static:
+  Dir: /Users/dabasov/Projects/gagarin/network/static #path to static
+Log:
+  Level: INFO #log level 
+Plugins:
+  Address: 'localhost:9380' #plugin address
+  Interfaces: ['OnBlockCommit', 'OnReceiveProposal', 'OnNewBlockCreated'] #plugin supported services
+Rpc:
+  Address: 'localhost:9480' #address to run rpc service on
+  MaxConcurrentStreams: 10 #max concurrent service connections
 ```
 ## Tests
 There are several tests in the project. We have very light unit tests which are placed near scripts to test and integration tests in the network/test directory.
