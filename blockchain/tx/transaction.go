@@ -292,8 +292,6 @@ func CreateTransactionFromMessage(msg *pb.Transaction, isConfirmed bool) (*Trans
 		from = crypto.PubkeyToAddress(crypto.NewPublicKey(sign.Pub()))
 		tx.from = from
 		hash := Hash(tx)
-		log.Debug("validate", from.Hex())
-		log.Debug("validate", hash.Hex())
 		res := crypto.Verify(hash.Bytes(), sign)
 		if !res {
 			return nil, errors.New("bad signature")

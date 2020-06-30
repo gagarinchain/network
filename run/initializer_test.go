@@ -21,3 +21,9 @@ package run
 //	assert.Equal(t, 10, len(ctx.Pacer().Committee()))
 //
 //}
+
+//func TestScenarioParse(t *testing.T) {
+//	s := GetScenarioFromFile("/Users/dabasov/Projects/gagarin/network/static/scenario.yaml")
+//
+//	spew.Dump(s)
+//}

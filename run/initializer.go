@@ -158,7 +158,7 @@ func CreateContext(s *common.Settings) *Context {
 
 	var rpcService *rpc.Service
 	if s.Rpc.Address != "" {
-		rpcService = rpc.NewService(bc, pacer)
+		rpcService = rpc.NewService(bc, pacer, db)
 	}
 
 	return &Context{

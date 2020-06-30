@@ -16,29 +16,34 @@ limitations under the License.
 package cmd
 
 import (
-	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/network/run"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // startCmd represents the start command
+var (
+	ScenarioPath string
+	RpcPath      string
+	SendersPath  string
+)
 var txSendCmd = &cobra.Command{
 	Use:   "tx_send",
-	Short: "Sends transactions",
-	Long:  `Is used to send transactions to the network`,
+	Short: `Sends rpc call`,
+	Long:  "Is used to send rpc calls to the network",
 	Run: func(cmd *cobra.Command, args []string) {
-		s := &common.Settings{}
-		if err := viper.Unmarshal(s); err != nil {
-			return
-		}
-
-		run.TxSend(s)
+		run.CreateExecution(&run.Settings{
+			ScenarioPath: ScenarioPath,
+			RpcPath:      RpcPath,
+			SendersPath:  SendersPath,
+		}).Execute()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(txSendCmd)
+	txSendCmd.PersistentFlags().StringVar(&ScenarioPath, "scenario.path", "", "Path to scenario.yaml file")
+	txSendCmd.PersistentFlags().StringVar(&RpcPath, "rpc.address", "", "Rpc service path")
+	txSendCmd.PersistentFlags().StringVar(&SendersPath, "senders.path", "", "Path to senders.yaml file")
 
 	// Here you will define your flags and configuration settings.
 

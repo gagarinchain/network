@@ -152,7 +152,7 @@ func (s *Service) IsSibling(ctx context.Context, in *pb.IsSiblingRequest) (*pb.I
 func (s *Service) GetAccount(ctx context.Context, in *pb.GetAccountRequest) (*pb.GetAccountResponse, error) {
 	var version common.Hash
 	if in.Hash == nil || len(in.Hash) == 0 {
-		version = s.bc.GetTopCommittedBlock().Header().Hash()
+		version = s.bc.GetHead().Header().Hash()
 	} else {
 		version = common.BytesToHash(in.Hash)
 	}
@@ -222,8 +222,12 @@ func (s *Service) GetTopCommittedBlock(context.Context, *pb.GetTopCommittedBlock
 	}, nil
 }
 
-func NewService(bc api.Blockchain, pacer api.Pacer) *Service {
-	return &Service{bc: bc, pacer: pacer}
+func NewService(bc api.Blockchain, pacer api.Pacer, db state.DB) *Service {
+	return &Service{
+		bc:    bc,
+		pacer: pacer,
+		db:    db,
+	}
 }
 
 func (s *Service) Bootstrap(cfg Config) error {

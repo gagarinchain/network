@@ -45,6 +45,52 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 
 	// Here you will define your flags and configuration settings.
+	// Cobra supports persistent flags, which, if defined here,
+	// will be global for your application.
+
+	startCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Path to settings.yaml file(default is $HOME/settings.yaml)")
+
+	// Cobra also supports local flags, which will only run
+	// when this action is called directly.
+	startCmd.Flags().BoolP("toggle", "t", false, "Toggle")
+
+	startCmd.PersistentFlags().StringP("rpc.address", "r", viper.GetString("rpc.address"), "Enables grpc service on this address")
+	startCmd.PersistentFlags().StringP("me", "m", viper.GetString("hotstuff.me"), "Current node index in committee")
+	startCmd.PersistentFlags().StringP("extaddr", "a", viper.GetString("network.ExtAddr"), "Current node external address for NAT lookup")
+	startCmd.PersistentFlags().StringP("plugins.address", "p", viper.GetString("plugins.address"), "Plugin service address")
+	startCmd.PersistentFlags().StringArrayP("plugins.interfaces", "i", viper.GetStringSlice("plugins.interfaces"), "Plugin interfaces")
+
+	if err := viper.BindPFlag("hotstuff.Me", startCmd.PersistentFlags().Lookup("me")); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindEnv("hotstuff.Me", "GN_INDEX"); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindPFlag("Network.ExtAddr", startCmd.PersistentFlags().Lookup("extaddr")); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindEnv("Network.ExtAddr", "GN_EXTADDR"); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindPFlag("Plugins.Address", startCmd.PersistentFlags().Lookup("plugins.address")); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindEnv("Plugins.Address", "GN_PLUGIN"); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindEnv("Plugins.Interfaces", "GN_PLUGIN_I"); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindPFlag("Rpc.Address", startCmd.PersistentFlags().Lookup("rpc.address")); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindEnv("Rpc.Address", "GN_RPC"); err != nil {
+		println(err.Error())
+	}
+
+	viper.SetDefault("Rpc.MaxConcurrentStreams", 10)
+
+	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:

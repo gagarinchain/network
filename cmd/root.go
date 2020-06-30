@@ -122,6 +122,5 @@ func initConfig() {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	} else {
 		fmt.Println(err)
-		os.Exit(1)
 	}
 }

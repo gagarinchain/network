@@ -4,7 +4,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emirpasic/gods v1.12.0
 	github.com/ethereum/go-ethereum v1.9.15 // indirect
-	github.com/gagarinchain/common v0.1.10
+	github.com/gagarinchain/common v0.1.13
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.4.2
 	github.com/ipfs/go-cid v0.0.5
@@ -31,6 +31,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20190923125748-758128399b1d
 	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0
 	google.golang.org/grpc v1.20.1
+	gopkg.in/yaml.v2 v2.3.0
 )
 
 go 1.14
