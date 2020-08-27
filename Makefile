@@ -29,5 +29,6 @@ run:
 deps:
 	$(GOGET) github.com/markbates/goth
 	$(GOGET) github.com/markbates/pop
+.PHONY: mocks
 mocks:
 	/usr/local/bin/mockery --all

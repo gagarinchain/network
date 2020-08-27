@@ -14,6 +14,11 @@ type Storage struct {
 	mock.Mock
 }
 
+// Close provides a mock function with given fields:
+func (_m *Storage) Close() {
+	_m.Called()
+}
+
 // Contains provides a mock function with given fields: rtype, key
 func (_m *Storage) Contains(rtype storage.ResourceType, key []byte) bool {
 	ret := _m.Called(rtype, key)

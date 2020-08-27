@@ -133,5 +133,11 @@ func (n *Node) Bootstrap(ctx context.Context, cfg *BootstrapConfig) (statusChan 
 // Shutdown will cancel the context shared by the various components which will shut them all down
 // disconnecting all peers in the process.
 func (n *Node) Shutdown() {
-	n.Host.Close()
+	log.Info("Closing libp2p node...")
+	if err := n.Host.Close(); err != nil {
+		log.Error(err)
+	}
+	if err := n.Datastore.Close(); err != nil {
+		log.Error(err)
+	}
 }

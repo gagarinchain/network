@@ -125,3 +125,10 @@ func (s *StorageImpl) Stats() *leveldb.DBStats {
 	}
 	return stats
 }
+
+func (s *StorageImpl) Close() {
+	log.Info("Closing storage...")
+	if err := s.db.Close(); err != nil {
+		log.Error(err)
+	}
+}

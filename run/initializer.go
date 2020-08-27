@@ -15,6 +15,8 @@ import (
 	"github.com/gagarinchain/network/storage"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/multiformats/go-multiaddr"
+	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -31,6 +33,7 @@ type Context struct {
 	txService         *tx.TxService
 	eventBuss         *network.GagarinEventBus
 	rpc               *rpc.Service
+	storage           storage.Storage
 	hotstuffChan      chan *message.Message
 	epochChan         chan *message.Message
 	blockProtocolChan chan *message.Message
@@ -175,6 +178,7 @@ func CreateContext(s *common.Settings) *Context {
 		txChan:            txChan,
 		eventBuss:         bus,
 		rpc:               rpcService,
+		storage:           storage,
 	}
 }
 
@@ -248,7 +252,9 @@ func filterSelf(peers []*common.Peer, self *common.Peer) (res []*common.Peer) {
 }
 
 func (c *Context) Bootstrap(s *common.Settings) {
-	rootCtx := context.Background()
+	rootCtx, cancel := context.WithCancel(context.Background())
+	c.handleInterrupt(cancel)
+
 	config := &network.BootstrapConfig{
 		Period:            time.Duration(s.Network.ReconnectPeriod) * time.Millisecond,
 		MinPeerThreshold:  s.Network.MinPeerThreshold,
@@ -324,4 +330,23 @@ END_BP:
 			log.Fatal("Can't start grpc service", err)
 		}
 	}
+}
+
+func (c *Context) handleInterrupt(cancel context.CancelFunc) chan bool {
+	res := make(chan bool)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt)
+
+	go func() { // Block until a signal is received.
+		sig := <-sigChan
+		log.Infof("Received %v signal. Shutting down Gagarin.network", sig)
+		cancel()
+		c.node.Shutdown()
+		c.storage.Close()
+
+		log.Info("Shut down completed")
+		os.Exit(0)
+	}()
+
+	return res
 }

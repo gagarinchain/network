@@ -27,4 +27,5 @@ type Storage interface {
 	Delete(rtype ResourceType, key []byte) error
 	Keys(rtype ResourceType, keyPrefix []byte) (keys [][]byte)
 	Stats() *leveldb.DBStats
+	Close()
 }
