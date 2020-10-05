@@ -9,6 +9,7 @@ import (
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gogo/protobuf/proto"
 	"github.com/op/go-logging"
+	"github.com/prysmaticlabs/go-ssz"
 	"math/big"
 )
 
@@ -24,6 +25,16 @@ type TransactionImpl struct {
 	hash       common.Hash
 	confirmed  bool
 	serialized []byte
+}
+
+type HashableTransaction struct {
+	TxType int32
+	To     [20]byte
+	From   [20]byte
+	Nonce  uint64
+	Value  uint64
+	Fee    uint64
+	Data   []byte
 }
 
 func (tx *TransactionImpl) Serialized() []byte {
@@ -327,33 +338,17 @@ func Hash(tx api.Transaction) common.Hash {
 	switch typ := tx.(type) {
 	case *TransactionImpl:
 		t := *typ
-		var txType pb.Transaction_Type
 
-		switch t.txType {
-		case api.Payment:
-			txType = pb.Transaction_PAYMENT
-		case api.Slashing:
-			txType = pb.Transaction_SLASHING
-		case api.Settlement:
-			txType = pb.Transaction_SETTLEMENT
-		case api.Agreement:
-			txType = pb.Transaction_AGREEMENT
-		case api.Proof:
-			txType = pb.Transaction_PROOF
-		case api.Redeem:
-			txType = pb.Transaction_REDEEM
+		msg := HashableTransaction{
+			TxType: int32(t.txType),
+			To:     t.to,
+			From:   t.from,
+			Nonce:  t.nonce,
+			Value:  t.value.Uint64(),
+			Fee:    t.fee.Uint64(),
+			Data:   t.data,
 		}
-
-		msg := &pb.Transaction{
-			Type:  txType,
-			To:    t.to.Bytes(),
-			From:  t.from.Bytes(),
-			Nonce: t.nonce,
-			Value: t.value.Int64(),
-			Fee:   t.fee.Int64(),
-			Data:  t.data,
-		}
-		b, e := proto.Marshal(msg)
+		b, e := ssz.Marshal(msg)
 		if e != nil {
 			log.Error("Can't calculate hash")
 		}

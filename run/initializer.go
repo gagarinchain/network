@@ -317,9 +317,7 @@ END_BP:
 			api.ChangedView:  struct{}{},
 		})
 	go func() {
-		for {
-			c.eventBuss.Run(rootCtx)
-		}
+		c.eventBuss.Run(rootCtx)
 	}()
 	go c.pacer.Run(rootCtx, c.hotstuffChan, c.epochChan)
 	if s.Rpc.Address != "" {

@@ -3,6 +3,9 @@ package blockchain
 import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
+	"github.com/gagarinchain/common/eth/crypto"
+	"math/rand"
+	"strconv"
 	"time"
 )
 
@@ -30,7 +33,7 @@ func CreateBlockWithParent(parent api.Block) api.Block {
 	header := &HeaderImpl{
 		height:    parent.Height() + 1,
 		hash:      common.Hash{},
-		txHash:    common.Hash{},
+		txHash:    crypto.Keccak256Hash([]byte(strconv.Itoa(rand.Int()))),
 		stateHash: common.Hash{},
 		dataHash:  common.Hash{},
 		qcHash:    common.Hash{},

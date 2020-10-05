@@ -736,7 +736,7 @@ func TestScenario7a(t *testing.T) {
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
 	assert.Equal(t, 1, proposal.NewBlock().TxsCount())
-	assert.Equal(t, "0x573e917b1e96825378ab508d557e0cd8762b80c0b39b242d43cb420457c1df4f", proposal.NewBlock().Header().TxHash().Hex())
+	assert.Equal(t, "0xad35a2989646863688cc267df956b81c620072658212334d7f856eb3a639e0f1", proposal.NewBlock().Header().TxHash().Hex())
 	assert.Equal(t, "0x7509e1371b6d9293bac6ed2e32661978a23d9ff4352f661bdfcb31c3370922b5", proposal.NewBlock().Header().StateHash().Hex())
 
 }
@@ -758,7 +758,7 @@ func TestScenario7aa(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0xd7871f8f064f68ebb2b8e092efcf8212d12c3584c4ab9d91b5b1a47d421bbe8d", proposal.NewBlock().Header().TxHash().Hex())
+	assert.Equal(t, "0x4abff932677d3fe63c66c033af8c8a8451f47283d4c5959acab12c894f15754c", proposal.NewBlock().Header().TxHash().Hex())
 	assert.Equal(t, "0x51de6155ccb435024a7874b4f933efacad07e49cf0776738d706ff3b52211df7", proposal.NewBlock().Header().StateHash().Hex())
 	assert.Equal(t, 2, proposal.NewBlock().TxsCount())
 
@@ -1029,7 +1029,8 @@ func TestScenario8b(t *testing.T) {
 	a5, _ := head.Get(ctx.peers[4].GetAddress())
 	a6, _ := head.Get(ctx.peers[5].GetAddress())
 	a7, _ := head.Get(ctx.peers[6].GetAddress())
-	as, _ := head.Get(common2.HexToAddress("0x0bfa0e22be2feC85Cd04dA94b7b1fd8563F4Cb07"))
+	//hash of settlement transaction is converted to address
+	as, _ := head.Get(common2.HexToAddress("0xdd769f6a98b3cb3e766178ed3def80507acdde97"))
 
 	assert.Equal(t, big.NewInt(1532), a1.Balance())
 	assert.Equal(t, big.NewInt(2016), a2.Balance())

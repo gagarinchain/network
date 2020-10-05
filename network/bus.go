@@ -128,6 +128,7 @@ func (n *GagarinEventBus) Run(ctx context.Context) {
 			n.Unsubscribe(id)
 		case <-ctx.Done():
 			log.Info("Stopped EventBus")
+			return
 		}
 	}
 }

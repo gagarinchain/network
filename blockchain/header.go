@@ -1,11 +1,13 @@
 package blockchain
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	pb "github.com/gagarinchain/common/protobuff"
-	"github.com/golang/protobuf/proto"
+	"github.com/prysmaticlabs/go-ssz"
+	"github.com/status-im/keycard-go/hexutils"
 	"time"
 )
 
@@ -24,6 +26,16 @@ type HeaderImpl struct {
 	qcHash    common.Hash
 	parent    common.Hash
 	timestamp time.Time
+}
+
+type HashableHeader struct {
+	Height    uint32
+	TxHash    [32]byte
+	StateHash [32]byte
+	DataHash  [32]byte
+	QcHash    [32]byte
+	Parent    [32]byte
+	Timestamp uint64
 }
 
 func (h *HeaderImpl) DataHash() common.Hash {
@@ -111,16 +123,24 @@ func HashHeader(header api.Header) common.Hash {
 	switch t := header.(type) {
 	case *HeaderImpl:
 		h := *t
-		h.hash = common.BytesToHash(make([]byte, common.HashLength))
 		if h.IsGenesisBlock() {
 			h.qcHash = common.BytesToHash(make([]byte, common.HashLength))
 		}
-		m := h.GetMessage()
-		bytes, e := proto.Marshal(m)
+
+		hh := &HashableHeader{
+			Height:    uint32(h.height),
+			TxHash:    h.txHash,
+			StateHash: h.stateHash,
+			DataHash:  h.dataHash,
+			QcHash:    h.qcHash,
+			Parent:    h.parent,
+			Timestamp: uint64(h.timestamp.Unix()),
+		}
+		bytes, e := ssz.Marshal(hh)
 		if e != nil {
 			log.Error("Can't marshal message")
 		}
-
+		spew.Dump(hexutils.BytesToHex(bytes))
 		return crypto.Keccak256Hash(bytes)
 	default:
 		panic("can't calculate header of unknown impl")
