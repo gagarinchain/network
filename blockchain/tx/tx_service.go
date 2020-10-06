@@ -44,10 +44,6 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 			}
 
 			if t.TxType() == api.Settlement {
-				if err := s.SendAgreement(ctx, t); err != nil {
-					log.Error("Can't send agreement", err)
-					continue
-				}
 				//we change to, since we don't need default address any more
 				t.SetTo(common2.BytesToAddress(t.Hash().Bytes()[12:]))
 			}
@@ -59,28 +55,4 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 			return
 		}
 	}
-}
-
-func (s *TxService) SendAgreement(ctx context.Context, t api.Transaction) error {
-	rec := s.bc.GetHeadRecord()
-	acc, found := rec.Get(s.me.GetAddress())
-	var nonce uint64
-	if found {
-		nonce = acc.Nonce()
-	}
-
-	agreement := CreateAgreement(t, nonce, nil)
-	if err := agreement.CreateProof(s.me.GetPrivateKey()); err != nil {
-		return err
-	}
-
-	agreement.Sign(s.me.GetPrivateKey())
-	proto := agreement.GetMessage()
-	payload, e := ptypes.MarshalAny(proto)
-	if e != nil {
-		return e
-	}
-	go s.netserv.BroadcastTransaction(ctx, message.CreateMessage(pb.Message_TRANSACTION, payload, s.me))
-
-	return nil
 }

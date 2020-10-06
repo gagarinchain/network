@@ -736,7 +736,7 @@ func TestScenario7a(t *testing.T) {
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
 	assert.Equal(t, 1, proposal.NewBlock().TxsCount())
-	assert.Equal(t, "0xad35a2989646863688cc267df956b81c620072658212334d7f856eb3a639e0f1", proposal.NewBlock().Header().TxHash().Hex())
+	assert.Equal(t, "0xe656900a2d36a5e15ee19a4a6cfbd851563576d916682d72b1f686c4410728a0", proposal.NewBlock().Header().TxHash().Hex())
 	assert.Equal(t, "0x7509e1371b6d9293bac6ed2e32661978a23d9ff4352f661bdfcb31c3370922b5", proposal.NewBlock().Header().StateHash().Hex())
 
 }
@@ -758,7 +758,7 @@ func TestScenario7aa(t *testing.T) {
 	message := <-ctx.proposalChan
 	assert.Equal(t, pb.Message_PROPOSAL, message.Type)
 	proposal, _ := hotstuff.CreateProposalFromMessage(message)
-	assert.Equal(t, "0x4abff932677d3fe63c66c033af8c8a8451f47283d4c5959acab12c894f15754c", proposal.NewBlock().Header().TxHash().Hex())
+	assert.Equal(t, "0x27abcbb0d0e698ef72621fba95a133d4337048acc0aa45e669b11c064de42ba3", proposal.NewBlock().Header().TxHash().Hex())
 	assert.Equal(t, "0x51de6155ccb435024a7874b4f933efacad07e49cf0776738d706ff3b52211df7", proposal.NewBlock().Header().StateHash().Hex())
 	assert.Equal(t, 2, proposal.NewBlock().TxsCount())
 
@@ -891,44 +891,7 @@ func TestScenario7d(t *testing.T) {
 
 }
 
-//Scenario 8a: Settlement
-//Send settlement transaction
-//Receive it
-//Send agreement transaction
-//Receive it
-func TestScenario8a(t *testing.T) {
-	ctx := initContext(t)
-
-	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
-	go ctx.pacer.Run(timeout, ctx.hotstuffChan, ctx.epochChan)
-	go ctx.txService.Run(timeout, ctx.txChan)
-	defer f()
-
-	ctx.StartFirstEpoch()
-
-	s := ctx.generateSettlement(ctx.me.GetAddress(), big.NewInt(553), big.NewInt(api.DefaultSettlementReward+3))
-	any, _ := ptypes.MarshalAny(s.GetMessage())
-	m := msg.CreateMessage(pb.Message_TRANSACTION, any, ctx.me)
-	ctx.txChan <- m
-
-	sentTx := <-ctx.sentTxChan
-	sentPb := &pb.Transaction{}
-	_ = ptypes.UnmarshalAny(sentTx.GetPayload(), sentPb)
-
-	assert.Equal(t, common2.BytesToAddress(s.Hash().Bytes()), common2.BytesToAddress(sentPb.To))
-
-	ctx.txChan <- sentTx
-
-	fromPool := poolToChan(timeout, ctx)
-
-	t1 := <-fromPool
-	t2 := <-fromPool
-
-	assert.Equal(t, api.Settlement, t1.TxType())
-	assert.Equal(t, api.Agreement, t2.TxType())
-}
-
-//Scenario 8b:
+//Scenario 8a:
 //Settler
 //Receive 2f + 1 agreements
 //Send proof
@@ -944,7 +907,7 @@ func TestScenario8a(t *testing.T) {
 //7
 //8
 //9
-func TestScenario8b(t *testing.T) {
+func TestScenario8a(t *testing.T) {
 	ctx := initContext(t)
 
 	timeout, f := context.WithTimeout(context.Background(), 10*ctx.cfg.Delta)
@@ -1030,7 +993,7 @@ func TestScenario8b(t *testing.T) {
 	a6, _ := head.Get(ctx.peers[5].GetAddress())
 	a7, _ := head.Get(ctx.peers[6].GetAddress())
 	//hash of settlement transaction is converted to address
-	as, _ := head.Get(common2.HexToAddress("0xdd769f6a98b3cb3e766178ed3def80507acdde97"))
+	as, _ := head.Get(common2.HexToAddress("0x2A8d5E4695F170D042376c888aE1f8f4B9A64A9c"))
 
 	assert.Equal(t, big.NewInt(1532), a1.Balance())
 	assert.Equal(t, big.NewInt(2016), a2.Balance())

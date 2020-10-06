@@ -51,10 +51,6 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 		if !bytes.Equal(t.To().Bytes(), common.HexToAddress(api.SettlementAddressHex).Bytes()) {
 			return false, SettlementAddressNotValid
 		}
-		isValidOracle := true //make remote grpc
-		if !isValidOracle {
-			return false, OracleProofNotValid
-		}
 	case api.Agreement:
 		if t.Value().Cmp(big.NewInt(0)) != 0 {
 			return false, ValueNotValid
