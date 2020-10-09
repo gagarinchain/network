@@ -177,6 +177,7 @@ func bootstrapConnect(ctx context.Context, ph host.Host, peers []peer.AddrInfo) 
 				errs <- err
 				return
 			}
+			//TODO refresh committee peer addresses here or later, to have their actual addresses
 			log.Infof("connected %v", p.ID)
 		}(p)
 	}

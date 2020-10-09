@@ -5,7 +5,7 @@ import (
 	"github.com/gagarinchain/common"
 	cmn "github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
-	protoio "github.com/gogo/protobuf/io"
+	protoio "github.com/gagarinchain/common/protobuff/io"
 	"github.com/golang/protobuf/ptypes"
 	ctxio "github.com/jbenet/go-context/io"
 	"github.com/libp2p/go-libp2p-core/network"

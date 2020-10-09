@@ -7,7 +7,7 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/network/blockchain/tx"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
 	"math/big"

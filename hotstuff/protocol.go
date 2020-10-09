@@ -14,7 +14,7 @@ import (
 	bc "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/network"
 	"github.com/gagarinchain/network/storage"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/op/go-logging"
 	"time"

@@ -6,7 +6,7 @@ import (
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/common/trie/sparse"
 	"github.com/gagarinchain/network/storage"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"math/big"
 )
 

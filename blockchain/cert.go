@@ -7,7 +7,7 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/common/protobuff"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 type QuorumCertificateImpl struct {

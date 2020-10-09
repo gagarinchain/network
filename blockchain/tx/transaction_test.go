@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
-	protoio "github.com/gogo/protobuf/io"
+	protoio "github.com/gagarinchain/common/protobuff/io"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/stretchr/testify/assert"
 	"math/big"

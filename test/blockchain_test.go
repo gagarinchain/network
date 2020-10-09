@@ -12,7 +12,7 @@ import (
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/mocks"
 	store "github.com/gagarinchain/network/storage"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"

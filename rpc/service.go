@@ -6,10 +6,12 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/blockchain/state"
+	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/op/go-logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"math/big"
 	"net"
 )
 
@@ -18,9 +20,10 @@ var log = logging.MustGetLogger("rpc")
 //TODO make pure libp2p service implementation
 type Service struct {
 	pb.CommonServiceServer
-	bc    api.Blockchain
-	pacer api.Pacer
-	db    state.DB
+	bc       api.Blockchain
+	pacer    api.Pacer
+	db       state.DB
+	txClient *tx.TxSend
 }
 
 type Config struct {
@@ -176,6 +179,24 @@ func (s *Service) GetAccount(ctx context.Context, in *pb.GetAccountRequest) (*pb
 //TODO implement me
 func (s *Service) GetTransaction(ctx context.Context, in *pb.GetTransactionRequest) (*pb.GetTransactionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "not now")
+}
+
+func (s *Service) ExecuteTransaction(ctx context.Context, in *pb.ExecuteTransactionRequest) (*pb.ExecuteTransactionResponse, error) {
+	opts := &tx.TransactOpts{
+		From:       common.BytesToAddress(in.Tx.From),
+		PrivateKey: nil,
+		Nonce:      in.GetTx().Nonce,
+		Fee:        big.NewInt(in.GetTx().Fee),
+		Context:    ctx,
+	}
+
+	txType := api.Type(in.GetTx().Type)
+	err := s.txClient.Transact(opts, txType, common.BytesToAddress(in.GetTx().To), big.NewInt(in.GetTx().Value))
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.ExecuteTransactionResponse{}, nil
 }
 
 func (s *Service) GetCommittee(ctx context.Context, in *pb.GetCommitteeRequest) (*pb.GetCommitteeResponse, error) {

@@ -5,8 +5,7 @@ require (
 	github.com/emirpasic/gods v1.12.0
 	github.com/ethereum/go-ethereum v1.9.15 // indirect
 	github.com/ferranbt/fastssz v0.0.0-20200826142241-3a913c5a1313 // indirect
-	github.com/gagarinchain/common v0.1.14
-	github.com/gogo/protobuf v1.3.1
+	github.com/gagarinchain/common v0.1.15
 	github.com/golang/protobuf v1.4.2
 	github.com/ipfs/go-cid v0.0.5
 	github.com/ipfs/go-datastore v0.4.4
@@ -36,7 +35,8 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/syndtr/goleveldb v1.0.1-0.20190923125748-758128399b1d
 	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0
-	google.golang.org/grpc v1.20.1
+	google.golang.org/genproto v0.0.0-20201008135153-289734e2e40c // indirect
+	google.golang.org/grpc v1.33.0
 	gopkg.in/yaml.v2 v2.3.0
 )
 

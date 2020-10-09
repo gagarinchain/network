@@ -4,7 +4,7 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"math/big"
 )
 
