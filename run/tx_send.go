@@ -289,7 +289,7 @@ func (e *Execution) Execute() {
 						Context:        context.Background(),
 					}
 
-					if err := e.txSend.Transact(opts, ttype, to, big.NewInt(dto.Value)); err != nil {
+					if err := e.txSend.Transact(opts, ttype, to, big.NewInt(dto.Value), []byte("")); err != nil {
 						log.Errorf("Can't send transaction %v", err)
 						continue
 					}

@@ -334,29 +334,22 @@ func (tx *TransactionImpl) Hash() common.Hash {
 	return tx.hash
 }
 
-func Hash(tx api.Transaction) common.Hash {
-	switch typ := tx.(type) {
-	case *TransactionImpl:
-		t := *typ
-
-		msg := HashableTransaction{
-			TxType: int32(t.txType),
-			To:     t.to,
-			From:   t.from,
-			Nonce:  t.nonce,
-			Value:  t.value.Uint64(),
-			Fee:    t.fee.Uint64(),
-			Data:   t.data,
-		}
-		b, e := ssz.Marshal(msg)
-		if e != nil {
-			log.Error("Can't calculate hash")
-		}
-
-		return crypto.Keccak256Hash(b)
-	default:
-		panic("unknown tx implementation")
+func Hash(t api.Transaction) common.Hash {
+	msg := HashableTransaction{
+		TxType: int32(t.TxType()),
+		To:     t.To(),
+		From:   t.From(),
+		Nonce:  t.Nonce(),
+		Value:  t.Value().Uint64(),
+		Fee:    t.Fee().Uint64(),
+		Data:   t.Data(),
 	}
+	b, e := ssz.Marshal(msg)
+	if e != nil {
+		log.Error("Can't calculate hash")
+	}
+
+	return crypto.Keccak256Hash(b)
 }
 
 func (tx *TransactionImpl) DropSignature() {

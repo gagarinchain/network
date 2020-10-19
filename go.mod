@@ -5,7 +5,7 @@ require (
 	github.com/emirpasic/gods v1.12.0
 	github.com/ethereum/go-ethereum v1.9.15 // indirect
 	github.com/ferranbt/fastssz v0.0.0-20200826142241-3a913c5a1313 // indirect
-	github.com/gagarinchain/common v0.1.15
+	github.com/gagarinchain/common v0.1.16
 	github.com/golang/protobuf v1.4.2
 	github.com/ipfs/go-cid v0.0.5
 	github.com/ipfs/go-datastore v0.4.4

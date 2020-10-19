@@ -451,16 +451,12 @@ func (p *StaticPacer) OnEpochStart(ctx context.Context, m *msg.Message) error {
 }
 
 func (p *StaticPacer) GetBitmap(src map[common.Address]*crypto.Signature) *big.Int {
-	bitmap := big.NewInt(0)
-	n := 0
-	for i, c := range p.Committee() {
-		if _, f := src[c.GetAddress()]; f {
-			bitmap.SetBit(bitmap, i, 1)
-			n++
-		}
+	var committee []common.Address
+	for _, peer := range p.GetPeers() {
+		committee = append(committee, peer.GetAddress())
 	}
 
-	return bitmap
+	return cmn.GetBitmap(src, committee)
 }
 
 func (p *StaticPacer) newEpoch(i int32) {

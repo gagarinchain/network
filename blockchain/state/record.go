@@ -349,6 +349,11 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 			return nil, FutureTransactionError
 		}
 
+		//Here we assume that all votes (AGREEMENTS) were included in previous blocks and all peers has the same local view
+		//we can have problem with different account states,
+		//if Agreements are not sent through transactions and are collected somehow else.
+		//If we decide sometime to store receipt hashes, then we will be in trouble,
+		//since ordering of voters in next algorithm is not guaranteed to be the same on different peers
 		n := len(receiver.Voters())
 		for _, v := range receiver.Voters() {
 			voter, f := r.GetForUpdate(v)

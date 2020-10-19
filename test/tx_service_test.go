@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/message"
 	pb "github.com/gagarinchain/common/protobuff"
@@ -74,4 +75,11 @@ func TestTransactionReceive(t *testing.T) {
 		}
 	}
 	cancel()
+}
+
+func TestSettlementAddress(t *testing.T) {
+	address := common.HexToAddress(api.SettlementAddressHex)
+	spew.Dump(address)
+
+	assert.Equal(t, address.Bytes(), common.FromHex(api.SettlementAddressHex))
 }

@@ -191,7 +191,7 @@ func (s *Service) ExecuteTransaction(ctx context.Context, in *pb.ExecuteTransact
 	}
 
 	txType := api.Type(in.GetTx().Type)
-	err := s.txClient.Transact(opts, txType, common.BytesToAddress(in.GetTx().To), big.NewInt(in.GetTx().Value))
+	err := s.txClient.Transact(opts, txType, common.BytesToAddress(in.GetTx().To), big.NewInt(in.GetTx().Value), []byte(""))
 	if err != nil {
 		return nil, err
 	}

@@ -111,14 +111,14 @@ func local() (res []*peer.AddrInfo) {
 	return res
 }
 
-func (c *TxSend) Transact(txOpts *TransactOpts, txType api.Type, to cmn.Address, value *big.Int) error {
+func (c *TxSend) Transact(txOpts *TransactOpts, txType api.Type, to cmn.Address, value *big.Int, data []byte) error {
 	var nonce = txOpts.Nonce
 	if txOpts.Nonce == 0 {
 		nonce = c.getNonceAndIncrement(txOpts.From)
 	}
 
 	//create transaction
-	tx := CreateTransaction(txType, to, txOpts.From, nonce, value, txOpts.Fee, nil)
+	tx := CreateTransaction(txType, to, txOpts.From, nonce, value, txOpts.Fee, data)
 	switch txType {
 	case api.Payment:
 	case api.Settlement:
