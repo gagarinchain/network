@@ -154,7 +154,8 @@ func (tx *TransactionImpl) CreateProof(pk *crypto.PrivateKey) (e error) {
 
 	return
 }
-func (tx *TransactionImpl) RecoverProver() (aggregate *crypto.SignatureAggregate, e error) {
+
+func (tx *TransactionImpl) RecoverProof() (aggregate *crypto.SignatureAggregate, e error) {
 	if tx.txType != api.Proof {
 		return aggregate, errors.New("proof is allowed only for proof tx")
 	}
@@ -165,6 +166,20 @@ func (tx *TransactionImpl) RecoverProver() (aggregate *crypto.SignatureAggregate
 	}
 
 	return crypto.AggregateFromProto(aggr), nil
+}
+
+func (tx *TransactionImpl) RecoverProvers(committee []common.Address) (provers []common.Address, e error) {
+	proof, e := tx.RecoverProof()
+	if e != nil {
+		return nil, e
+	}
+
+	for i, p := range committee {
+		if proof.Bitmap().Bit(i) == 1 {
+			provers = append(provers, p)
+		}
+	}
+	return provers, nil
 }
 
 func (tx *TransactionImpl) GetMessage() *pb.Transaction {

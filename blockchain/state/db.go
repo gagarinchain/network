@@ -26,14 +26,16 @@ type DBImpl struct {
 	snapPersister   *SnapshotPersister
 	recordPersister *RecordPersister
 	lock            sync.RWMutex
+	committee       []common.Address
 	bus             cmn.EventBus
 }
 
-func NewStateDB(storage storage.Storage, bus cmn.EventBus) DB {
+func NewStateDB(storage storage.Storage, committee []common.Address, bus cmn.EventBus) DB {
 	snapPersister := &SnapshotPersister{storage: storage}
 	recordPersister := &RecordPersister{storage: storage}
 	records := make(map[common.Hash]api.Record)
-	db := &DBImpl{records: records, snapPersister: snapPersister, recordPersister: recordPersister, lock: sync.RWMutex{}, bus: bus}
+	db := &DBImpl{records: records, snapPersister: snapPersister, recordPersister: recordPersister, lock: sync.RWMutex{},
+		committee: committee, bus: bus}
 
 	db.lock.RLock()
 	defer db.lock.RUnlock()
@@ -69,7 +71,7 @@ func NewStateDB(storage storage.Storage, bus cmn.EventBus) DB {
 			log.Error("Can't parse record", e)
 			continue
 		}
-		rec, e := FromProto(record, snaps, bus)
+		rec, e := FromProto(record, snaps, committee, bus)
 		if e != nil {
 			log.Error("Can't parse record", e)
 			continue
@@ -95,7 +97,7 @@ func (db *DBImpl) Init(hash common.Hash, seed *Snapshot) error {
 		seed = NewSnapshot(hash, common.Address{})
 	}
 
-	rec := NewRecord(seed, nil, db.bus)
+	rec := NewRecord(seed, nil, db.committee, db.bus)
 	db.records[hash] = rec
 	db.persist(rec, nil)
 	return nil

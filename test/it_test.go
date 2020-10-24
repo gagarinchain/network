@@ -966,7 +966,7 @@ func TestScenario8a(t *testing.T) {
 		mappedProofs[address] = signFromProto
 	}
 	bitmap := ctx.pacer.GetBitmap(mappedProofs)
-	spew.Dump(mappedProofs)
+	//spew.Dump(mappedProofs)
 	aggregate := crypto.AggregateSignatures(bitmap, signs)
 	prAggr := aggregate.ToProto()
 	aggrBytes, _ := proto.Marshal(prAggr)
@@ -1240,8 +1240,10 @@ func initContext(t *testing.T) *TestContext {
 	cpersister := &blockchain.BlockchainPersister{storage}
 
 	peers := make([]*common.Peer, 10)
+	var committee []common2.Address
 	for i := 0; i < 10; i++ {
 		peers[i] = generateIdentity(t, i)
+		committee = append(committee, peers[i].GetAddress())
 	}
 
 	validators := []api.Validator{
@@ -1253,7 +1255,7 @@ func initContext(t *testing.T) *TestContext {
 	pool := tx.NewTransactionPool()
 	seed := blockchain.SeedFromFile("../static/seed.json")
 
-	stateDb := state.NewStateDB(storage, &common.NullBus{})
+	stateDb := state.NewStateDB(storage, committee, &common.NullBus{})
 
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		Seed:           seed,

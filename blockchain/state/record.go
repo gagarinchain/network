@@ -46,6 +46,7 @@ type RecordImpl struct {
 	parent    api.Record
 	siblings  []api.Record
 	forUpdate map[common.Address]api.Account
+	committee []common.Address
 	bus       cmn.EventBus
 }
 
@@ -77,8 +78,8 @@ func (r *RecordImpl) SetParent(parent api.Record) {
 	r.parent = parent
 }
 
-func NewRecord(snap *Snapshot, parent api.Record, bus cmn.EventBus) *RecordImpl {
-	return &RecordImpl{snap: snap, parent: parent, forUpdate: make(map[common.Address]api.Account), bus: bus}
+func NewRecord(snap *Snapshot, parent api.Record, committee []common.Address, bus cmn.EventBus) *RecordImpl {
+	return &RecordImpl{snap: snap, parent: parent, committee: committee, forUpdate: make(map[common.Address]api.Account), bus: bus}
 }
 
 func (r *RecordImpl) Pending() api.Record {
@@ -94,7 +95,7 @@ func (r *RecordImpl) NewPendingRecord(proposer common.Address) api.Record {
 		trie:     sparse.NewSMT(256),
 		proposer: proposer,
 	}
-	pending := NewRecord(s, r, r.bus)
+	pending := NewRecord(s, r, r.committee, r.bus)
 	r.SetPending(pending)
 
 	return pending
@@ -320,7 +321,6 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 		if withFee {
 			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
 		}
-		receiver.AddVoters(t.From())
 	case api.Proof:
 		cost := big.NewInt(0).Add(t.Value(), t.Fee())
 		if sender.Balance().Cmp(cost) < 0 {
@@ -349,17 +349,16 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 			return nil, FutureTransactionError
 		}
 
-		//Here we assume that all votes (AGREEMENTS) were included in previous blocks and all peers has the same local view
-		//we can have problem with different account states,
-		//if Agreements are not sent through transactions and are collected somehow else.
-		//If we decide sometime to store receipt hashes, then we will be in trouble,
-		//since ordering of voters in next algorithm is not guaranteed to be the same on different peers
-		n := len(receiver.Voters())
-		for _, v := range receiver.Voters() {
+		provers, err := t.RecoverProvers(r.committee)
+		if err != nil {
+			return nil, err
+		}
+
+		n := len(provers)
+		for _, v := range provers {
 			voter, f := r.GetForUpdate(v)
 			if !f {
 				voter = NewAccount(0, big.NewInt(0))
-
 			}
 			fraction := big.NewInt(0).Div(big.NewInt(api.DefaultSettlementReward), big.NewInt(int64(n)))
 			voter.Balance().Add(voter.Balance(), fraction)
@@ -445,13 +444,13 @@ func GetProto(bytes []byte) (*pb.Record, error) {
 }
 
 //returns record without parent and siblings
-func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot, bus cmn.EventBus) (*RecordImpl, error) {
+func FromProto(recPb *pb.Record, snapshots map[common.Hash]*Snapshot, committee []common.Address, bus cmn.EventBus) (*RecordImpl, error) {
 	hash := common.BytesToHash(recPb.Snap)
 	s, f := snapshots[hash]
 	if !f {
 		return nil, fmt.Errorf("snapshot %v is not found in db", hash.Hex())
 	}
-	return NewRecord(s, nil, bus), nil
+	return NewRecord(s, nil, committee, bus), nil
 }
 
 func SetParentFromProto(r api.Record, recPb *pb.Record, records map[common.Hash]api.Record) {

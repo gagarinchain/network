@@ -453,7 +453,7 @@ func (bc *BlockchainImpl) AddBlock(block api.Block) ([]api.Receipt, error) {
 	defer bc.indexGuard.Unlock()
 
 	if bc.blocksByHash[block.Header().Hash()] != nil || bc.blockPersister.Contains(block.Header().Hash()) {
-		log.Warningf("Block with hash [%v] already exists", block.Header().Hash().Hex())
+		log.Debugf("Block with hash [%v] already exists", block.Header().Hash().Hex())
 		//TODO mb store receipts and return produced previously
 		return block.Receipts(), nil
 	}
@@ -756,10 +756,10 @@ func (bc *BlockchainImpl) applyTransactionsAndValidate(block api.Block) (receipt
 	iterator := block.Txs()
 	for iterator.HasNext() {
 		next := iterator.Next()
-		if r, err := r.ApplyTransaction(next); err != nil {
-			return r, err
+		if re, err := r.ApplyTransaction(next); err != nil {
+			return re, err
 		} else {
-			receipts = r
+			receipts = re
 		}
 	}
 

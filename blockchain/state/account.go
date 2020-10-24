@@ -48,10 +48,6 @@ func (a *AccountImpl) Voters() []common.Address {
 	return a.voters
 }
 
-func (a *AccountImpl) AddVoters(from common.Address) {
-	a.voters = append(a.voters, from)
-}
-
 func (a *AccountImpl) Balance() *big.Int {
 	return a.balance
 }

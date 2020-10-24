@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/common/api"
+	common2 "github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/message"
 	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/blockchain"
@@ -105,12 +106,18 @@ func CreateContext(s *common.Settings) *Context {
 	txValidator := blockchain.NewTransactionValidator(committee)
 	headerValidator := &blockchain.HeaderValidator{}
 	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee, txValidator, headerValidator), headerValidator)
-	db := state.NewStateDB(storage, bus)
+	var addresses []common2.Address
+	for _, peer := range committee {
+		addresses = append(addresses, peer.GetAddress())
+	}
+	db := state.NewStateDB(storage, addresses, bus)
 	seed := blockchain.SeedFromFile(path.Join(s.Static.Dir, "seed.json"))
 
 	plugins := rpc.NewPluginAdapter(me)
-	if s.Plugins.Address != "" {
-		plugins.AddPlugin(s.Plugins)
+	for _, plugin := range s.Plugins {
+		if plugin.Address != "" {
+			plugins.AddPlugin(plugin)
+		}
 	}
 
 	bc := blockchain.CreateBlockchainFromStorage(&blockchain.BlockchainConfig{
