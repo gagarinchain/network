@@ -114,6 +114,8 @@ github.com/gagarinchain/common v0.1.15 h1:kyRn7B66fI2tJCPp0CLbUZef+/07As/xdBn+/y
 github.com/gagarinchain/common v0.1.15/go.mod h1:YyPjq2iTchRxu2xC25WWf/IdKbROns4dTz3SJG2WHdU=
 github.com/gagarinchain/common v0.1.16 h1:uw2jbpqieNa4tWiEM5XBrRHYorC9GQjET2uzIrU7t2s=
 github.com/gagarinchain/common v0.1.16/go.mod h1:YyPjq2iTchRxu2xC25WWf/IdKbROns4dTz3SJG2WHdU=
+github.com/gagarinchain/common v0.1.17 h1:eIcKRVGK9QvnUh8CkQ2/vppVGcpgkz1oS4WWWAjxxwc=
+github.com/gagarinchain/common v0.1.17/go.mod h1:YyPjq2iTchRxu2xC25WWf/IdKbROns4dTz3SJG2WHdU=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff h1:tY80oXqGNY4FhTFhk+o9oFHGINQ/+vhlm8HFzi6znCI=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff/go.mod h1:x7DCsMOv1taUwEWCzT4cmDeAkigA5/QCwUodaVOe8Ww=
 github.com/go-check/check v0.0.0-20180628173108-788fd7840127 h1:0gkP6mzaMqkmpcJYCFOLkIBwI7xFExG03bbkOkCvUPI=
