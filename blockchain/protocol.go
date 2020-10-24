@@ -168,7 +168,7 @@ func createHeadersError(headers []api.Header) *pb.HeadersResponse {
 }
 
 func (p *BlockProtocol) OnBlockRequest(ctx context.Context, req *msg.Message) error {
-	log.Debug("Got block request from peer %v", req.Source().GetPeerInfo().ID.Pretty())
+	log.Debugf("Got block request from peer %v", req.Source().GetPeerInfo().ID.Pretty())
 	payload := req.GetPayload()
 	br := &pb.BlockRequestPayload{}
 	if err := ptypes.UnmarshalAny(payload, br); err != nil {

@@ -15,8 +15,10 @@ Static:
 Log:
   Level: INFO
 Plugins:
-  Address: 'localhost:9380'
-  Interfaces: ['OnBlockCommit', 'OnReceiveProposal', 'OnNewBlockCreated']
+  - Address: 'localhost:9380'
+    Interfaces: ['OnBlockCommit', 'OnReceiveProposal', 'OnNewBlockCreated']
+  - Address: 'localhost:9380'
+    Interfaces: ['OnBlockCommit']
 Rpc:
   Address: 'localhost:9480'
   MaxConcurrentStreams: 10

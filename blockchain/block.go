@@ -226,6 +226,14 @@ func NewBlockBuilderImpl() *BlockBuilderImpl {
 	return &BlockBuilderImpl{block: &BlockImpl{}}
 }
 
+func NewBlockBuilderFromBlock(block api.Block) *BlockBuilderImpl {
+	blockImpl, f := block.(*BlockImpl)
+	if !f {
+		log.Error("Can create block builder only with *BlockImpl implementation of api.Block")
+	}
+	return &BlockBuilderImpl{block: blockImpl}
+}
+
 func (b BlockBuilderImpl) SetHeader(header api.Header) api.BlockBuilder {
 	impl, f := header.(*HeaderImpl)
 	if !f {
