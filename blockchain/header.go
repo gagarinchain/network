@@ -134,7 +134,7 @@ func HashHeader(header api.Header) common.Hash {
 			DataHash:  h.dataHash,
 			QcHash:    h.qcHash,
 			Parent:    h.parent,
-			Timestamp: uint64(h.timestamp.Unix()),
+			Timestamp: uint64(h.timestamp.UnixNano()),
 		}
 		bytes, e := ssz.Marshal(hh)
 		if e != nil {

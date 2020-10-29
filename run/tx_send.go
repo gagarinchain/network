@@ -262,11 +262,13 @@ func (e *Execution) Execute() {
 					ttype := api.Payment
 					if dto.Type != "" {
 						switch dto.Type {
-						case "Payment":
+						case "P":
 							ttype = api.Payment
-						case "Agreement":
+						case "S":
+							ttype = api.Settlement
+						case "A":
 							ttype = api.Agreement
-						case "Redeem":
+						case "R":
 							ttype = api.Redeem
 						}
 					}

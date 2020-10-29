@@ -1,0 +1,37 @@
+10:
+  p:
+    - type: A
+      fee: 1
+      from: 0
+      to: 0x3db5e6f31B6b46ffeC25E512763FC61aEc42654c
+      value: 0
+    - type: A
+      fee: 1
+      from: 1
+      to: 0x3db5e6f31B6b46ffeC25E512763FC61aEc42654c
+      value: 0
+    - type: A
+      fee: 1
+      from: 2
+      to: 0x3db5e6f31B6b46ffeC25E512763FC61aEc42654c
+      value: 0
+    - type: A
+      fee: 1
+      from: 3
+      to: 0x3db5e6f31B6b46ffeC25E512763FC61aEc42654c
+      value: 0
+    - type: A
+      fee: 1
+      from: 4
+      to: 0x3db5e6f31B6b46ffeC25E512763FC61aEc42654c
+      value: 0
+    - type: A
+      fee: 1
+      from: 5
+      to: 0x3db5e6f31B6b46ffeC25E512763FC61aEc42654c
+      value: 0
+    - type: A
+      fee: 1
+      from: 6
+      to: 0x3db5e6f31B6b46ffeC25E512763FC61aEc42654c
+      value: 0
