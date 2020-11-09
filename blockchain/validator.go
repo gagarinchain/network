@@ -44,11 +44,11 @@ func (v *TransactionValidator) IsValid(entity interface{}) (bool, error) {
 			return false, ValueNotValid
 		}
 
-		if t.Fee().Cmp(big.NewInt(api.DefaultSettlementReward)) <= 0 {
+		if t.Fee().Cmp(big.NewInt(api.DefaultSettlementReward)) < 0 {
 			return false, FeeNotValid
 		}
 
-		if !bytes.Equal(t.To().Bytes(), common.HexToAddress(api.SettlementAddressHex).Bytes()) {
+		if !bytes.Equal(t.To().Bytes(), common.BytesToAddress(t.Hash().Bytes()[12:]).Bytes()) {
 			return false, SettlementAddressNotValid
 		}
 	case api.Agreement:

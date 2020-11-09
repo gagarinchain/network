@@ -146,7 +146,8 @@ func TestIsNotValidWithBrokenHash(t *testing.T) {
 
 	headerValidator := &blockchain.HeaderValidator{}
 	validator := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator)
-	b, e := validator.IsValid(blockchain.CreateBlockFromMessage(msg))
+	message, _ := blockchain.CreateBlockFromMessage(msg)
+	b, e := validator.IsValid(message)
 	assert.EqualError(t, e, "block hash is not valid")
 	assert.False(t, b)
 }
@@ -167,7 +168,7 @@ func TestIsNotValidWithBrokenDataHash(t *testing.T) {
 	msg := newBlock.GetMessage()
 	msg.Data = &pb.BlockData{Data: []byte("Hello from other side")}
 
-	block := blockchain.CreateBlockFromMessage(msg)
+	block, _ := blockchain.CreateBlockFromMessage(msg)
 	headerValidator := &blockchain.HeaderValidator{}
 	validator := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator)
 	b, e := validator.IsValid(block)
@@ -191,7 +192,7 @@ func TestIsNotValidWithBrokenQCHash(t *testing.T) {
 	s := crypto.AggregateSignatures(big.NewInt(1), nil)
 	msg.Cert.SignatureAggregate = s.ToProto()
 	msg.Cert.Header.Height = 2
-	block := blockchain.CreateBlockFromMessage(msg)
+	block, _ := blockchain.CreateBlockFromMessage(msg)
 
 	headerValidator := &blockchain.HeaderValidator{}
 	validator := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator)

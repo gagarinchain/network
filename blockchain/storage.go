@@ -7,6 +7,7 @@ import (
 	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/storage"
 	"github.com/golang/protobuf/proto"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var (
@@ -35,6 +36,9 @@ func (bp *BlockPersister) Update(b api.Block) error {
 
 func (bp *BlockPersister) Load(hash common.Hash) (b api.Block, er error) {
 	value, er := bp.Storage.Get(storage.Block, hash.Bytes())
+	if er == leveldb.ErrNotFound {
+		return nil, NoBlockFoundError
+	}
 	if er != nil {
 		return nil, er
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/common/api"
-	common2 "github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/network/network"
@@ -41,11 +40,6 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 			if !b {
 				log.Error("Transaction is not valid", e)
 				continue
-			}
-
-			if t.TxType() == api.Settlement {
-				//we change to, since we don't need default address any more
-				t.SetTo(common2.BytesToAddress(t.Hash().Bytes()[12:]))
 			}
 
 			s.txPool.Add(t)

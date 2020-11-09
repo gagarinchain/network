@@ -946,6 +946,7 @@ func TestScenario8a(t *testing.T) {
 	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	_, _ = ctx.bc.AddBlock(block1)
 	to := common2.BytesToAddress(s.Hash().Bytes()[12:])
+	log.Debugf("Contract address %v", to.Hex())
 	snap := ctx.bc.GetHeadRecord()
 	_, found := snap.Get(to)
 	if !found {
@@ -1077,6 +1078,8 @@ func (ctx *TestContext) generateSettlement(from common2.Address, amount, fee *bi
 			trans.Sign(peer.GetPrivateKey())
 		}
 	}
+	trans.SetTo(common2.BytesToAddress(trans.Hash().Bytes()[12:]))
+
 	return trans
 }
 

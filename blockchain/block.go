@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"fmt"
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
@@ -92,7 +93,7 @@ func CreateGenesisBlock() (zero api.Block) {
 	return zero
 }
 
-func CreateBlockFromMessage(block *pb.Block) api.Block {
+func CreateBlockFromMessage(block *pb.Block) (api.Block, error) {
 	header := CreateBlockHeaderFromMessage(block.Header)
 	aggrPb := block.Cert.GetSignatureAggregate()
 	cert := CreateQuorumCertificate(crypto.AggregateFromProto(aggrPb), CreateBlockHeaderFromMessage(block.Cert.Header))
@@ -100,8 +101,8 @@ func CreateBlockFromMessage(block *pb.Block) api.Block {
 	for _, tpb := range block.Txs {
 		t, e := tx.CreateTransactionFromMessage(tpb, block.GetSignatureAggregate() != nil)
 		if e != nil {
-			log.Errorf("Bad transaction, %v", e)
-			return nil
+			w := fmt.Errorf("bad transaction: %w", e)
+			return nil, w
 		}
 		//spew.Dump(tpb)
 		//spew.Dump(t)
@@ -112,7 +113,7 @@ func CreateBlockFromMessage(block *pb.Block) api.Block {
 	if block.GetSignatureAggregate() != nil {
 		signature = crypto.AggregateFromProto(block.SignatureAggregate)
 	}
-	return &BlockImpl{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs}
+	return &BlockImpl{header: header, signature: signature, qc: cert, data: block.Data.Data, txs: txs}, nil
 }
 
 func CreateBlockFromStorage(block *pb.BlockS) api.Block {

@@ -128,7 +128,11 @@ func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, p
 	}
 
 	if pbBlock := rp.GetBlock(); pbBlock != nil {
-		resp = CreateBlockFromMessage(pbBlock)
+		resp, e = CreateBlockFromMessage(pbBlock)
+		if e != nil {
+			log.Errorf("Block is not  valid, %v", e)
+			return nil, NotValid
+		}
 
 		log.Infof("Received new block with hash %v", resp.Header().Hash().Hex())
 		if !s.validator.Supported(pb.Message_BLOCK_RESPONSE) {

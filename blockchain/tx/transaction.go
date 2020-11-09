@@ -350,9 +350,13 @@ func (tx *TransactionImpl) Hash() common.Hash {
 }
 
 func Hash(t api.Transaction) common.Hash {
+	to := t.To()
+	if t.TxType() == api.Settlement {
+		to = common.HexToAddress(api.SettlementAddressHex)
+	}
 	msg := HashableTransaction{
 		TxType: int32(t.TxType()),
-		To:     t.To(),
+		To:     to,
 		From:   t.From(),
 		Nonce:  t.Nonce(),
 		Value:  t.Value().Uint64(),
@@ -363,7 +367,7 @@ func Hash(t api.Transaction) common.Hash {
 	if e != nil {
 		log.Error("Can't calculate hash")
 	}
-
+	//log.Debug(common.Bytes2Hex(b))
 	return crypto.Keccak256Hash(b)
 }
 

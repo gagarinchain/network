@@ -57,7 +57,10 @@ func CreateProposalFromMessage(msg *msg.Message) (*ProposalImpl, error) {
 	if err := ptypes.UnmarshalAny(msg.Payload, pp); err != nil {
 		log.Error("Couldn'T unmarshal response", err)
 	}
-	block := bc.CreateBlockFromMessage(pp.Block)
+	block, err := bc.CreateBlockFromMessage(pp.Block)
+	if err != nil {
+		return nil, err
+	}
 	qc := bc.CreateQuorumCertificateFromMessage(pp.Cert)
 
 	sign := crypto.SignatureFromProto(pp.Signature)
