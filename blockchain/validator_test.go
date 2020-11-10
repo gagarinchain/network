@@ -6,7 +6,7 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
-	"github.com/gagarinchain/network/blockchain/tx"
+	tx2 "github.com/gagarinchain/common/tx"
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +15,7 @@ import (
 )
 
 func TestPaymentValidationBadFee(t *testing.T) {
-	tran := tx.CreateTransaction(api.Payment, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(1), big.NewInt(0), nil)
+	tran := tx2.CreateTransaction(api.Payment, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(1), big.NewInt(0), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
@@ -23,42 +23,42 @@ func TestPaymentValidationBadFee(t *testing.T) {
 }
 
 func TestPaymentValidationBadValue(t *testing.T) {
-	tran := tx.CreateTransaction(api.Payment, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(-1), big.NewInt(1), nil)
+	tran := tx2.CreateTransaction(api.Payment, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(-1), big.NewInt(1), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
 	assert.Equal(t, ValueNotValid, e)
 }
 func TestSettlementValidationBadValue(t *testing.T) {
-	tran := tx.CreateTransaction(api.Settlement, common.HexToAddress(api.SettlementAddressHex), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(15), nil)
+	tran := tx2.CreateTransaction(api.Settlement, common.HexToAddress(api.SettlementAddressHex), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(15), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
 	assert.Equal(t, ValueNotValid, e)
 }
 func TestSettlementValidationBadFee(t *testing.T) {
-	tran := tx.CreateTransaction(api.Settlement, common.HexToAddress(api.SettlementAddressHex), GeneratePeer().GetAddress(), 0, big.NewInt(1), big.NewInt(5), nil)
+	tran := tx2.CreateTransaction(api.Settlement, common.HexToAddress(api.SettlementAddressHex), GeneratePeer().GetAddress(), 0, big.NewInt(1), big.NewInt(5), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
 	assert.Equal(t, FeeNotValid, e)
 }
 func TestSettlementValidationBadAddress(t *testing.T) {
-	tran := tx.CreateTransaction(api.Settlement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(145), big.NewInt(15), nil)
+	tran := tx2.CreateTransaction(api.Settlement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(145), big.NewInt(15), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
 	assert.Equal(t, SettlementAddressNotValid, e)
 }
 func TestAgreementValidationBadValue(t *testing.T) {
-	tran := tx.CreateTransaction(api.Agreement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(10), big.NewInt(15), nil)
+	tran := tx2.CreateTransaction(api.Agreement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(10), big.NewInt(15), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
 	assert.Equal(t, ValueNotValid, e)
 }
 func TestAgreementValidationBadFee(t *testing.T) {
-	tran := tx.CreateTransaction(api.Agreement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(0), nil)
+	tran := tx2.CreateTransaction(api.Agreement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(0), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
@@ -66,7 +66,7 @@ func TestAgreementValidationBadFee(t *testing.T) {
 }
 func TestAgreementValidationBadSignature(t *testing.T) {
 
-	tran := tx.CreateTransaction(api.Agreement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(10), nil)
+	tran := tx2.CreateTransaction(api.Agreement, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(10), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
@@ -76,13 +76,13 @@ func TestAgreementValid(t *testing.T) {
 	pk, _ := crypto.GenerateKey()
 	from := crypto.PubkeyToAddress(pk.PublicKey())
 
-	tran := tx.CreateTransaction(api.Settlement, common.HexToAddress(api.SettlementAddressHex), GeneratePeer().GetAddress(), 0, big.NewInt(100),
+	tran := tx2.CreateTransaction(api.Settlement, common.HexToAddress(api.SettlementAddressHex), GeneratePeer().GetAddress(), 0, big.NewInt(100),
 		big.NewInt(api.DefaultSettlementReward+5), nil)
 	hash := tran.Hash()
 	settleAddress := common.BytesToAddress(hash.Bytes()[12:])
 	sig := crypto.Sign(crypto.Keccak256(settleAddress.Bytes()), pk)
 	bytes, _ := proto.Marshal(sig.ToProto())
-	tran2 := tx.CreateTransaction(api.Agreement, settleAddress, from, 0, big.NewInt(0), big.NewInt(10), bytes)
+	tran2 := tx2.CreateTransaction(api.Agreement, settleAddress, from, 0, big.NewInt(0), big.NewInt(10), bytes)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	bol, _ := validator.IsValid(tran2)
@@ -90,14 +90,14 @@ func TestAgreementValid(t *testing.T) {
 }
 
 func TestProofValidationBadValue(t *testing.T) {
-	tran := tx.CreateTransaction(api.Proof, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(10), big.NewInt(15), nil)
+	tran := tx2.CreateTransaction(api.Proof, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(10), big.NewInt(15), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
 	assert.Equal(t, ValueNotValid, e)
 }
 func TestProofValidationBadFee(t *testing.T) {
-	tran := tx.CreateTransaction(api.Proof, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(0), nil)
+	tran := tx2.CreateTransaction(api.Proof, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(0), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
@@ -105,7 +105,7 @@ func TestProofValidationBadFee(t *testing.T) {
 }
 
 func TestProofValidationNotValidSignature(t *testing.T) {
-	tran := tx.CreateTransaction(api.Proof, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(21), nil)
+	tran := tx2.CreateTransaction(api.Proof, GeneratePeer().GetAddress(), GeneratePeer().GetAddress(), 0, big.NewInt(0), big.NewInt(21), nil)
 
 	validator := NewTransactionValidator([]*common2.Peer{GeneratePeer()})
 	_, e := validator.IsValid(tran)
@@ -123,7 +123,7 @@ func TestProofValid(t *testing.T) {
 	from := crypto.PubkeyToAddress(pk.PublicKey())
 	to := GeneratePeer().GetAddress()
 
-	tran := tx.CreateTransaction(api.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), nil)
+	tran := tx2.CreateTransaction(api.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), nil)
 	hash := tran.Hash()
 
 	for i := 0; i < 10; i++ {
@@ -141,12 +141,12 @@ func TestProofValid(t *testing.T) {
 	bitmap, _ := GetBitmap(committee, proofs)
 	aggregate := crypto.AggregateSignatures(bitmap, signs)
 	bytes, _ := proto.Marshal(aggregate.ToProto())
-	tran2 := tx.CreateTransaction(api.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), bytes)
+	tran2 := tx2.CreateTransaction(api.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), bytes)
 
 	bitmap2, _ := GetBitmap(committee, proofs2)
 	aggregate2 := crypto.AggregateSignatures(bitmap2, signs2)
 	bytes2, _ := proto.Marshal(aggregate2.ToProto())
-	tran3 := tx.CreateTransaction(api.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), bytes2)
+	tran3 := tx2.CreateTransaction(api.Proof, to, from, 0, big.NewInt(0), big.NewInt(10), bytes2)
 
 	validator := NewTransactionValidator(committee)
 

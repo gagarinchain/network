@@ -513,11 +513,11 @@ func (m *MockBlockchain) IsSibling(sibling api.Header, ancestor api.Header) bool
 	panic("implement me")
 }
 
-func (m *MockBlockchain) NewBlock(parent api.Block, qc api.QuorumCertificate, data []byte) api.Block {
+func (m *MockBlockchain) NewBlock(parent api.Block, qc api.QuorumCertificate, data []byte) (api.Block, error) {
 	panic("implement me")
 }
 
-func (m *MockBlockchain) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) api.Block {
+func (m *MockBlockchain) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) (api.Block, error) {
 	panic("implement me")
 }
 

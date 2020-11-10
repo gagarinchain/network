@@ -7,8 +7,8 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	msg "github.com/gagarinchain/common/message"
+	"github.com/gagarinchain/common/network"
 	"github.com/gagarinchain/common/protobuff"
-	"github.com/gagarinchain/network/network"
 	"github.com/golang/protobuf/ptypes"
 	"time"
 )

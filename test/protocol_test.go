@@ -26,7 +26,7 @@ var log = logging.MustGetLogger("hotstuff")
 func TestProposalSignature(t *testing.T) {
 	bc, _, cfg, _ := initProtocol(t)
 
-	block := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("hello sign"))
+	block, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("hello sign"))
 	proposal := hotstuff.CreateProposal(block, bc.GetGenesisCert(), cfg.Me)
 
 	proposal.Sign(cfg.Me.GetPrivateKey())
@@ -98,7 +98,7 @@ func TestProtocolProposeOnGenesisBlockchainVoteForSelfProposal(t *testing.T) {
 func TestProtocolUpdateWithHigherRankBroken(t *testing.T) {
 	bc, p, _, _ := initProtocol(t)
 
-	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
+	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
 	newQC := blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock.Header())
 	if _, e := bc.AddBlock(newBlock); e != nil {
@@ -114,7 +114,7 @@ func TestProtocolUpdateWithHigherRankBroken(t *testing.T) {
 func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
 
-	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
+	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
 
 	newQC := createValidQC(newBlock, cfg)
@@ -144,7 +144,7 @@ func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
 
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
+	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte(""))
 	log.Info("Head ", newBlock.Header().Hash().Hex())
 	newQC := createValidQC(newBlock, cfg)
 	if _, e := bc.AddBlock(newBlock); e != nil {
@@ -161,7 +161,7 @@ func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
 func TestOnReceiveProposal(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
 	for _, p := range cfg.Committee {
 		log.Info(p.GetAddress().Hex())
@@ -199,7 +199,7 @@ func TestOnReceiveProposal(t *testing.T) {
 func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error("can't add block", e)
 	}
@@ -214,7 +214,7 @@ func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 func TestOnReceiveVoteForNotProposer(t *testing.T) {
 	bc, p, _, _ := initProtocol(t, 4)
 
-	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	vote := createVote(bc, newBlock, t)
 
 	assert.Error(t, p.OnReceiveVote(context.Background(), vote))
@@ -224,8 +224,8 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t, 1)
 	id := generateIdentity(t, 4)
 	(cfg.Pacer).(*cmocks.Pacer).On("GetCurrent").Return(cfg.Me)
-	newBlock1 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
-	newBlock2 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
+	newBlock1, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock2, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("another wonderful block"))
 	vote1 := hotstuff.CreateVote(newBlock1.Header(), bc.GetGenesisCert(), id)
 	vote2 := hotstuff.CreateVote(newBlock2.Header(), bc.GetGenesisCert(), id)
 
@@ -242,7 +242,7 @@ func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
 
 func TestQCUpdateOnVotesCollectFinish(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t, 1)
-	newBlock := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
 	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error("can't add block", e)

@@ -6,7 +6,7 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
-	"github.com/gagarinchain/network/blockchain/tx"
+	tx2 "github.com/gagarinchain/common/tx"
 	"github.com/gagarinchain/network/storage"
 	"github.com/stretchr/testify/assert"
 	"math/big"
@@ -27,7 +27,7 @@ func TestSnapshot_ApplyTransactionNoAccount(t *testing.T) {
 	from := generate()
 	to := generate()
 
-	tr := tx.CreateTransaction(api.Payment, to, from, 0, big.NewInt(100), big.NewInt(1), []byte("123456"))
+	tr := tx2.CreateTransaction(api.Payment, to, from, 0, big.NewInt(100), big.NewInt(1), []byte("123456"))
 	r, err := record.ApplyTransaction(tr)
 	assert.Equal(t, len(r), 0)
 	assert.Equal(t, err, FutureTransactionError)
@@ -43,7 +43,7 @@ func TestSnapshot_ApplyTransactionInsufficientFunds(t *testing.T) {
 	snapshot.Put(Me, NewAccount(0, big.NewInt(0)))
 	snapshot.Put(from, NewAccount(0, big.NewInt(90)))
 
-	tr := tx.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx2.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	r, err := record.ApplyTransaction(tr)
 	assert.Equal(t, len(r), 0)
 
@@ -61,7 +61,7 @@ func TestSnapshot_ApplyTransactionFutureNonce(t *testing.T) {
 	snapshot.Put(from, NewAccount(0, big.NewInt(100)))
 	snapshot.Put(to, NewAccount(0, big.NewInt(90)))
 
-	tr := tx.CreateTransaction(api.Payment, to, from, 5, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx2.CreateTransaction(api.Payment, to, from, 5, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	r, err := record.ApplyTransaction(tr)
 	assert.Equal(t, len(r), 0)
 
@@ -77,7 +77,7 @@ func TestSnapshot_ApplyTransactionNoMe(t *testing.T) {
 
 	snapshot.Put(from, NewAccount(0, big.NewInt(90)))
 
-	tr := tx.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx2.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	r, err := record.ApplyTransaction(tr)
 	assert.Equal(t, len(r), 0)
 
@@ -96,7 +96,7 @@ func TestApplyTransactionToFromProposerAllDifferent(t *testing.T) {
 	snapshot.Put(to, NewAccount(0, big.NewInt(90)))
 
 	proofBefore := snapshot.RootProof()
-	tr := tx.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx2.CreateTransaction(api.Payment, to, from, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	r, err := rec.ApplyTransaction(tr)
 	assert.Equal(t, len(r), 2)
 
@@ -144,11 +144,11 @@ func TestApplyTransactionMixed(t *testing.T) {
 
 	proofBefore := snapshot.RootProof()
 	txs := []api.Transaction{
-		tx.CreateTransaction(api.Payment, Me, from, 1, big.NewInt(10), big.NewInt(1), []byte("aaaa Guldan")),
-		tx.CreateTransaction(api.Payment, to, from, 2, big.NewInt(6), big.NewInt(2), []byte("aaaa Guldan")),
-		tx.CreateTransaction(api.Payment, to, from, 3, big.NewInt(12), big.NewInt(3), []byte("aaaa Guldan")),
-		tx.CreateTransaction(api.Payment, to, Me, 1, big.NewInt(34), big.NewInt(4), []byte("aaaa Guldan")),
-		tx.CreateTransaction(api.Payment, from, Me, 2, big.NewInt(11), big.NewInt(5), []byte("aaaa Guldan")),
+		tx2.CreateTransaction(api.Payment, Me, from, 1, big.NewInt(10), big.NewInt(1), []byte("aaaa Guldan")),
+		tx2.CreateTransaction(api.Payment, to, from, 2, big.NewInt(6), big.NewInt(2), []byte("aaaa Guldan")),
+		tx2.CreateTransaction(api.Payment, to, from, 3, big.NewInt(12), big.NewInt(3), []byte("aaaa Guldan")),
+		tx2.CreateTransaction(api.Payment, to, Me, 1, big.NewInt(34), big.NewInt(4), []byte("aaaa Guldan")),
+		tx2.CreateTransaction(api.Payment, from, Me, 2, big.NewInt(11), big.NewInt(5), []byte("aaaa Guldan")),
 	}
 
 	var rs []api.Receipt
@@ -207,7 +207,7 @@ func TestApplyTransactionFromProposerTheSame(t *testing.T) {
 	snapshot.Put(to, NewAccount(0, big.NewInt(90)))
 
 	proofBefore := snapshot.RootProof()
-	tr := tx.CreateTransaction(api.Payment, to, Me, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
+	tr := tx2.CreateTransaction(api.Payment, to, Me, 1, big.NewInt(100), big.NewInt(1), []byte("aaaa Guldan"))
 	r, err := rec.ApplyTransaction(tr)
 
 	assert.Equal(t, 1, len(r))

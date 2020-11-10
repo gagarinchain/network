@@ -10,6 +10,7 @@ import (
 	"github.com/gagarinchain/common/eth/crypto"
 	msg "github.com/gagarinchain/common/message"
 	"github.com/gagarinchain/common/protobuff"
+	tx2 "github.com/gagarinchain/common/tx"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
@@ -40,7 +41,7 @@ func TestScenario1a(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
 
-	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
 	p := ctx.createProposal(newBlock, 1)
 	ctx.hotstuffChan <- p
@@ -79,7 +80,7 @@ func TestScenario1b(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
 
-	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes[:2*ctx.cfg.F/3-2] {
@@ -125,7 +126,7 @@ func TestScenario1c(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
 
-	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
 	votes := ctx.makeVotes(2*ctx.cfg.F/3+1, newBlock)
 	for _, v := range votes {
@@ -168,7 +169,7 @@ func TestScenario1d(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(6)
 
-	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 
 	p := ctx.createProposal(newBlock, 1)
 	ctx.hotstuffChan <- p
@@ -199,7 +200,7 @@ func TestScenario2(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(0)
 
-	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
 	ctx.hotstuffChan <- p
 
@@ -251,7 +252,7 @@ func TestScenario3(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(2)
 
-	newBlock := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
 	ctx.hotstuffChan <- p
 	<-ctx.voteChan
@@ -450,9 +451,9 @@ func TestScenario5e(t *testing.T) {
 
 	block := ctx.bc.GetHead()
 	for i := 0; i < 20; i++ {
-		block = ctx.bc.PadEmptyBlock(block, ctx.protocol.HQC())
+		block, _ = ctx.bc.PadEmptyBlock(block, ctx.protocol.HQC())
 	}
-	newBlock := ctx.bc.NewBlock(block, ctx.bc.GetGenesisCert(), []byte("wonderful block"))
+	newBlock, _ := ctx.bc.NewBlock(block, ctx.bc.GetGenesisCert(), []byte("wonderful block"))
 	p := ctx.createProposal(newBlock, 1)
 
 	go func() {
@@ -489,19 +490,19 @@ func TestScenario6a(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
 	ctx.hotstuffChan <- proposal1
-	block2 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
 	ctx.hotstuffChan <- proposal2
-	block3 := ctx.bc.NewBlock(block2, ctx.bc.GetGenesisCert(), []byte("block 3"))
+	block3, _ := ctx.bc.NewBlock(block2, ctx.bc.GetGenesisCert(), []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
 	ctx.hotstuffChan <- proposal3
 
-	block21 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 21"))
-	block31 := ctx.bc.NewBlock(block21, ctx.bc.GetGenesisCert(), []byte("block 31"))
-	block4 := ctx.bc.NewBlock(block31, ctx.bc.GetGenesisCert(), []byte("block 41"))
+	block21, _ := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 21"))
+	block31, _ := ctx.bc.NewBlock(block21, ctx.bc.GetGenesisCert(), []byte("block 31"))
+	block4, _ := ctx.bc.NewBlock(block31, ctx.bc.GetGenesisCert(), []byte("block 41"))
 	proposal := ctx.createProposal(block4, 4)
 	ctx.hotstuffChan <- proposal
 
@@ -529,24 +530,24 @@ func TestScenario6b(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
 	ctx.hotstuffChan <- proposal1
 	qcb1 := ctx.createQC(block1)
-	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
 	ctx.hotstuffChan <- proposal2
-	block3 := ctx.bc.NewBlock(block2, ctx.createQC(block2), []byte("block 3"))
+	block3, _ := ctx.bc.NewBlock(block2, ctx.createQC(block2), []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
 	ctx.hotstuffChan <- proposal3
-	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	block4, _ := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	proposal4 := ctx.createProposal(block4, 4)
 	ctx.hotstuffChan <- proposal4
 
-	block22 := ctx.bc.NewBlock(block1, qcb1, []byte("block 22"))
-	block32 := ctx.bc.NewBlock(block22, qcb1, []byte("block 32"))
-	block42 := ctx.bc.NewBlock(block32, qcb1, []byte("block 42"))
-	block52 := ctx.bc.NewBlock(block42, qcb1, []byte("block 52"))
+	block22, _ := ctx.bc.NewBlock(block1, qcb1, []byte("block 22"))
+	block32, _ := ctx.bc.NewBlock(block22, qcb1, []byte("block 32"))
+	block42, _ := ctx.bc.NewBlock(block32, qcb1, []byte("block 42"))
+	block52, _ := ctx.bc.NewBlock(block42, qcb1, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
@@ -576,24 +577,24 @@ func TestScenario6c(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
 	ctx.hotstuffChan <- proposal1
 	qcb1 := ctx.createQC(block1)
-	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
 	ctx.hotstuffChan <- proposal2
 	qcb2 := ctx.createQC(block2)
-	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	block3, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
 	ctx.hotstuffChan <- proposal3
-	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	block4, _ := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	proposal4 := ctx.createProposal(block4, 4)
 	ctx.hotstuffChan <- proposal4
 
-	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
-	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
-	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+	block32, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	block42, _ := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52, _ := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
@@ -622,15 +623,15 @@ func TestScenario6d(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	qcb1 := ctx.createQC(block1)
-	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	qcb2 := ctx.createQC(block2)
-	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
-	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
-	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
-	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
-	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+	block3, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	block4, _ := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	block32, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	block42, _ := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52, _ := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 
 	_, _ = ctx.bc.AddBlock(block1)
 	_, _ = ctx.bc.AddBlock(block2)
@@ -648,8 +649,8 @@ func TestScenario6d(t *testing.T) {
 	ctx.pacer.OnNextView()
 
 	qcb4 := ctx.createQC(block4)
-	block51 := ctx.bc.NewBlock(block4, qcb4, []byte("block 51"))
-	block6 := ctx.bc.NewBlock(block51, qcb4, []byte("block 6"))
+	block51, _ := ctx.bc.NewBlock(block4, qcb4, []byte("block 51"))
+	block6, _ := ctx.bc.NewBlock(block51, qcb4, []byte("block 6"))
 	proposal6 := ctx.createProposal(block6, 6)
 	ctx.hotstuffChan <- proposal6
 
@@ -681,33 +682,33 @@ func TestScenario6e(t *testing.T) {
 	ctx.StartFirstEpoch()
 	ctx.setMe(8)
 
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	proposal1 := ctx.createProposal(block1, 1)
 	ctx.hotstuffChan <- proposal1
 	qcb1 := ctx.createQC(block1)
-	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	proposal2 := ctx.createProposal(block2, 2)
 	ctx.hotstuffChan <- proposal2
 	qcb2 := ctx.createQC(block2)
-	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	block3, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
 	proposal3 := ctx.createProposal(block3, 3)
 	ctx.hotstuffChan <- proposal3
-	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	block4, _ := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	proposal4 := ctx.createProposal(block4, 4)
 	ctx.hotstuffChan <- proposal4
 
-	block21 := ctx.bc.NewBlock(block1, qcb2, []byte("block 21"))
-	block32 := ctx.bc.NewBlock(block21, qcb2, []byte("block 32"))
-	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
-	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+	block21, _ := ctx.bc.NewBlock(block1, qcb2, []byte("block 21"))
+	block32, _ := ctx.bc.NewBlock(block21, qcb2, []byte("block 32"))
+	block42, _ := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52, _ := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 	proposal := ctx.createProposal(block52, 5)
 	ctx.hotstuffChan <- proposal
 
 	ctx.SendBlocks([]api.Block{block21, block32, block42})
 	ctx.waitRounds(timeout, 6)
 
-	block5 := ctx.bc.NewBlock(block4, ctx.createQC(block4), []byte("block 5"))
-	block6 := ctx.bc.NewBlock(block5, ctx.createQC(block5), []byte("block 6"))
+	block5, _ := ctx.bc.NewBlock(block4, ctx.createQC(block4), []byte("block 5"))
+	block6, _ := ctx.bc.NewBlock(block5, ctx.createQC(block5), []byte("block 6"))
 	proposal6 := ctx.createProposal(block6, 6)
 	ctx.hotstuffChan <- proposal6
 
@@ -778,7 +779,7 @@ func TestScenario7b(t *testing.T) {
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
 	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
 
-	block := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("Wunder blok"))
+	block, _ := ctx.bc.NewBlock(ctx.bc.GetHead(), ctx.bc.GetGenesisCert(), []byte("Wunder blok"))
 	if e := ctx.stateDB.Release(block.Header().Hash()); e != nil {
 		t.Error(e)
 	}
@@ -805,18 +806,18 @@ func TestScenario7c(t *testing.T) {
 
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(100), big.NewInt(1))
 	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	qcb1 := ctx.createQC(block1)
 
-	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	qcb2 := ctx.createQC(block2)
 
-	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	block3, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
 	qc3 := ctx.createQC(block3)
-	block4 := ctx.bc.NewBlock(block3, qc3, []byte("block 4"))
-	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
-	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
-	block52 := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
+	block4, _ := ctx.bc.NewBlock(block3, qc3, []byte("block 4"))
+	block32, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	block42, _ := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block52, _ := ctx.bc.NewBlock(block42, qcb2, []byte("block 52"))
 
 	_, _ = ctx.bc.AddBlock(block1)
 	_, _ = ctx.bc.AddBlock(block2)
@@ -845,32 +846,32 @@ func TestScenario7d(t *testing.T) {
 
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(10), big.NewInt(1))
 	ctx.generatePayment(ctx.peers[1].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(123), big.NewInt(1))
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	qcb1 := ctx.createQC(block1)
 	_, _ = ctx.bc.AddBlock(block1)
 
-	block2 := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, qcb1, []byte("block 2"))
 	qcb2 := ctx.createQC(block2)
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(1), big.NewInt(1))
 	_, _ = ctx.bc.AddBlock(block2)
 
-	block3 := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
+	block3, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 3"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(2), big.NewInt(1))
 	_, _ = ctx.bc.AddBlock(block3)
 
-	block4 := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
+	block4, _ := ctx.bc.NewBlock(block3, ctx.createQC(block3), []byte("block 4"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(3), big.NewInt(1))
 	_, _ = ctx.bc.AddBlock(block4)
 
-	block32 := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
+	block32, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 32"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(4), big.NewInt(1))
 	_, _ = ctx.bc.AddBlock(block32)
 
-	block33 := ctx.bc.NewBlock(block2, qcb2, []byte("block 33"))
+	block33, _ := ctx.bc.NewBlock(block2, qcb2, []byte("block 33"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(5), big.NewInt(1))
 	_, _ = ctx.bc.AddBlock(block33)
 
-	block42 := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
+	block42, _ := ctx.bc.NewBlock(block32, qcb2, []byte("block 42"))
 	ctx.generatePayment(ctx.peers[2].GetAddress(), ctx.peers[3].GetAddress(), big.NewInt(6), big.NewInt(1))
 	_, _ = ctx.bc.AddBlock(block42)
 
@@ -928,7 +929,7 @@ func TestScenario8a(t *testing.T) {
 			nonce = 2
 		}
 
-		agreement := tx.CreateAgreement(s, uint64(nonce), nil)
+		agreement := tx2.CreateAgreement(s, uint64(nonce), nil)
 		agreement.SetFrom(ctx.peers[i].GetAddress())
 		if err := agreement.CreateProof(ctx.peers[i].GetPrivateKey()); err != nil {
 			t.Error(err)
@@ -943,7 +944,7 @@ func TestScenario8a(t *testing.T) {
 	fromPool := waitPoolTransactions(timeout, ctx, len(ctx.peers)/2+1)
 	<-fromPool
 
-	block1 := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
+	block1, _ := ctx.bc.NewBlock(ctx.bc.GetGenesisBlock(), ctx.bc.GetGenesisCert(), []byte("block 1"))
 	_, _ = ctx.bc.AddBlock(block1)
 	to := common2.BytesToAddress(s.Hash().Bytes()[12:])
 	log.Debugf("Contract address %v", to.Hex())
@@ -972,7 +973,7 @@ func TestScenario8a(t *testing.T) {
 	prAggr := aggregate.ToProto()
 	aggrBytes, _ := proto.Marshal(prAggr)
 
-	proofTran := tx.CreateTransaction(api.Proof, to, ctx.me.GetAddress(), 3, big.NewInt(0), big.NewInt(10), aggrBytes)
+	proofTran := tx2.CreateTransaction(api.Proof, to, ctx.me.GetAddress(), 3, big.NewInt(0), big.NewInt(10), aggrBytes)
 	proofTran.Sign(ctx.me.GetPrivateKey())
 	pany, _ := ptypes.MarshalAny(proofTran.GetMessage())
 	pm := msg.CreateMessage(pb.Message_TRANSACTION, pany, ctx.me)
@@ -981,7 +982,7 @@ func TestScenario8a(t *testing.T) {
 	fromPool = waitPoolTransactions(timeout, ctx, len(ctx.peers)/2+2)
 	<-fromPool
 
-	block2 := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
+	block2, _ := ctx.bc.NewBlock(block1, ctx.bc.GetGenesisCert(), []byte("block 2"))
 	_, _ = ctx.bc.AddBlock(block2)
 
 	head := ctx.bc.GetHeadRecord()
@@ -1056,7 +1057,7 @@ func waitPoolTransactions(timeout context.Context, ctx *TestContext, count int) 
 }
 
 func (ctx *TestContext) generateTransaction(from, to common2.Address, amount, fee *big.Int, txType api.Type) api.Transaction {
-	trans := tx.CreateTransaction(txType, to, from, 1, amount, fee, []byte(""))
+	trans := tx2.CreateTransaction(txType, to, from, 1, amount, fee, []byte(""))
 	for _, peer := range ctx.peers {
 		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
 			trans.Sign(peer.GetPrivateKey())
@@ -1072,7 +1073,7 @@ func (ctx *TestContext) generatePayment(from, to common2.Address, amount, fee *b
 }
 
 func (ctx *TestContext) generateSettlement(from common2.Address, amount, fee *big.Int) api.Transaction {
-	trans := tx.CreateTransaction(api.Settlement, common2.HexToAddress(api.SettlementAddressHex), from, 1, amount, fee, []byte(""))
+	trans := tx2.CreateTransaction(api.Settlement, common2.HexToAddress(api.SettlementAddressHex), from, 1, amount, fee, []byte(""))
 	for _, peer := range ctx.peers {
 		if bytes.Equal(peer.GetAddress().Bytes(), from.Bytes()) {
 			trans.Sign(peer.GetPrivateKey())

@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	"github.com/gagarinchain/common/api"
+	"github.com/gagarinchain/common/tx"
+	"github.com/op/go-logging"
 	"sort"
 	"sync"
 	"time"
 )
 
 const Interval = 100 * time.Millisecond
+
+var log = logging.MustGetLogger("tx")
 
 type TransactionPoolImpl struct {
 	pending []api.Transaction
@@ -30,7 +34,7 @@ func (tp *TransactionPoolImpl) Add(tx api.Transaction) {
 func (tp *TransactionPoolImpl) getTopByFee() []api.Transaction {
 	pendingCopy := append(tp.pending[:0:0], tp.pending...)
 	//TODO we can sort only top n elements in array with optimized sorting algorithms
-	sort.Sort(sort.Reverse(ByFeeAndNonce(pendingCopy)))
+	sort.Sort(sort.Reverse(tx.ByFeeAndNonce(pendingCopy)))
 	return pendingCopy
 }
 
@@ -108,7 +112,7 @@ func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []api.Tra
 		last := len(pending)
 		part := make([]api.Transaction, len(tp.pending[index:last]))
 		copy(part, tp.pending[index:last])
-		sort.Sort(sort.Reverse(ByFeeAndNonce(part)))
+		sort.Sort(sort.Reverse(tx.ByFeeAndNonce(part)))
 		go func(txs chan []api.Transaction) {
 			select {
 			case txs <- part:

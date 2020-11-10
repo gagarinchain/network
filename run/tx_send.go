@@ -7,7 +7,7 @@ import (
 	crypto2 "github.com/gagarinchain/common/eth/crypto"
 	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/common/rpc"
-	"github.com/gagarinchain/network/blockchain/tx"
+	tx2 "github.com/gagarinchain/common/tx"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -90,7 +90,7 @@ func (s State) Copy() State {
 //
 //func createStreams(d *dht.IpfsDHT, peerHost host.Host) []net.Stream {
 //	timeout, _ := context.WithTimeout(context.Background(), 3*time.Second)
-//	cid, _ := network.NewTopicCid("/tx").CID()
+//	cid, _ := bus.NewTopicCid("/tx").CID()
 //	provs, err := d.FindProviders(timeout, *cid)
 //	if err != nil {
 //		log.Error(err)
@@ -134,7 +134,7 @@ type Execution struct {
 	senders  []*crypto2.PrivateKey
 	viewChan chan int32
 	nonces   map[cmn.Address]uint64
-	txSend   *tx.TxSend
+	txSend   *tx2.TxSend
 }
 
 type Settings struct {
@@ -152,7 +152,7 @@ func CreateExecution(s *Settings) *Execution {
 	view := client.PollView(withCancel)
 
 	scenario := getScenarioFromFile(s.ScenarioPath)
-	txSend := tx.CreateTxSend(s.RpcPath)
+	txSend := tx2.CreateTxSend(s.RpcPath)
 	if err := txSend.Start(); err != nil {
 		log.Error(err)
 		return nil
@@ -281,7 +281,7 @@ func (e *Execution) Execute() {
 						nonce = e.getNonceAndIncrement(from)
 					}
 
-					opts := &tx.TransactOpts{
+					opts := &tx2.TransactOpts{
 						From:           from,
 						PrivateKey:     e.senders[dto.From],
 						Nonce:          nonce,

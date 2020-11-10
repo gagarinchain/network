@@ -10,9 +10,9 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	msg "github.com/gagarinchain/common/message"
+	"github.com/gagarinchain/common/network"
 	"github.com/gagarinchain/common/protobuff"
 	bc "github.com/gagarinchain/network/blockchain"
-	"github.com/gagarinchain/network/network"
 	"github.com/gagarinchain/network/storage"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -402,10 +402,20 @@ func (p *Protocol) OnPropose(ctx context.Context) {
 	log.Debugf("Padding with %v empty blocks", blocksToAdd)
 
 	for i := 0; i < int(blocksToAdd); i++ {
-		head = p.blockchain.PadEmptyBlock(head, p.hqc)
+		var err error
+		head, err = p.blockchain.PadEmptyBlock(head, p.hqc)
+		if err != nil {
+			log.Error("Can't pad with empty block", err)
+			return
+		}
 	}
 
-	block := p.blockchain.NewBlock(head, p.hqc, []byte(""))
+	block, err := p.blockchain.NewBlock(head, p.hqc, []byte(""))
+	if err != nil {
+		log.Error("Error while creating new block", err)
+		return
+	}
+
 	if _, err := p.blockchain.AddBlock(block); err != nil {
 		log.Error("Error while adding new block", err)
 		return

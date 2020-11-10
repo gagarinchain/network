@@ -25,7 +25,7 @@ func TestIsSiblingParent(t *testing.T) {
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
+	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if _, err := bc.AddBlock(newBlock); err != nil {
 		t.Error("can't add block", err)
 	}
@@ -41,15 +41,15 @@ func TestIsSiblingAncestor(t *testing.T) {
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
+	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if _, err := bc.AddBlock(newBlock); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock2 := bc.NewBlock(newBlock, bc.GetGenesisCert(), []byte("newBlock2"))
+	newBlock2, _ := bc.NewBlock(newBlock, bc.GetGenesisCert(), []byte("newBlock2"))
 	if _, err := bc.AddBlock(newBlock2); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock3 := bc.NewBlock(newBlock2, bc.GetGenesisCert(), []byte("newBlock3"))
+	newBlock3, _ := bc.NewBlock(newBlock2, bc.GetGenesisCert(), []byte("newBlock3"))
 	if _, err := bc.AddBlock(newBlock3); err != nil {
 		t.Error("can't add block", err)
 	}
@@ -65,11 +65,11 @@ func TestIsSiblingReverseParentSibling(t *testing.T) {
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("first block"))
+	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("first block"))
 	if _, err := bc.AddBlock(newBlock); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock2 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("second block"))
+	newBlock2, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("second block"))
 	if _, err := bc.AddBlock(newBlock2); err != nil {
 		t.Error("can't add block", err)
 	}
@@ -86,11 +86,11 @@ func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
+	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if _, err := bc.AddBlock(newBlock); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock2 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock2"))
+	newBlock2, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock2"))
 	if _, err := bc.AddBlock(newBlock2); err != nil {
 		t.Error("can't add block", err)
 	}
@@ -106,15 +106,15 @@ func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
+	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if _, err := bc.AddBlock(newBlock); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock2 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock2"))
+	newBlock2, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock2"))
 	if _, err := bc.AddBlock(newBlock2); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock3 := bc.NewBlock(newBlock2, bc.GetGenesisCert(), []byte("newBlock3"))
+	newBlock3, _ := bc.NewBlock(newBlock2, bc.GetGenesisCert(), []byte("newBlock3"))
 	if _, err := bc.AddBlock(newBlock3); err != nil {
 		t.Error("can't add block", err)
 	}
@@ -130,15 +130,15 @@ func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
 	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
 	head := bc.GetHead()
-	newBlock := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
+	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if _, err := bc.AddBlock(newBlock); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock2 := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock2"))
+	newBlock2, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock2"))
 	if _, err := bc.AddBlock(newBlock2); err != nil {
 		t.Error("can't add block", err)
 	}
-	newBlock3 := bc.NewBlock(newBlock2, bc.GetGenesisCert(), []byte("newBlock3"))
+	newBlock3, _ := bc.NewBlock(newBlock2, bc.GetGenesisCert(), []byte("newBlock3"))
 	if _, err := bc.AddBlock(newBlock3); err != nil {
 		t.Error("can't add block", err)
 	}
@@ -196,28 +196,28 @@ func TestOnCommit(t *testing.T) {
 	genesisBlock.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header()))
 	_, _ = bc.AddBlock(genesisBlock)
 
-	block10 := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
-	block11 := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-1"))
+	block10, _ := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block11, _ := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-1"))
 
-	block20 := bc.NewBlock(block10, bc.GetGenesisCert(), []byte("block 0<-0"))
-	block21 := bc.NewBlock(block11, bc.GetGenesisCert(), []byte("block 1<-1"))
-	block22 := bc.NewBlock(block11, bc.GetGenesisCert(), []byte("block 1<-2"))
+	block20, _ := bc.NewBlock(block10, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block21, _ := bc.NewBlock(block11, bc.GetGenesisCert(), []byte("block 1<-1"))
+	block22, _ := bc.NewBlock(block11, bc.GetGenesisCert(), []byte("block 1<-2"))
 
-	block30 := bc.NewBlock(block20, bc.GetGenesisCert(), []byte("block 0<-0"))
-	block31 := bc.NewBlock(block21, bc.GetGenesisCert(), []byte("block 1<-1"))
-	block32 := bc.NewBlock(block22, bc.GetGenesisCert(), []byte("block 2<-2"))
+	block30, _ := bc.NewBlock(block20, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block31, _ := bc.NewBlock(block21, bc.GetGenesisCert(), []byte("block 1<-1"))
+	block32, _ := bc.NewBlock(block22, bc.GetGenesisCert(), []byte("block 2<-2"))
 
-	block40 := bc.NewBlock(block30, bc.GetGenesisCert(), []byte("block 0<-0"))
-	block41 := bc.NewBlock(block31, bc.GetGenesisCert(), []byte("block 1<-1"))
-	block42 := bc.NewBlock(block31, bc.GetGenesisCert(), []byte("block 1<-2"))
-	block43 := bc.NewBlock(block32, bc.GetGenesisCert(), []byte("block 2<-3"))
-	block44 := bc.NewBlock(block32, bc.GetGenesisCert(), []byte("block 2<-4"))
+	block40, _ := bc.NewBlock(block30, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block41, _ := bc.NewBlock(block31, bc.GetGenesisCert(), []byte("block 1<-1"))
+	block42, _ := bc.NewBlock(block31, bc.GetGenesisCert(), []byte("block 1<-2"))
+	block43, _ := bc.NewBlock(block32, bc.GetGenesisCert(), []byte("block 2<-3"))
+	block44, _ := bc.NewBlock(block32, bc.GetGenesisCert(), []byte("block 2<-4"))
 
-	block50 := bc.NewBlock(block41, bc.GetGenesisCert(), []byte("block 1<-0"))
-	block51 := bc.NewBlock(block42, bc.GetGenesisCert(), []byte("block 2<-1"))
-	block52 := bc.NewBlock(block43, bc.GetGenesisCert(), []byte("block 3<-2"))
+	block50, _ := bc.NewBlock(block41, bc.GetGenesisCert(), []byte("block 1<-0"))
+	block51, _ := bc.NewBlock(block42, bc.GetGenesisCert(), []byte("block 2<-1"))
+	block52, _ := bc.NewBlock(block43, bc.GetGenesisCert(), []byte("block 3<-2"))
 
-	block60 := bc.NewBlock(block50, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block60, _ := bc.NewBlock(block50, bc.GetGenesisCert(), []byte("block 0<-0"))
 
 	_, _ = bc.AddBlock(block10)
 	_, _ = bc.AddBlock(block11)
@@ -298,9 +298,9 @@ func TestSignatureUpdate(t *testing.T) {
 	genesisBlock.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header()))
 	_, _ = bc.AddBlock(genesisBlock)
 
-	block10 := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
+	block10, _ := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
 
-	block20 := bc.NewBlock(block10, bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), block10.Header()), []byte("block 0<-0"))
+	block20, _ := bc.NewBlock(block10, bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), block10.Header()), []byte("block 0<-0"))
 
 	_, _ = bc.AddBlock(block10)
 	_, _ = bc.AddBlock(block20)
@@ -322,17 +322,17 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 	genesisBlock.SetQC(genesisQC)
 	bc.UpdateGenesisBlockQC(genesisQC)
 
-	block12 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 1<-2"))
+	block12, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 1<-2"))
 	_, _ = bc.AddBlock(block12)
-	block23 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 2<-3"))
+	block23, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 2<-3"))
 	_, _ = bc.AddBlock(block23)
-	block34 := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 3<-4"))
+	block34, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("block 3<-4"))
 	_, _ = bc.AddBlock(block34)
-	block45 := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-5"))
+	block45, _ := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-5"))
 	_, _ = bc.AddBlock(block45)
-	block56 := bc.NewBlock(block45, bc.GetGenesisCert(), []byte("block 5<-6"))
+	block56, _ := bc.NewBlock(block45, bc.GetGenesisCert(), []byte("block 5<-6"))
 	_, _ = bc.AddBlock(block56)
-	block47 := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-7"))
+	block47, _ := bc.NewBlock(block34, bc.GetGenesisCert(), []byte("block 4<-7"))
 	_, _ = bc.AddBlock(block47)
 	bc.OnCommit(block34)
 

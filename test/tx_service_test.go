@@ -7,7 +7,7 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/message"
 	pb "github.com/gagarinchain/common/protobuff"
-	"github.com/gagarinchain/network/blockchain/tx"
+	tx2 "github.com/gagarinchain/common/tx"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/magiconair/properties/assert"
 
@@ -51,7 +51,7 @@ func TestTransactionReceive(t *testing.T) {
 		return
 	}
 	spew.Dump(tran)
-	transaction, _ := tx.CreateTransactionFromMessage(tran, false)
+	transaction, _ := tx2.CreateTransactionFromMessage(tran, false)
 	spew.Dump(transaction)
 
 	ch := make(chan *message.Message)

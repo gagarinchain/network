@@ -15,7 +15,7 @@ import (
 //	}
 //
 //	// Next we'll create the node config
-//	cfg := &network.NodeConfig{
+//	cfg := &bus.NodeConfig{
 //		PrivateKey: privKey,
 //		Port:       uint16(8081),
 //		DataDir:    path.Join(os.TempDir(), strconv.Itoa(8081)),
@@ -30,7 +30,7 @@ import (
 //}
 
 //func TestScenarioParse(t *testing.T) {
-//	s := GetScenarioFromFile("/Users/dabasov/Projects/gagarin/network/static/scenario.yaml")
+//	s := GetScenarioFromFile("/Users/dabasov/Projects/gagarin/bus/static/scenario.yaml")
 //
 //	spew.Dump(s)
 //}

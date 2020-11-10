@@ -35,7 +35,7 @@ func TestStorageBlockAddition(t *testing.T) {
 	})
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
 
-	b := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("random data"))
+	b, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("random data"))
 	_, e = bc.AddBlock(b)
 	if e != nil {
 		t.Error(e)

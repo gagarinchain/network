@@ -1,4 +1,4 @@
-package network
+package bus
 
 import (
 	"context"
@@ -9,9 +9,12 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	ctxio "github.com/jbenet/go-context/io"
 	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/op/go-logging"
 	"io"
 	"sync"
 )
+
+var log = logging.MustGetLogger("bus")
 
 type GagarinEventBus struct {
 	streams map[string]io.Writer
@@ -64,7 +67,7 @@ func (n *GagarinEventBus) GetStreamsCopy() map[string]io.Writer {
 	return scopy
 }
 
-func (n *GagarinEventBus) handleNewMessage(ctx context.Context, s *ServiceImpl, stream network.Stream) {
+func (n *GagarinEventBus) handleNewMessage(ctx context.Context, stream network.Stream) {
 	log.Debug("opened new gagarin stream")
 	cr := ctxio.NewReader(ctx, stream)
 	r := protoio.NewDelimitedReader(cr, network.MessageSizeMax)

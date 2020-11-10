@@ -5,8 +5,9 @@ import (
 	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/message"
+	"github.com/gagarinchain/common/network"
 	"github.com/gagarinchain/common/protobuff"
-	"github.com/gagarinchain/network/network"
+	"github.com/gagarinchain/common/tx"
 	"github.com/golang/protobuf/ptypes"
 )
 
@@ -31,7 +32,7 @@ func (s *TxService) Run(ctx context.Context, tchan chan *message.Message) {
 				log.Error("Can't parse transaction message", err)
 				continue
 			}
-			t, e := CreateTransactionFromMessage(pbt, false)
+			t, e := tx.CreateTransactionFromMessage(pbt, false)
 			if e != nil {
 				log.Error("Can't create transaction", e)
 				continue

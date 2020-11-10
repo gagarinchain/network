@@ -5,8 +5,8 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/common/protobuff"
+	tx2 "github.com/gagarinchain/common/tx"
 	"github.com/gagarinchain/network/blockchain"
-	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
@@ -42,12 +42,12 @@ func TestIsValidBlock(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.UpdateGenesisBlockQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 	hash1 := newBlock1.Header().Hash()
 	aggregate1 := mockSignatureAggregateValid(hash1.Bytes(), committee)
 	certificate := blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header())
 
-	newBlock2 := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
+	newBlock2, _ := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)
 	assert.NoError(t, e)
@@ -65,8 +65,8 @@ func TestIsValidBlockWithSignature(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.UpdateGenesisBlockQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
-	newBlock1.AddTransaction(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock1.AddTransaction(tx2.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
 	hash1 := newBlock1.Header().Hash()
 	aggregate1 := mockSignatureAggregateValid(hash1.Bytes(), committee)
 	certificate := blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header())
@@ -89,13 +89,13 @@ func TestIsValidBlockWithTransaction(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.UpdateGenesisBlockQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 	hash1 := newBlock1.Header().Hash()
 	aggregate1 := mockSignatureAggregateValid(hash1.Bytes(), committee)
 	certificate := blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header())
 
-	newBlock2 := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
-	newBlock2.AddTransaction(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
+	newBlock2, _ := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
+	newBlock2.AddTransaction(tx2.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(1), nil))
 
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)
@@ -114,13 +114,13 @@ func TestIsNotValidBlockWithTransaction(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.UpdateGenesisBlockQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 	hash1 := newBlock1.Header().Hash()
 	aggregate1 := mockSignatureAggregateValid(hash1.Bytes(), committee)
 	certificate := blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header())
 
-	newBlock2 := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
-	newBlock2.AddTransaction(tx.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(0), nil))
+	newBlock2, _ := bc.NewBlock(newBlock1, certificate, []byte("Hello Hotstuff2"))
+	newBlock2.AddTransaction(tx2.CreateTransaction(api.Payment, common.Address{}, common.Address{}, 1, big.NewInt(2), big.NewInt(0), nil))
 
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)
@@ -139,7 +139,7 @@ func TestIsNotValidWithBrokenHash(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 
 	msg := newBlock.GetMessage()
 	msg.Header.Hash = crypto.Keccak256([]byte("Hello from other side"))
@@ -164,7 +164,7 @@ func TestIsNotValidWithBrokenDataHash(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 	msg := newBlock.GetMessage()
 	msg.Data = &pb.BlockData{Data: []byte("Hello from other side")}
 
@@ -187,7 +187,7 @@ func TestIsNotValidWithBrokenQCHash(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 	msg := newBlock.GetMessage()
 	s := crypto.AggregateSignatures(big.NewInt(1), nil)
 	msg.Cert.SignatureAggregate = s.ToProto()
@@ -212,9 +212,9 @@ func TestIsNotValidWithBrokenQCSignature(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 	aggregate1 := mockSignatureAggregateNotValid(newBlock1.Header().Hash().Bytes(), committee)
-	newBlock2 := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header()), []byte("Hello Hotstuff2"))
+	newBlock2, _ := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header()), []byte("Hello Hotstuff2"))
 
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)
@@ -232,9 +232,9 @@ func TestIsNotValidWithNotEnpoughQCSignature(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
 	aggregate1 := mockSignatureAggregateNotEnough(newBlock1.Header().Hash().Bytes(), committee)
-	newBlock2 := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header()), []byte("Hello Hotstuff2"))
+	newBlock2, _ := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(aggregate1, newBlock1.Header()), []byte("Hello Hotstuff2"))
 
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)
@@ -253,8 +253,8 @@ func TestIsNotValidWithEmptyQCSignature(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
-	newBlock2 := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock1.Header()), []byte("Hello Hotstuff2"))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock2, _ := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock1.Header()), []byte("Hello Hotstuff2"))
 
 	headerValidator := &blockchain.HeaderValidator{}
 	b, e := blockchain.NewBlockValidator(committee, blockchain.NewTransactionValidator(committee), headerValidator).IsValid(newBlock2)
@@ -273,8 +273,8 @@ func TestIsNotValidWithBrokenSignature(t *testing.T) {
 	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
 	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header()))
 
-	newBlock1 := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
-	newBlock2 := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock1.Header()), []byte("Hello Hotstuff2"))
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	newBlock2, _ := bc.NewBlock(newBlock1, blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock1.Header()), []byte("Hello Hotstuff2"))
 	bc.AddBlock(newBlock1)
 	bc.AddBlock(newBlock2)
 

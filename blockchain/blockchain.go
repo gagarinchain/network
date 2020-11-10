@@ -614,16 +614,16 @@ func (bc BlockchainImpl) IsSibling(sibling api.Header, ancestor api.Header) bool
 	return bc.IsSibling(parent.Header(), ancestor)
 }
 
-func (bc *BlockchainImpl) NewBlock(parent api.Block, qc api.QuorumCertificate, data []byte) api.Block {
+func (bc *BlockchainImpl) NewBlock(parent api.Block, qc api.QuorumCertificate, data []byte) (api.Block, error) {
 	return bc.newBlock(parent, qc, data, true)
 }
 
-func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, data []byte, withTransactions bool) api.Block {
+func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, data []byte, withTransactions bool) (api.Block, error) {
 	proposer := bc.proposerGetter.ProposerForHeight(parent.Header().Height() + 1).GetAddress() //this block will be the block of next height
 	r, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
 	if e != nil {
-		log.Error("Can't create new block", e)
-		return nil
+		log.Error("Can't create new block")
+		return nil, e
 	}
 
 	var txs []api.Transaction
@@ -646,8 +646,8 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 	builder.SetHeader(header).SetQC(qc).SetData(data).SetTxs(txs)
 	created, e := bc.onNewBlockCreated.OnNewBlockCreated(context.Background(), builder, receipts)
 	if e != nil {
-		log.Error(e)
-		return nil
+		log.Error("Plugin call error")
+		return nil, e
 	}
 
 	var block api.Block
@@ -659,12 +659,12 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 	_, err := bc.stateDB.Commit(parent.Header().Hash(), header.Hash())
 
 	if err != nil {
-		log.Error("Can't create new block", err)
-		return nil
+		log.Error("Can't create new block")
+		return nil, err
 	}
 
 	block.SetReceipts(receipts)
-	return block
+	return block, nil
 }
 
 func (bc *BlockchainImpl) collectTransactions(s api.Record) (txs []api.Transaction, receipts []api.Receipt) {
@@ -694,15 +694,18 @@ func (bc *BlockchainImpl) collectTransactions(s api.Record) (txs []api.Transacti
 	return txs, receipts
 }
 
-func (bc *BlockchainImpl) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) api.Block {
-	block := bc.newBlock(head, qc, []byte(""), false)
+func (bc *BlockchainImpl) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) (api.Block, error) {
+	block, e := bc.newBlock(head, qc, []byte(""), false)
+	if e != nil {
+		return nil, e
+	}
 
 	if _, e := bc.AddBlock(block); e != nil {
 		log.Error("Can't add empty block")
-		return nil
+		return nil, e
 	}
 
-	return block
+	return block, nil
 }
 
 func (bc *BlockchainImpl) GetGenesisBlockSignedHash(key *crypto.PrivateKey) *crypto.Signature {

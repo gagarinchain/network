@@ -5,8 +5,8 @@ import (
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	pb "github.com/gagarinchain/common/protobuff"
+	tx2 "github.com/gagarinchain/common/tx"
 	"github.com/gagarinchain/network/blockchain/state"
-	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/op/go-logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -23,7 +23,7 @@ type Service struct {
 	bc       api.Blockchain
 	pacer    api.Pacer
 	db       state.DB
-	txClient *tx.TxSend
+	txClient *tx2.TxSend
 }
 
 type Config struct {
@@ -182,7 +182,7 @@ func (s *Service) GetTransaction(ctx context.Context, in *pb.GetTransactionReque
 }
 
 func (s *Service) ExecuteTransaction(ctx context.Context, in *pb.ExecuteTransactionRequest) (*pb.ExecuteTransactionResponse, error) {
-	opts := &tx.TransactOpts{
+	opts := &tx2.TransactOpts{
 		From:       common.BytesToAddress(in.Tx.From),
 		PrivateKey: nil,
 		Nonce:      in.GetTx().Nonce,

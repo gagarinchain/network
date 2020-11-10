@@ -7,6 +7,7 @@ import (
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/common/protobuff"
 	"github.com/gagarinchain/common/trie"
+	tx2 "github.com/gagarinchain/common/tx"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/golang/protobuf/proto"
@@ -99,7 +100,7 @@ func CreateBlockFromMessage(block *pb.Block) (api.Block, error) {
 	cert := CreateQuorumCertificate(crypto.AggregateFromProto(aggrPb), CreateBlockHeaderFromMessage(block.Cert.Header))
 	var txs []api.Transaction
 	for _, tpb := range block.Txs {
-		t, e := tx.CreateTransactionFromMessage(tpb, block.GetSignatureAggregate() != nil)
+		t, e := tx2.CreateTransactionFromMessage(tpb, block.GetSignatureAggregate() != nil)
 		if e != nil {
 			w := fmt.Errorf("bad transaction: %w", e)
 			return nil, w
@@ -122,7 +123,7 @@ func CreateBlockFromStorage(block *pb.BlockS) api.Block {
 	cert := CreateQuorumCertificate(crypto.AggregateFromStorage(aggrPb), CreateBlockHeaderFromStorage(block.Cert.Header))
 	var txs []api.Transaction
 	for _, tpb := range block.Txs {
-		t, e := tx.CreateTransactionFromStorage(tpb)
+		t, e := tx2.CreateTransactionFromStorage(tpb)
 		if e != nil {
 			log.Errorf("Bad transaction, %v", e)
 			return nil
