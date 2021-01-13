@@ -344,7 +344,7 @@ func (c *Context) handleInterrupt(cancel context.CancelFunc) chan bool {
 
 	go func() { // Block until a signal is received.
 		sig := <-sigChan
-		log.Infof("Received %v signal. Shutting down Gagarin.network", sig)
+		log.Infof("Received %v signal. Shutting down Gagarin.bus", sig)
 		cancel()
 		c.node.Shutdown()
 		c.storage.Close()

@@ -128,6 +128,8 @@ github.com/gagarinchain/common v0.1.18 h1:C01z3n18CxW5zAmn6EERX8NLPo/A8qhfQvFgH3
 github.com/gagarinchain/common v0.1.18/go.mod h1:n6QQD+lczURIsuqVVD9gwEv1LEvYOLD5CfnHS+HNAf4=
 github.com/gagarinchain/common v0.1.19 h1:jWakwGKXKIhVK5JGtadqPS/UW+ThoK2h++xCXNgSLa0=
 github.com/gagarinchain/common v0.1.19/go.mod h1:n6QQD+lczURIsuqVVD9gwEv1LEvYOLD5CfnHS+HNAf4=
+github.com/gagarinchain/common v0.1.20 h1:R226UY5+foRrBi/v8T90qj3lFUkdhV1S0VLRCt4+NJQ=
+github.com/gagarinchain/common v0.1.20/go.mod h1:n6QQD+lczURIsuqVVD9gwEv1LEvYOLD5CfnHS+HNAf4=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff h1:tY80oXqGNY4FhTFhk+o9oFHGINQ/+vhlm8HFzi6znCI=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff/go.mod h1:x7DCsMOv1taUwEWCzT4cmDeAkigA5/QCwUodaVOe8Ww=
 github.com/go-check/check v0.0.0-20180628173108-788fd7840127 h1:0gkP6mzaMqkmpcJYCFOLkIBwI7xFExG03bbkOkCvUPI=

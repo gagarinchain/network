@@ -28,8 +28,8 @@ var (
 )
 var txSendCmd = &cobra.Command{
 	Use:   "tx_send",
-	Short: `Sends rpc call`,
-	Long:  "Is used to send rpc calls to the network",
+	Short: `Sends transactions`,
+	Long:  "Is used to send transactions to the network",
 	Run: func(cmd *cobra.Command, args []string) {
 		run.CreateExecution(&run.Settings{
 			ScenarioPath: ScenarioPath,

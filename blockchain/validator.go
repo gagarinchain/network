@@ -16,7 +16,6 @@ var (
 	ValueNotValid             = errors.New("balance is not valid")
 	FeeNotValid               = errors.New("fee is not valid")
 	SettlementAddressNotValid = errors.New("settlement address is not valid")
-	OracleProofNotValid       = errors.New("oracle proof is not valid")
 	CustodianProofNotValid    = errors.New("custodian proof is not valid")
 	AggregateProofNotValid    = errors.New("aggregate proof is not valid")
 )
@@ -137,7 +136,6 @@ func NewBlockValidator(committee []*cmn.Peer, txVal *TransactionValidator, heade
 	return &BlockValidator{committee: committee, txVal: txVal, headerValidator: headerValidator}
 }
 
-//TODO add txhash validation
 func (b *BlockValidator) IsValid(entity interface{}) (bool, error) {
 	if entity == nil {
 		return false, errors.New("entity is nil")

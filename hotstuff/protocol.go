@@ -228,6 +228,9 @@ func (p *Protocol) Update(qc api.QuorumCertificate) {
 			log.Error(err)
 			return
 		}
+
+		//TODO SYNCHRONIZE VIEWS HERE!! we can be at i-th view now and network can be at i+k+1-th view, at this case if QC is collected at i+k-th height we can safely update our view to at list i+k+1 view
+
 		p.CheckCommit()
 	}
 }

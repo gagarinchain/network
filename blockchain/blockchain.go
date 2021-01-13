@@ -676,6 +676,7 @@ func (bc *BlockchainImpl) collectTransactions(s api.Record) (txs []api.Transacti
 		for _, t := range chunk {
 			log.Debugf("tx hash %v", t.Hash().Hex())
 			rs, err := s.ApplyTransaction(t)
+			//TODO if err == ExpiredTransaction clean it
 			if err != nil {
 				continue
 			}

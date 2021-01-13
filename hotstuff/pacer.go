@@ -280,6 +280,8 @@ func (p *StaticPacer) FireEvent(event api.Event) {
 		p.stateId = Proposing
 		p.execution.f() //cancelling previous context
 		p.execution.ctx, p.execution.f = context.WithTimeout(p.execution.parent, p.delta)
+	default:
+		log.Warningf("Unknown event %v", event)
 	}
 
 }
