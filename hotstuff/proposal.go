@@ -17,7 +17,11 @@ type ProposalImpl struct {
 	newBlock api.Block
 	//We should not allow to change header if we want signature to be consistent with block
 	signature *crypto.Signature
-	hqc       api.QuorumCertificate
+	cert      api.Certificate
+}
+
+func (p *ProposalImpl) Cert() api.Certificate {
+	return p.cert
 }
 
 func (p *ProposalImpl) Sender() *comm.Peer {
@@ -32,16 +36,32 @@ func (p *ProposalImpl) Signature() *crypto.Signature {
 	return p.signature
 }
 
-func (p *ProposalImpl) HQC() api.QuorumCertificate {
-	return p.hqc
-}
-
 func (p *ProposalImpl) GetMessage() *pb.ProposalPayload {
-	return &pb.ProposalPayload{Cert: p.HQC().GetMessage(), Block: p.NewBlock().GetMessage(), Signature: p.Signature().ToProto()}
+	payload := &pb.ProposalPayload{Block: p.NewBlock().GetMessage(), Signature: p.Signature().ToProto()}
+
+	switch p.cert.Type() {
+	case api.SC:
+		sc := p.cert.(api.SynchronizeCertificate)
+		payload.Cert = &pb.ProposalPayload_Sc{Sc: sc.GetMessage()}
+	case api.QRef:
+		fallthrough
+	case api.Empty:
+		sc := p.cert.(api.QuorumCertificate)
+		payload.Cert = &pb.ProposalPayload_Qc{Qc: sc.GetMessage()}
+	default:
+		log.Error("unknown cert type")
+		return nil
+	}
+
+	return payload
 }
 
-func CreateProposal(newBlock api.Block, hqc api.QuorumCertificate, peer *comm.Peer) *ProposalImpl {
-	return &ProposalImpl{sender: peer, newBlock: newBlock, hqc: hqc}
+func CreateProposal(newBlock api.Block, peer *comm.Peer, cert api.Certificate) *ProposalImpl {
+	return &ProposalImpl{
+		sender:   peer,
+		newBlock: newBlock,
+		cert:     cert,
+	}
 }
 
 func (p *ProposalImpl) Sign(key *crypto.PrivateKey) {
@@ -61,7 +81,15 @@ func CreateProposalFromMessage(msg *msg.Message) (*ProposalImpl, error) {
 	if err != nil {
 		return nil, err
 	}
-	qc := bc.CreateQuorumCertificateFromMessage(pp.Cert)
+
+	var cert api.Certificate
+	if pp.GetQc() != nil {
+		cert = bc.CreateQuorumCertificateFromMessage(pp.GetQc())
+
+	}
+	if pp.GetSc() != nil {
+		cert = bc.CreateSynchronizeCertificateFromMessage(pp.GetSc())
+	}
 
 	sign := crypto.SignatureFromProto(pp.Signature)
 	res := crypto.Verify(bc.HashHeader(block.Header()).Bytes(), sign)
@@ -74,5 +102,5 @@ func CreateProposalFromMessage(msg *msg.Message) (*ProposalImpl, error) {
 	msg.Source().SetAddress(a)
 	msg.Source().SetPublicKey(crypto.NewPublicKey(sign.Pub()))
 
-	return CreateProposal(block, qc, msg.Source()), nil
+	return CreateProposal(block, msg.Source(), cert), nil
 }

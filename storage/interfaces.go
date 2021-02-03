@@ -19,6 +19,7 @@ const Record = ResourceType(0x7)
 const VHeight = ResourceType(0x8)
 const LastExecutedBlock = ResourceType(0x9)
 const HQC = ResourceType(0xa)
+const HC = ResourceType(0xb)
 
 type Storage interface {
 	Put(rtype ResourceType, key []byte, value []byte) error

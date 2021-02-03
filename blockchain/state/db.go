@@ -117,7 +117,7 @@ func (db *DBImpl) Create(parent common.Hash, proposer common.Address) (r api.Rec
 
 	parentRecord, f := db.records[parent]
 	if !f {
-		return nil, errors.New("no prent is found")
+		return nil, errors.New("no parent is found")
 	}
 	pending := parentRecord.NewPendingRecord(proposer)
 
@@ -130,7 +130,7 @@ func (db *DBImpl) Commit(parent, pending common.Hash) (r api.Record, e error) {
 
 	parentRecord, f := db.records[parent]
 	if !f {
-		return nil, errors.New("no prent is found")
+		return nil, errors.New("no parent is found")
 	}
 
 	pendingRecord := parentRecord.Pending()

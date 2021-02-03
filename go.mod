@@ -4,7 +4,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emirpasic/gods v1.12.0
 	github.com/ferranbt/fastssz v0.0.0-20201030134205-9b9624098321 // indirect
-	github.com/gagarinchain/common v0.1.20
+	github.com/gagarinchain/common v0.1.22
 	github.com/golang/protobuf v1.4.2
 	github.com/ipfs/go-log v1.0.4
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99

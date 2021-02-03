@@ -7,6 +7,7 @@ import (
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	cmocks "github.com/gagarinchain/common/mocks"
+	tx2 "github.com/gagarinchain/common/tx"
 	bch "github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/blockchain/state"
 	"github.com/gagarinchain/network/blockchain/tx"
@@ -15,6 +16,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"math/big"
 	"testing"
 )
 
@@ -23,7 +25,7 @@ func TestIsSiblingParent(t *testing.T) {
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
-	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.Empty))
 	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
 	if _, err := bc.AddBlock(newBlock); err != nil {
@@ -38,7 +40,7 @@ func TestIsSiblingAncestor(t *testing.T) {
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
-	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.Empty))
 
 	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -62,7 +64,7 @@ func TestIsSiblingReverseParentSibling(t *testing.T) {
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
-	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.Empty))
 
 	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("first block"))
@@ -83,7 +85,7 @@ func TestIsSiblingCommonParentSameHeight(t *testing.T) {
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
-	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.Empty))
 
 	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -103,7 +105,7 @@ func TestIsSiblingCommonParentDifferentHeight(t *testing.T) {
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
-	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.Empty))
 
 	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -127,7 +129,7 @@ func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
-	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.Empty))
 
 	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(head, bc.GetGenesisCert(), []byte("newBlock"))
@@ -149,18 +151,21 @@ func TestIsSiblingCommonParentDifferentHeight2(t *testing.T) {
 func TestWarmUpFromStorageWithGenesisBlockOnly(t *testing.T) {
 
 	zero := bch.CreateGenesisBlock()
-	zero.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zero.Header()))
+	zero.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zero.Header(), api.Empty))
 
 	storage := &mocks.Storage{}
-	storage.On("Put", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8"), mock.AnythingOfType("[]uint8")).Return(nil)
-	storage.On("Contains", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8")).Return(false)
+	storage.On("Put", mock.AnythingOfType("storage.ResourceType"), mock.AnythingOfType("[]uint8"),
+		mock.AnythingOfType("[]uint8")).Return(nil)
+	storage.On("Contains", mock.AnythingOfType("storage.ResourceType"),
+		mock.AnythingOfType("[]uint8")).Return(false)
 
 	storage.On("Get",
 		mock.MatchedBy(func(t store.ResourceType) bool {
 			return t == store.HeightIndex
 		}),
 		mock.AnythingOfType("[]uint8")).Return(zero.Header().Hash().Bytes(), nil)
-	zeroBBytes, _ := proto.Marshal(zero.GetMessage())
+
+	zeroBBytes, _ := proto.Marshal(zero.ToStorageProto())
 	storage.On("Get",
 		mock.MatchedBy(func(t store.ResourceType) bool {
 			return t == store.Block
@@ -193,7 +198,7 @@ func TestOnCommit(t *testing.T) {
 	cpersister := &bch.BlockchainPersister{storage}
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	genesisBlock := bc.GetGenesisBlock()
-	genesisBlock.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header()))
+	genesisBlock.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header(), api.Empty))
 	_, _ = bc.AddBlock(genesisBlock)
 
 	block10, _ := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
@@ -293,22 +298,50 @@ func TestSignatureUpdate(t *testing.T) {
 	storage, _ := store.NewStorage("", nil)
 	bpersister := &bch.BlockPersister{storage}
 	cpersister := &bch.BlockchainPersister{storage}
-	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
-	genesisBlock := bc.GetGenesisBlock()
-	genesisBlock.SetQC(bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header()))
-	_, _ = bc.AddBlock(genesisBlock)
 
-	block10, _ := bc.NewBlock(genesisBlock, bc.GetGenesisCert(), []byte("block 0<-0"))
+	committee := mockCommittee(t)
 
-	block20, _ := bc.NewBlock(block10, bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), block10.Header()), []byte("block 0<-0"))
+	seed := map[common.Address]api.Account{}
+	from := common.HexToAddress("0xDd9811Cfc24aB8d56036A8ecA90C7B8C75e35950")
+	to := common.HexToAddress("0xf3AA514423aE2c6f66497D69f2fc899f0ad25b00")
+	seed[from] = state.NewAccount(0, big.NewInt(10))
 
-	_, _ = bc.AddBlock(block10)
-	_, _ = bc.AddBlock(block20)
+	var addrs []common.Address
+	for _, peer := range committee {
+		addrs = append(addrs, peer.GetAddress())
+	}
+
+	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{
+		BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: state.NewStateDB(storage, addrs, &cmn.NullBus{}),
+		ProposerGetter: MockProposerForHeight(), Seed: seed,
+	})
+
+	aggregate := mockSignatureAggregateValid(bc.GetGenesisBlock().Header().Hash().Bytes(), committee)
+	bc.GetGenesisBlock().SetQC(bch.CreateQuorumCertificate(aggregate, bc.GetGenesisBlock().Header(), api.Empty))
+
+	newBlock1, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("Hello Hotstuff"))
+	tran := tx2.CreateTransaction(api.Payment, to, from, 1, big.NewInt(1), big.NewInt(1), []byte(""))
+
+	header := bch.NewHeaderBuilderWithHeaderImpl(newBlock1.Header()).SetStateHash(
+		common.HexToHash("0x3bc77eb76927472e5f04c52bb54426049b7fce4d0051355edf37f9499bcad5eb")).Build()
+
+	b := bch.NewBlockBuilderFromBlock(newBlock1).SetHeader(header).AddTx(tran).Build()
+	_, err := bc.AddBlock(b)
+	if err != nil {
+		log.Error(err)
+	}
+
+	newBlock2, e := bc.NewBlock(b, bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), b.Header(), api.QRef),
+		[]byte("Hello Hotstuff2"))
+	if e != nil {
+		log.Error(e)
+	}
+
+	bc.AddBlock(newBlock2)
 
 	assert.Equal(t, bc.GetGenesisBlock().Signature(), crypto.EmptyAggregateSignatures())
-	assert.Equal(t, bc.GetBlockByHash(block10.Header().Hash()).Signature(), crypto.EmptyAggregateSignatures())
-	assert.Nil(t, bc.GetBlockByHash(block20.Header().Hash()).Signature())
-
+	assert.Equal(t, bc.GetBlockByHash(newBlock1.Header().Hash()).Signature(), crypto.EmptyAggregateSignatures())
+	assert.Nil(t, bc.GetBlockByHash(newBlock2.Header().Hash()).Signature())
 }
 
 func TestWarmUpFromStorageWithRichChain(t *testing.T) {
@@ -318,7 +351,7 @@ func TestWarmUpFromStorageWithRichChain(t *testing.T) {
 
 	bc := bch.CreateBlockchainFromGenesisBlock(&bch.BlockchainConfig{BlockPerister: bpersister, ChainPersister: cpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight()})
 	genesisBlock := bc.GetGenesisBlock()
-	genesisQC := bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header())
+	genesisQC := bch.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), genesisBlock.Header(), api.Empty)
 	genesisBlock.SetQC(genesisQC)
 	bc.UpdateGenesisBlockQC(genesisQC)
 

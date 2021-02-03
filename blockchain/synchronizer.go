@@ -21,6 +21,7 @@ type Synchronizer interface {
 type SynchronizerImpl struct {
 	me                  *comm.Peer
 	bsrv                BlockService
+	blockValidator      api.Validator
 	bc                  api.Blockchain
 	timeout             time.Duration
 	headersLimit        int32
@@ -43,7 +44,8 @@ var (
 //creates synchronizer
 //to ommit depthLimit set -1
 //to ommit timeout set -1
-func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc api.Blockchain, timeout time.Duration, headersLimit int32,
+func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc api.Blockchain,
+	blockValidator api.Validator, timeout time.Duration, headersLimit int32,
 	headersAttemptCount int32, blocksParallelLimit int32, depthLimit int32, maxForkLength int32) Synchronizer {
 	if depthLimit == -1 {
 		depthLimit = DepthLimitConst
@@ -55,6 +57,7 @@ func CreateSynchronizer(me *comm.Peer, bsrv BlockService, bc api.Blockchain, tim
 		me:                  me,
 		bsrv:                bsrv,
 		bc:                  bc,
+		blockValidator:      blockValidator,
 		timeout:             timeout,
 		depthLimit:          depthLimit,
 		headersLimit:        headersLimit,
@@ -110,6 +113,15 @@ func (s *SynchronizerImpl) loadBlocks(ctx context.Context, low int32, high int32
 				if e != nil {
 					goto END
 				}
+
+				absentQcHeaders := s.collectAbsentQcHeaders(blocks, filteredHeaders)
+
+				qcBlocks, e := s.requestBlocks(ctx, absentQcHeaders, peer)
+				if e != nil {
+					goto END
+				}
+
+				blocks = append(blocks, qcBlocks...)
 				e = s.addBlocksTransactional(blocks)
 				if e != nil {
 					goto END
@@ -129,6 +141,29 @@ func (s *SynchronizerImpl) loadBlocks(ctx context.Context, low int32, high int32
 		i = topHeightLoaded
 	}
 	return nil
+}
+
+func (s *SynchronizerImpl) collectAbsentQcHeaders(blocks []api.Block, filteredHeaders []api.Header) []api.Header {
+	var absentQcHeaders []api.Header
+	for _, block := range blocks {
+		found := false
+		qcHash := block.QC().QrefBlock().Hash()
+		if s.bc.Contains(qcHash) {
+			continue
+		}
+
+		for _, header := range filteredHeaders {
+			if bytes.Equal(header.Hash().Bytes(), qcHash.Bytes()) {
+				found = true
+				continue
+			}
+		}
+
+		if !found {
+			absentQcHeaders = append(absentQcHeaders, block.QC().QrefBlock())
+		}
+	}
+	return absentQcHeaders
 }
 
 func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, high int32, headHeight int32, head *common.Hash, depth int32, peer *comm.Peer) ([]api.Header, error) {
@@ -162,9 +197,11 @@ func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, h
 
 	}
 
-	parentSiblingMapping := make(map[common.Hash]api.Header)
+	parentSiblingMapping := make(map[common.Hash][]api.Header)
 	for _, h := range headers {
-		parentSiblingMapping[h.Parent()] = h
+		hs := parentSiblingMapping[h.Parent()]
+		hs = append(hs, h)
+		parentSiblingMapping[h.Parent()] = hs
 	}
 
 	//determine chain heads
@@ -177,13 +214,21 @@ func (s *SynchronizerImpl) requestHeadersBatch(ctx context.Context, low int32, h
 
 	//filter siblings
 	var filtered []api.Header
-	for _, head := range heads {
-		current := head
-		found := true
-		for found {
-			filtered = append(filtered, current)
-			current, found = parentSiblingMapping[current.Hash()]
+	found := true
+	currentHeads := heads
+	for found {
+		found = false
+		var siblings []api.Header
+		for _, head := range currentHeads {
+			filtered = append(filtered, head)
+			ss, f := parentSiblingMapping[head.Hash()]
+			if f {
+				siblings = append(siblings, ss...)
+				found = true
+			}
 		}
+
+		currentHeads = siblings
 	}
 	if filtered == nil {
 		return nil, BatchLoadError
@@ -242,9 +287,14 @@ func (s *SynchronizerImpl) requestBlocks(ctx context.Context, headers []api.Head
 				exec.errors = append(exec.errors, e)
 				exec.lock.Unlock()
 			} else {
-				exec.lock.Lock()
-				exec.blocks = append(exec.blocks, b)
-				exec.lock.Unlock()
+				valid, e := s.blockValidator.IsValid(b)
+				if !valid || e != nil {
+					exec.errors = append(exec.errors, e)
+				} else {
+					exec.lock.Lock()
+					exec.blocks = append(exec.blocks, b)
+					exec.lock.Unlock()
+				}
 			}
 
 			group.Done()

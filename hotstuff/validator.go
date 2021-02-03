@@ -8,48 +8,58 @@ import (
 	"github.com/gagarinchain/network/blockchain"
 )
 
-type EpochStartValidator struct {
-	committee []*common.Peer
+type SyncValidator struct {
+	committee      []*common.Peer
+	blockValidator api.Validator
 }
 
-func NewEpochStartValidator(committee []*common.Peer) *EpochStartValidator {
-	return &EpochStartValidator{committee: committee}
+func NewSyncValidator(committee []*common.Peer) *SyncValidator {
+	return &SyncValidator{committee: committee}
 }
 
-func (ev *EpochStartValidator) GetId() interface{} {
-	return "EpochStart"
+func (ev *SyncValidator) GetId() interface{} {
+	return "Synchronize"
 }
 
-func (ev *EpochStartValidator) IsValid(entity interface{}) (bool, error) {
+func (ev *SyncValidator) IsValid(entity interface{}) (bool, error) {
 	if entity == nil {
 		return false, errors.New("entity is nil")
 	}
-	epoch := entity.(*Epoch)
+	sync := entity.(*SyncImpl)
 
 	var contains bool
 	for _, c := range ev.committee {
-		if c.GetAddress() == epoch.Sender().GetAddress() {
+		if c.GetAddress() == sync.Sender().GetAddress() {
 			contains = true
 			break
 		}
 	}
 	if !contains {
+		log.Error("Bad source address %v", sync.Sender().GetAddress().Hex())
 		return false, errors.New("signature is not valid, unknown peer")
+	}
+
+	if sync.Cert() != nil {
+		b, e := sync.Cert().IsValid(sync.Cert().GetHash(), common.PeersToPubs(ev.committee))
+		if !b || e != nil {
+			return false, e
+		}
 	}
 
 	return true, nil
 }
 
-func (ev *EpochStartValidator) Supported(mType pb.Message_MessageType) bool {
-	return mType == pb.Message_EPOCH_START
+func (ev *SyncValidator) Supported(mType pb.Message_MessageType) bool {
+	return mType == pb.Message_SYNCHRONIZE
 }
 
 type ProposalValidator struct {
-	committee []*common.Peer
+	committee      []*common.Peer
+	blockValidator api.Validator
 }
 
-func NewProposalValidator(committee []*common.Peer) *ProposalValidator {
-	return &ProposalValidator{committee: committee}
+func NewProposalValidator(committee []*common.Peer, blockValidator api.Validator) *ProposalValidator {
+	return &ProposalValidator{committee: committee, blockValidator: blockValidator}
 }
 
 func (p *ProposalValidator) GetId() interface{} {
@@ -73,20 +83,17 @@ func (p *ProposalValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("signature is not valid, unknown peer")
 	}
 
-	b, e := proposal.HQC().IsValid(proposal.HQC().GetHash(), common.PeersToPubs(p.committee))
-	if !b || e != nil {
-		return false, e
-	}
-
 	hash := blockchain.HashHeader(proposal.NewBlock().Header())
 	if proposal.NewBlock().Header().Hash() != hash {
 		return false, errors.New("block hash is not valid")
 	}
 
-	//todo validate block
+	b, e := proposal.Cert().IsValid(proposal.Cert().GetHash(), common.PeersToPubs(p.committee))
+	if !b || e != nil {
+		return false, e
+	}
 
-	return true, nil
-
+	return p.blockValidator.IsValid(proposal.NewBlock())
 }
 
 func (p *ProposalValidator) Supported(mType pb.Message_MessageType) bool {
@@ -122,7 +129,7 @@ func (p *VoteValidator) IsValid(entity interface{}) (bool, error) {
 		return false, errors.New("signature is not valid, unknown peer")
 	}
 
-	b, e := vote.HQC().IsValid(vote.HQC().GetHash(), common.PeersToPubs(p.committee))
+	b, e := vote.Cert().IsValid(vote.Cert().GetHash(), common.PeersToPubs(p.committee))
 	if !b || e != nil {
 		return false, e
 	}

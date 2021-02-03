@@ -71,11 +71,6 @@ func CreateContext(s *common.Settings) *Context {
 	me := committee[s.Hotstuff.Me]
 
 	// Next we'll create the node config
-	validators := []api.Validator{
-		hotstuff.NewEpochStartValidator(committee),
-		hotstuff.NewProposalValidator(committee),
-		hotstuff.NewVoteValidator(committee),
-	}
 	msgChan := make(chan *message.Message)
 	epochChan := make(chan *message.Message)
 	blockChan := make(chan *message.Message)
@@ -105,7 +100,14 @@ func CreateContext(s *common.Settings) *Context {
 	storage, _ := storage.NewStorage(dataDir, nil)
 	txValidator := blockchain.NewTransactionValidator(committee)
 	headerValidator := &blockchain.HeaderValidator{}
-	bsrv := blockchain.NewBlockService(hotstuffSrv, blockchain.NewBlockValidator(committee, txValidator, headerValidator), headerValidator)
+	blockValidator := blockchain.NewBlockValidator(committee, txValidator, headerValidator)
+	validators := []api.Validator{
+		hotstuff.NewSyncValidator(committee),
+		hotstuff.NewProposalValidator(committee, blockValidator),
+		hotstuff.NewVoteValidator(committee),
+	}
+
+	bsrv := blockchain.NewBlockService(hotstuffSrv, blockValidator, headerValidator)
 	var addresses []common2.Address
 	for _, peer := range committee {
 		addresses = append(addresses, peer.GetAddress())
@@ -133,7 +135,7 @@ func CreateContext(s *common.Settings) *Context {
 	})
 
 	//todo move parameters to settings and add config structure
-	synchr := blockchain.CreateSynchronizer(me, bsrv, bc, -1, 20, 3, 3, 5, int32(2*s.Hotstuff.CommitteeSize))
+	synchr := blockchain.CreateSynchronizer(me, bsrv, bc, blockValidator, -1, 20, 3, 3, 5, int32(2*s.Hotstuff.CommitteeSize))
 	protocol := blockchain.CreateBlockProtocol(hotstuffSrv, bc, synchr)
 
 	initialState := getInitialState(storage, bc)
@@ -214,21 +216,17 @@ func loadCommittee(s *common.Settings, loader common.CommitteeLoader, size int) 
 func getInitialState(storage storage.Storage, bc api.Blockchain) *hotstuff.InitialState {
 	initialState := &hotstuff.InitialState{
 		View:              int32(0),
-		Epoch:             int32(-1),
 		VHeight:           0,
 		LastExecutedBlock: bc.GetGenesisBlock().Header(),
 		HQC:               bc.GetGenesisBlock().QC(),
 	}
 	persister := &hotstuff.PacerPersister{Storage: storage}
 	p := &hotstuff.ProtocolPersister{Storage: storage}
-	epoch, e1 := persister.GetCurrentEpoch()
 	view, e2 := persister.GetCurrentView()
 	vheight, e3 := p.GetVHeight()
 	last, e4 := p.GetLastExecutedBlockHash()
 	hqc, e5 := p.GetHQC()
-	if e1 != nil {
-		log.Debug("no epoch is stored")
-	} else if e2 != nil {
+	if e2 != nil {
 		log.Debug("no view is stored")
 	} else if e3 != nil {
 		log.Debug("no vheight is stored")
@@ -239,7 +237,6 @@ func getInitialState(storage storage.Storage, bc api.Blockchain) *hotstuff.Initi
 	} else {
 		initialState = &hotstuff.InitialState{
 			View:              view,
-			Epoch:             epoch,
 			VHeight:           vheight,
 			LastExecutedBlock: bc.GetBlockByHash(last).Header(),
 			HQC:               hqc,
@@ -326,7 +323,7 @@ END_BP:
 	go func() {
 		c.eventBuss.Run(rootCtx)
 	}()
-	go c.pacer.Run(rootCtx, c.hotstuffChan, c.epochChan)
+	go c.pacer.Run(rootCtx, c.hotstuffChan)
 	if s.Rpc.Address != "" {
 		if err := c.rpc.Bootstrap(rpc.Config{
 			Address:              s.Rpc.Address,

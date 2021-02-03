@@ -2,6 +2,7 @@ package test
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/crypto"
 	"github.com/gagarinchain/network/blockchain"
 	"github.com/gagarinchain/network/hotstuff"
@@ -33,7 +34,7 @@ func TestStorageBlockAddition(t *testing.T) {
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.QRef))
 
 	b, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("random data"))
 	_, e = bc.AddBlock(b)
@@ -45,26 +46,6 @@ func TestStorageBlockAddition(t *testing.T) {
 
 	assert.Equal(t, b, fromStorage)
 	spew.Dump(store.Stats())
-}
-
-func TestPutGetCurrentEpoch(t *testing.T) {
-	s, e := storage.NewStorage("test.db", nil)
-	if e != nil {
-		t.Error(e)
-	}
-	defer cleanUpDb(t)
-	persister := &hotstuff.PacerPersister{s}
-
-	if err := persister.PutCurrentEpoch(int32(15)); err != nil {
-		t.Error(e)
-	}
-
-	val, e := persister.GetCurrentEpoch()
-	if e != nil {
-		t.Error(e)
-	}
-
-	assert.Equal(t, int32(15), val)
 }
 
 func TestPutGetCurrentTopHeight(t *testing.T) {
@@ -85,6 +66,48 @@ func TestPutGetCurrentTopHeight(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(11231235), val)
+}
+
+func TestHCPersistence(t *testing.T) {
+	s, e := storage.NewStorage("test.db", nil)
+	if e != nil {
+		t.Error(e)
+	}
+	defer cleanUpDb(t)
+
+	bpersister := &blockchain.BlockPersister{s}
+	cpersister := &blockchain.BlockchainPersister{s}
+
+	p := hotstuff.ProtocolPersister{Storage: s}
+	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
+		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
+	})
+	cert := blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.QRef)
+
+	e = p.PutHC(cert)
+	if e != nil {
+		t.Error(e)
+	}
+
+	hc, e := p.GetHC()
+	if e != nil {
+		t.Error(e)
+	}
+	assert.Equal(t, cert, hc)
+
+	sc := blockchain.CreateSynchronizeCertificate(crypto.EmptyAggregateSignatures(), 2)
+
+	e = p.PutHC(sc)
+	if e != nil {
+		t.Error(e)
+	}
+
+	fromdb, e := p.GetHC()
+	if e != nil {
+		t.Error(e)
+	}
+	assert.Equal(t, sc, fromdb)
+
 }
 
 func cleanUpDb(t *testing.T) {

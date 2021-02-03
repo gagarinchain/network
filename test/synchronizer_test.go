@@ -17,6 +17,7 @@ import (
 //simply test chain loading
 func TestSyncRequestBlocksSimple(t *testing.T) {
 	bsrv := &mocks.BlockService{}
+	blockValidator := MockGoodBlockValidator()
 
 	headersLimit := 4
 	genesis := blockchain.CreateGenesisBlock()
@@ -36,8 +37,7 @@ func TestSyncRequestBlocksSimple(t *testing.T) {
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit), int32(rightLimit), mock.AnythingOfType("*common.Peer")).Return(headers[leftLimit+1:rightLimit+1], nil)
 	}
-
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, -1, 20)
 
 	background := context.Background()
@@ -76,8 +76,8 @@ func TestSyncRequestBlocksWithNoHead(t *testing.T) {
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit+15), int32(rightLimit+15), mock.AnythingOfType("*common.Peer")).Return(res, nil)
 	}
-
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	blockValidator := MockGoodBlockValidator()
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, -1, 20)
 
 	background := context.Background()
@@ -122,8 +122,9 @@ func TestSyncRequestBlocksWithNoHeadExceedDepthLimit(t *testing.T) {
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit), int32(rightLimit), mock.AnythingOfType("*common.Peer")).Return(res, nil)
 	}
+	blockValidator := MockGoodBlockValidator()
 
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, 3, 20)
 
 	background := context.Background()
@@ -164,7 +165,8 @@ func TestSyncRequestBlocksNoBlockFound(t *testing.T) {
 			int32(leftLimit), int32(rightLimit), mock.AnythingOfType("*common.Peer")).Return(headers[leftLimit+1:rightLimit+1], nil)
 	}
 
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	blockValidator := MockGoodBlockValidator()
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, -1, 20)
 
 	background := context.Background()
@@ -202,7 +204,8 @@ func TestSyncRequestBlocksNoHeaderFound(t *testing.T) {
 			int32(leftLimit), int32(rightLimit), mock.AnythingOfType("*common.Peer")).Return(headers[leftLimit+1:rightLimit+1], nil)
 	}
 
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	blockValidator := MockGoodBlockValidator()
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, -1, 20)
 
 	background := context.Background()
@@ -247,8 +250,8 @@ func TestSyncRequestBlocksWithForkNoHeaderFound(t *testing.T) {
 		bsrv.On("RequestHeaders", mock.MatchedBy(func(ctx context.Context) bool { return true }),
 			int32(leftLimit+15), int32(rightLimit+15), mock.AnythingOfType("*common.Peer")).Return(res, nil)
 	}
-
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	blockValidator := MockGoodBlockValidator()
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, -1, 20)
 
 	background := context.Background()
@@ -288,7 +291,8 @@ func TestSyncRequestFork(t *testing.T) {
 			int32(leftLimit+17), int32(rightLimit+17), mock.AnythingOfType("*common.Peer")).Return(res, nil)
 	}
 
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	blockValidator := MockGoodBlockValidator()
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, -1, 20)
 
 	background := context.Background()
@@ -341,7 +345,8 @@ func TestSyncRequestForkNoHead(t *testing.T) {
 			int32(leftLimit+17), int32(rightLimit+17), mock.AnythingOfType("*common.Peer")).Return(res, nil)
 	}
 
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	blockValidator := MockGoodBlockValidator()
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, -1, 20)
 
 	background := context.Background()
@@ -388,7 +393,8 @@ func TestSyncRequestForkNoCommonBlock(t *testing.T) {
 			int32(leftLimit), int32(rightLimit), mock.AnythingOfType("*common.Peer")).Return(res, nil)
 	}
 
-	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, -1, int32(headersLimit),
+	blockValidator := MockGoodBlockValidator()
+	toTest := blockchain.CreateSynchronizer(nil, bsrv, bc, blockValidator, -1, int32(headersLimit),
 		3, 3, 3, 20)
 
 	background := context.Background()

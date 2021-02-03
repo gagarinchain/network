@@ -1,13 +1,11 @@
 package blockchain
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/common/api"
 	"github.com/gagarinchain/common/eth/common"
 	"github.com/gagarinchain/common/eth/crypto"
 	pb "github.com/gagarinchain/common/protobuff"
 	"github.com/prysmaticlabs/go-ssz"
-	"github.com/status-im/keycard-go/hexutils"
 	"time"
 )
 
@@ -140,7 +138,7 @@ func HashHeader(header api.Header) common.Hash {
 		if e != nil {
 			log.Error("Can't marshal message")
 		}
-		spew.Dump(hexutils.BytesToHex(bytes))
+		//spew.Dump(hexutils.BytesToHex(bytes))
 		return crypto.Keccak256Hash(bytes)
 	default:
 		panic("can't calculate header of unknown impl")
@@ -180,4 +178,55 @@ func CreateBlockHeaderFromStorage(header *pb.BlockHeaderS) *HeaderImpl {
 		common.BytesToHash(header.ParentHash),
 		time.Unix(0, header.Timestamp).UTC(),
 	)
+}
+
+type HeaderBuilderImpl struct {
+	header *HeaderImpl
+}
+
+func (h *HeaderBuilderImpl) Build() api.Header {
+	h.header.SetHash()
+	return h.header
+}
+
+func (h *HeaderBuilderImpl) SetTimestamp(timestamp time.Time) *HeaderBuilderImpl {
+	h.header.timestamp = timestamp
+	return h
+}
+
+func (h *HeaderBuilderImpl) SetParent(parent common.Hash) *HeaderBuilderImpl {
+	h.header.parent = parent
+	return h
+}
+
+func (h *HeaderBuilderImpl) SetQcHash(qcHash common.Hash) *HeaderBuilderImpl {
+	h.header.qcHash = qcHash
+	return h
+}
+
+func (h *HeaderBuilderImpl) SetDataHash(dataHash common.Hash) *HeaderBuilderImpl {
+	h.header.dataHash = dataHash
+	return h
+}
+
+func (h *HeaderBuilderImpl) SetStateHash(stateHash common.Hash) *HeaderBuilderImpl {
+	h.header.stateHash = stateHash
+	return h
+}
+
+func (h *HeaderBuilderImpl) SetTxHash(txHash common.Hash) *HeaderBuilderImpl {
+	h.header.txHash = txHash
+	return h
+}
+
+func (h *HeaderBuilderImpl) SetHeight(height int32) *HeaderBuilderImpl {
+	h.header.height = height
+	return h
+}
+
+func NewHeaderBuilderImpl() *HeaderBuilderImpl {
+	return &HeaderBuilderImpl{header: &HeaderImpl{}}
+}
+func NewHeaderBuilderWithHeaderImpl(header api.Header) *HeaderBuilderImpl {
+	return &HeaderBuilderImpl{header: header.(*HeaderImpl)}
 }

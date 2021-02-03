@@ -91,7 +91,7 @@ func (s *StorageImpl) Keys(rtype ResourceType, keyPrefix []byte) (keys [][]byte)
 }
 
 func Int32ToByte(val int32) []byte {
-	buf := make([]byte, binary.MaxVarintLen64)
+	buf := make([]byte, binary.MaxVarintLen32)
 	binary.PutVarint(buf, int64(val))
 
 	return buf

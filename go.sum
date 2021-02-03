@@ -130,6 +130,10 @@ github.com/gagarinchain/common v0.1.19 h1:jWakwGKXKIhVK5JGtadqPS/UW+ThoK2h++xCXN
 github.com/gagarinchain/common v0.1.19/go.mod h1:n6QQD+lczURIsuqVVD9gwEv1LEvYOLD5CfnHS+HNAf4=
 github.com/gagarinchain/common v0.1.20 h1:R226UY5+foRrBi/v8T90qj3lFUkdhV1S0VLRCt4+NJQ=
 github.com/gagarinchain/common v0.1.20/go.mod h1:n6QQD+lczURIsuqVVD9gwEv1LEvYOLD5CfnHS+HNAf4=
+github.com/gagarinchain/common v0.1.21 h1:OiV2+C7kl9hCRdp+Acor8XY1enTffo71nVqAgJ811/g=
+github.com/gagarinchain/common v0.1.21/go.mod h1:Ew8c16CJs7Pn1XhwIQT2LyayWub8YKknSq6CAmyW8Ck=
+github.com/gagarinchain/common v0.1.22 h1:NMlyt01V/4ouNtYG2/sYqFywPQGBo47tgFpiIM8xQJ0=
+github.com/gagarinchain/common v0.1.22/go.mod h1:Ew8c16CJs7Pn1XhwIQT2LyayWub8YKknSq6CAmyW8Ck=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff h1:tY80oXqGNY4FhTFhk+o9oFHGINQ/+vhlm8HFzi6znCI=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff/go.mod h1:x7DCsMOv1taUwEWCzT4cmDeAkigA5/QCwUodaVOe8Ww=
 github.com/go-check/check v0.0.0-20180628173108-788fd7840127 h1:0gkP6mzaMqkmpcJYCFOLkIBwI7xFExG03bbkOkCvUPI=
@@ -183,6 +187,8 @@ github.com/google/go-cmp v0.4.0/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/
 github.com/google/gofuzz v1.1.1-0.20200604201612-c04b05f3adfa/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
 github.com/google/gopacket v1.1.17 h1:rMrlX2ZY2UbvT+sdz3+6J+pp2z+msCq9MxTU6ymxbBY=
 github.com/google/gopacket v1.1.17/go.mod h1:UdDNZ1OO62aGYVnPhxT1U6aI7ukYtA/kB8vaU0diBUM=
+github.com/google/martian v2.1.0+incompatible h1:/CP5g8u/VJHijgedC/Legn3BAbAaWPgecwXBIDzw5no=
+github.com/google/martian v2.1.0+incompatible/go.mod h1:9I4somxYTbIHy5NJKHRl3wXiIaQGbYVAs8BPL6v8lEs=
 github.com/google/pprof v0.0.0-20190309163659-77426154d546/go.mod h1:zfwlbNMJ+OItoe0UupaVj+oy1omPYYDuagoSzA8v9mc=
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=

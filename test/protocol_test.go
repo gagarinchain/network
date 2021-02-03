@@ -27,7 +27,7 @@ func TestProposalSignature(t *testing.T) {
 	bc, _, cfg, _ := initProtocol(t)
 
 	block, _ := bc.NewBlock(bc.GetGenesisBlock(), bc.GetGenesisCert(), []byte("hello sign"))
-	proposal := hotstuff.CreateProposal(block, bc.GetGenesisCert(), cfg.Me)
+	proposal := hotstuff.CreateProposal(block, cfg.Me, block.QC())
 
 	proposal.Sign(cfg.Me.GetPrivateKey())
 
@@ -95,22 +95,6 @@ func TestProtocolProposeOnGenesisBlockchainVoteForSelfProposal(t *testing.T) {
 
 }
 
-func TestProtocolUpdateWithHigherRankBroken(t *testing.T) {
-	bc, p, _, _ := initProtocol(t)
-
-	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte(""))
-	log.Info("Head ", newBlock.Header().Hash().Hex())
-	newQC := blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), newBlock.Header())
-	if _, e := bc.AddBlock(newBlock); e != nil {
-		t.Error(e)
-	}
-
-	p.Update(newQC)
-	hqc := p.HQC()
-
-	assert.Equal(t, bc.GetGenesisCert(), hqc)
-}
-
 func TestProtocolUpdateWithHigherRankCertificate(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
 
@@ -136,7 +120,7 @@ func createValidQC(newBlock api.Block, cfg *hotstuff.ProtocolConfig) api.QuorumC
 		signs = append(signs, sign)
 	}
 	aggregate := crypto.AggregateSignatures(big.NewInt(1<<len(cfg.Committee)-1), signs)
-	newQC := blockchain.CreateQuorumCertificate(aggregate, newBlock.Header())
+	newQC := blockchain.CreateQuorumCertificate(aggregate, newBlock.Header(), api.QRef)
 	return newQC
 }
 
@@ -160,7 +144,6 @@ func TestProtocolUpdateWithLowerRankCertificate(t *testing.T) {
 
 func TestOnReceiveProposal(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
-	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 
 	for _, p := range cfg.Committee {
@@ -169,7 +152,7 @@ func TestOnReceiveProposal(t *testing.T) {
 
 	currentProposer := cfg.Committee[1]
 	nextProposer := cfg.Committee[2]
-	proposal := hotstuff.CreateProposal(newBlock, head.QC(), currentProposer)
+	proposal := hotstuff.CreateProposal(newBlock, currentProposer, newBlock.QC())
 	srv := (cfg.Srv).(*mocks.Service)
 	msgChan := make(chan *msg.Message)
 	srv.On("SendMessage", mock.MatchedBy(func(ctx context.Context) bool { return true }),
@@ -198,14 +181,13 @@ func TestOnReceiveProposal(t *testing.T) {
 
 func TestOnReceiveProposalFromWrongProposer(t *testing.T) {
 	bc, p, cfg, _ := initProtocol(t)
-	head := bc.GetHead()
 	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	if _, e := bc.AddBlock(newBlock); e != nil {
 		t.Error("can't add block", e)
 	}
 
 	nextProposer := cfg.Pacer.GetNext()
-	proposal := hotstuff.CreateProposal(newBlock, head.QC(), nextProposer)
+	proposal := hotstuff.CreateProposal(newBlock, nextProposer, newBlock.QC())
 
 	assert.Error(t, p.OnReceiveProposal(context.Background(), proposal), "peer equivocated")
 	assert.Equal(t, int32(0), p.Vheight())
@@ -217,7 +199,7 @@ func TestOnReceiveVoteForNotProposer(t *testing.T) {
 	newBlock, _ := bc.NewBlock(bc.GetHead(), bc.GetGenesisCert(), []byte("wonderful block"))
 	vote := createVote(bc, newBlock, t)
 
-	assert.Error(t, p.OnReceiveVote(context.Background(), vote))
+	assert.Nil(t, p.OnReceiveVote(context.Background(), vote))
 }
 
 func TestOnReceiveTwoVotesSamePeer(t *testing.T) {
@@ -299,7 +281,7 @@ func initProtocol(t *testing.T, inds ...int) (api.Blockchain, *hotstuff.Protocol
 	bc := blockchain.CreateBlockchainFromGenesisBlock(&blockchain.BlockchainConfig{
 		ChainPersister: cpersister, BlockPerister: bpersister, Pool: mockPool(), Db: mockDB(), ProposerGetter: MockProposerForHeight(),
 	})
-	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header()))
+	bc.GetGenesisBlock().SetQC(blockchain.CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), bc.GetGenesisBlock().Header(), api.QRef))
 
 	peers := make([]*common.Peer, 10)
 
@@ -324,6 +306,7 @@ func initProtocol(t *testing.T, inds ...int) (api.Blockchain, *hotstuff.Protocol
 	pacer := &cmocks.Pacer{}
 	config.Pacer = pacer
 	pacer.On("FireEvent", mock.AnythingOfType("api.EventType"))
+	pacer.On("NotifyEvent", mock.AnythingOfType("api.Event"))
 	pacer.On("GetCurrentView").Return(int32(1))
 	pacer.On("GetCurrent").Return(peers[1])
 	pacer.On("GetNext").Return(peers[2])
@@ -336,6 +319,7 @@ func initProtocol(t *testing.T, inds ...int) (api.Blockchain, *hotstuff.Protocol
 	eventChan := make(chan api.Event)
 	pacer.SubscribeProtocolEvents(eventChan)
 
+	p.Update(bc.GetGenesisCert())
 	return bc, p, config, eventChan
 }
 

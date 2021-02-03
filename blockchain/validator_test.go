@@ -175,3 +175,13 @@ func GetBitmap(committee []*common2.Peer, src map[common.Address]*crypto.Signatu
 	}
 	return bitmap, n
 }
+
+func TestValidateBlockWithInvalidSignature(t *testing.T) {
+	var committee []*common2.Peer
+	for i := 0; i < 10; i++ {
+		p := GeneratePeer()
+		committee = append(committee, p)
+	}
+
+	//TODO add deserialization of correct block and change different parts for test then
+}

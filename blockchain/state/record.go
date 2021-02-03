@@ -252,7 +252,7 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 	}
 	withFee := true
 	if bytes.Equal(r.snap.proposer.Bytes(), t.From().Bytes()) {
-		log.Debugf("Current proposer %v, tx from", r.snap.proposer.Hex(), t.From().Hex())
+		log.Debugf("Current proposer %v, tx from %v", r.snap.proposer.Hex(), t.From().Hex())
 		withFee = false
 	}
 

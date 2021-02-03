@@ -89,15 +89,15 @@ func CreateGenesisBlock() (zero api.Block) {
 		crypto.Keccak256Hash(data), common.BytesToHash(make([]byte, common.HashLength)),
 		time.Date(2019, time.April, 12, 0, 0, 0, 0, time.UTC).Round(time.Millisecond))
 	zeroHeader.SetHash()
-	zero = &BlockImpl{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader), signature: crypto.EmptyAggregateSignatures()}
+	zero = &BlockImpl{header: zeroHeader, data: data, qc: CreateQuorumCertificate(crypto.EmptyAggregateSignatures(), zeroHeader, api.Empty), signature: crypto.EmptyAggregateSignatures()}
 
 	return zero
 }
 
 func CreateBlockFromMessage(block *pb.Block) (api.Block, error) {
 	header := CreateBlockHeaderFromMessage(block.Header)
-	aggrPb := block.Cert.GetSignatureAggregate()
-	cert := CreateQuorumCertificate(crypto.AggregateFromProto(aggrPb), CreateBlockHeaderFromMessage(block.Cert.Header))
+
+	cert := CreateQuorumCertificateFromMessage(block.Cert)
 	var txs []api.Transaction
 	for _, tpb := range block.Txs {
 		t, e := tx2.CreateTransactionFromMessage(tpb, block.GetSignatureAggregate() != nil)
@@ -119,8 +119,8 @@ func CreateBlockFromMessage(block *pb.Block) (api.Block, error) {
 
 func CreateBlockFromStorage(block *pb.BlockS) api.Block {
 	header := CreateBlockHeaderFromStorage(block.Header)
-	aggrPb := block.Cert.GetSignatureAggregate()
-	cert := CreateQuorumCertificate(crypto.AggregateFromStorage(aggrPb), CreateBlockHeaderFromStorage(block.Cert.Header))
+	cert := &QuorumCertificateImpl{}
+	cert.FromStorage(block.Cert)
 	var txs []api.Transaction
 	for _, tpb := range block.Txs {
 		t, e := tx2.CreateTransactionFromStorage(tpb)
@@ -219,13 +219,13 @@ type BlockBuilderImpl struct {
 	block *BlockImpl
 }
 
+func NewBlockBuilderImpl() *BlockBuilderImpl {
+	return &BlockBuilderImpl{block: &BlockImpl{}}
+}
+
 func (b BlockBuilderImpl) AddTx(tx api.Transaction) api.BlockBuilder {
 	b.block.AddTransaction(tx)
 	return b
-}
-
-func NewBlockBuilderImpl() *BlockBuilderImpl {
-	return &BlockBuilderImpl{block: &BlockImpl{}}
 }
 
 func NewBlockBuilderFromBlock(block api.Block) *BlockBuilderImpl {

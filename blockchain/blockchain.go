@@ -236,7 +236,7 @@ func (bc *BlockchainImpl) getBlockByHash(hash common.Hash) api.Block {
 
 	if block == nil {
 		block, er := bc.blockPersister.Load(hash)
-		if er != nil {
+		if er != nil && er != NoBlockFoundError {
 			log.Error(er)
 		}
 		return block
@@ -503,7 +503,11 @@ func (bc *BlockchainImpl) updateBlockSignature(b api.Block) {
 	}
 	qrefHash := b.QC().QrefBlock().Hash()
 	qrefBlock := bc.getBlockByHash(qrefHash)
-	if qrefBlock.Height() == 0 {
+	if qrefBlock.Height() == 0 || qrefBlock.TxsCount() == 0 {
+		return
+	}
+
+	if qrefBlock.Signature() != nil {
 		return
 	}
 
@@ -600,7 +604,6 @@ func (bc BlockchainImpl) IsSibling(sibling api.Header, ancestor api.Header) bool
 		return true
 	}
 
-	//todo should load blocks earlier, remove this call
 	parent := bc.GetBlockByHash(sibling.Parent())
 
 	if parent.Header().IsGenesisBlock() || parent.Header().Height() < ancestor.Height() {
@@ -615,10 +618,10 @@ func (bc BlockchainImpl) IsSibling(sibling api.Header, ancestor api.Header) bool
 }
 
 func (bc *BlockchainImpl) NewBlock(parent api.Block, qc api.QuorumCertificate, data []byte) (api.Block, error) {
-	return bc.newBlock(parent, qc, data, true)
+	return bc.newBlock(parent, qc, data, false)
 }
 
-func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, data []byte, withTransactions bool) (api.Block, error) {
+func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, data []byte, isEmpty bool) (api.Block, error) {
 	proposer := bc.proposerGetter.ProposerForHeight(parent.Header().Height() + 1).GetAddress() //this block will be the block of next height
 	r, e := bc.stateDB.Create(parent.Header().Hash(), proposer)
 	if e != nil {
@@ -628,8 +631,10 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 
 	var txs []api.Transaction
 	var receipts []api.Receipt
-	if withTransactions {
+	var t time.Time
+	if !isEmpty {
 		txs, receipts = bc.collectTransactions(r)
+		t = time.Now().UTC().Round(time.Second)
 	}
 
 	header := createHeader(
@@ -640,7 +645,7 @@ func (bc *BlockchainImpl) newBlock(parent api.Block, qc api.QuorumCertificate, d
 		r.RootProof(),
 		crypto.Keccak256Hash(data),
 		parent.Header().Hash(),
-		time.Now().UTC().Round(time.Second))
+		t)
 
 	builder := NewBlockBuilderImpl()
 	builder.SetHeader(header).SetQC(qc).SetData(data).SetTxs(txs)
@@ -696,7 +701,8 @@ func (bc *BlockchainImpl) collectTransactions(s api.Record) (txs []api.Transacti
 }
 
 func (bc *BlockchainImpl) PadEmptyBlock(head api.Block, qc api.QuorumCertificate) (api.Block, error) {
-	block, e := bc.newBlock(head, qc, []byte(""), false)
+	block, e := bc.newBlock(head, qc, []byte(""), true)
+
 	if e != nil {
 		return nil, e
 	}
@@ -763,7 +769,7 @@ func (bc *BlockchainImpl) applyTransactionsAndValidate(block api.Block) (receipt
 		if re, err := r.ApplyTransaction(next); err != nil {
 			return re, err
 		} else {
-			receipts = re
+			receipts = append(receipts, re...)
 		}
 	}
 

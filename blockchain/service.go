@@ -74,7 +74,7 @@ func (s *BlockServiceImpl) RequestBlock(ctx context.Context, hash common.Hash, p
 		}
 	}
 
-	log.Error("Block with hash %v can't be found", hash.Hex())
+	log.Errorf("Block with hash %v can't be found", hash.Hex())
 	return nil, NotFound
 }
 
@@ -106,6 +106,10 @@ func (s *BlockServiceImpl) requestBlock(ctx context.Context, hash common.Hash, p
 		case e := <-errs:
 			return nil, e
 		}
+	}
+
+	if m == nil {
+		return nil, errors.New("nil message received for block request")
 	}
 
 	if m.Type != pb.Message_BLOCK_RESPONSE {
@@ -189,11 +193,14 @@ func (s *BlockServiceImpl) requestHeaders(ctx context.Context, low int32, high i
 		return nil, MalformedResponse
 	}
 
-	if rp.GetErrorCode() != nil || rp.GetHeaders() == nil || len(rp.GetHeaders().Headers) == 0 {
+	if rp.GetErrorCode() != nil {
 		switch rp.GetErrorCode().Code {
 		case pb.Error_NOT_FOUND:
 			return nil, NotFound
 		}
+	}
+	if rp.GetHeaders() == nil || len(rp.GetHeaders().Headers) == 0 {
+		return nil, NotFound
 	}
 
 	for _, headerM := range rp.GetHeaders().Headers {

@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	NoBlockFoundError = errors.New("no block is found")
+	NoBlockFoundError = errors.New("no block in storage")
 )
 
 type BlockPersister struct {
@@ -24,6 +24,7 @@ func (bp *BlockPersister) Persist(b api.Block) error {
 		return i
 	}
 
+	log.Debugf("persisting block with hash %v", b.Header().Hash().Hex())
 	return bp.Storage.Put(storage.Block, b.Header().Hash().Bytes(), bytes)
 }
 

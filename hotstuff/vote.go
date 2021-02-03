@@ -16,7 +16,7 @@ type VoteImpl struct {
 	sender    *comm.Peer
 	header    api.Header
 	signature *crypto.Signature //We should not allow to change header if we want signature to be consistent with block
-	hqc       api.QuorumCertificate
+	cert      api.Certificate
 }
 
 func (v *VoteImpl) Sender() *comm.Peer {
@@ -31,12 +31,12 @@ func (v *VoteImpl) Signature() *crypto.Signature {
 	return v.signature
 }
 
-func (v *VoteImpl) HQC() api.QuorumCertificate {
-	return v.hqc
+func (v *VoteImpl) Cert() api.Certificate {
+	return v.cert
 }
 
-func CreateVote(newBlock api.Header, hqc api.QuorumCertificate, sender *comm.Peer) *VoteImpl {
-	return &VoteImpl{sender: sender, header: newBlock, hqc: hqc}
+func CreateVote(newBlock api.Header, cert api.Certificate, sender *comm.Peer) *VoteImpl {
+	return &VoteImpl{sender: sender, header: newBlock, cert: cert}
 }
 
 func (v *VoteImpl) Sign(key *crypto.PrivateKey) {
@@ -44,7 +44,23 @@ func (v *VoteImpl) Sign(key *crypto.PrivateKey) {
 }
 
 func (v *VoteImpl) GetMessage() *pb.VotePayload {
-	return &pb.VotePayload{Cert: v.HQC().GetMessage(), Header: v.Header().GetMessage(), Signature: v.Signature().ToProto()}
+	v2 := &pb.VotePayload{Header: v.Header().GetMessage(), Signature: v.Signature().ToProto()}
+
+	switch v.cert.Type() {
+	case api.SC:
+		sc := v.cert.(api.SynchronizeCertificate)
+		v2.Cert = &pb.VotePayload_Sc{Sc: sc.GetMessage()}
+	case api.QRef:
+		fallthrough
+	case api.Empty:
+		sc := v.cert.(api.QuorumCertificate)
+		v2.Cert = &pb.VotePayload_Qc{Qc: sc.GetMessage()}
+	default:
+		log.Error("unknown cert type")
+		return nil
+	}
+
+	return v2
 }
 
 func CreateVoteFromMessage(msg *msg.Message) (api.Vote, error) {
@@ -57,7 +73,16 @@ func CreateVoteFromMessage(msg *msg.Message) (api.Vote, error) {
 	if err := ptypes.UnmarshalAny(msg.Payload, vp); err != nil {
 		log.Error("Couldn'T unmarshal response", err)
 	}
-	qc := bc.CreateQuorumCertificateFromMessage(vp.Cert)
+
+	var cert api.Certificate
+	if vp.GetQc() != nil {
+		cert = bc.CreateQuorumCertificateFromMessage(vp.GetQc())
+
+	}
+	if vp.GetSc() != nil {
+		cert = bc.CreateSynchronizeCertificateFromMessage(vp.GetSc())
+	}
+
 	header := bc.CreateBlockHeaderFromMessage(vp.Header)
 
 	sign := crypto.SignatureFromProto(vp.Signature)
@@ -70,7 +95,7 @@ func CreateVoteFromMessage(msg *msg.Message) (api.Vote, error) {
 	msg.Source().SetAddress(a)
 	msg.Source().SetPublicKey(crypto.NewPublicKey(sign.Pub()))
 
-	vote := CreateVote(header, qc, msg.Source())
+	vote := CreateVote(header, cert, msg.Source())
 	vote.signature = sign
 	return vote, nil
 }

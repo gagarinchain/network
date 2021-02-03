@@ -118,7 +118,7 @@ func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []api.Tra
 			case txs <- part:
 				done <- true //notify we ended work
 			case <-ctx.Done():
-				log.Warning("Cancelled writing part")
+				//log.Debug("Cancelled writing part")
 				done <- true //notify we ended work
 				return
 			}
@@ -144,7 +144,7 @@ func (tp *TransactionPoolImpl) Drain(ctx context.Context) (chunks chan []api.Tra
 				index = tick(tp.pending, index)
 				tp.lock.RUnlock()
 			case <-ctx.Done(): //should be careful we can spin-wait here
-				log.Warning("Cancelled writing chunks")
+				//log.Debug("Cancelled writing chunks")
 				trigger = nil //prevent starting new tasks
 				if working <= 0 {
 					close(chunks)
