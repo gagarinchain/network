@@ -142,7 +142,7 @@ func (r *RecordImpl) Update(address common.Address, account api.Account) error {
 		r.snap.Put(address, account)
 		delete(r.forUpdate, address)
 	} else { //trying to update
-		log.Warningf("Updating account %v that was not previously acquired for update, inserting it anyway", address.Hex())
+		//log.Warningf("Updating account %v that was not previously acquired for update, inserting it anyway", address.Hex())
 		r.lookupAccountAndAddNodes(address)
 		r.snap.Put(address, account)
 	}
