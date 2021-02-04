@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/common/api"
 	common2 "github.com/gagarinchain/common/eth/common"
@@ -160,6 +161,8 @@ func CreateContext(s *common.Settings) *Context {
 		OnBlockCommit:     plugins,
 	}
 
+	spew.Dump(initialState)
+
 	txService := tx.NewService(txValidator, pool, hotstuffSrv, bc, me)
 
 	pacer := hotstuff.CreatePacer(config)
@@ -220,26 +223,39 @@ func getInitialState(storage storage.Storage, bc api.Blockchain) *hotstuff.Initi
 		LastExecutedBlock: bc.GetGenesisBlock().Header(),
 		HQC:               bc.GetGenesisBlock().QC(),
 	}
-	persister := &hotstuff.PacerPersister{Storage: storage}
 	p := &hotstuff.ProtocolPersister{Storage: storage}
-	view, e2 := persister.GetCurrentView()
 	vheight, e3 := p.GetVHeight()
 	last, e4 := p.GetLastExecutedBlockHash()
 	hqc, e5 := p.GetHQC()
-	if e2 != nil {
-		log.Debug("no view is stored")
-	} else if e3 != nil {
+	hc, e6 := p.GetHC()
+	if e3 != nil {
 		log.Debug("no vheight is stored")
 	} else if e4 != nil {
 		log.Debug("no last executed block is stored")
 	} else if e5 != nil {
 		log.Debug("no hqc is stored")
+	} else if e6 != nil {
+		log.Debug("no hc is stored")
 	} else {
+		view, vhc, vqc := int32(0), int32(0), int32(0)
+		if hc != nil {
+			vhc = hc.Height()
+		}
+		if hqc != nil {
+			vqc = hqc.Height()
+		}
+		if vhc > vqc {
+			view = vhc + 1
+		} else {
+			view = vqc + 1
+		}
+
 		initialState = &hotstuff.InitialState{
 			View:              view,
 			VHeight:           vheight,
 			LastExecutedBlock: bc.GetBlockByHash(last).Header(),
 			HQC:               hqc,
+			HC:                hc,
 		}
 	}
 	return initialState

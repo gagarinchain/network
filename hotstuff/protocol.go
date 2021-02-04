@@ -47,7 +47,7 @@ type InitialState struct {
 	VHeight           int32
 	LastExecutedBlock api.Header
 	HQC               api.QuorumCertificate
-	HSC               api.SynchronizeCertificate
+	HC                api.Certificate
 }
 
 func DefaultState(bc api.Blockchain) *InitialState {
@@ -56,7 +56,7 @@ func DefaultState(bc api.Blockchain) *InitialState {
 		VHeight:           0,
 		LastExecutedBlock: bc.GetGenesisBlock().Header(),
 		HQC:               nil,
-		HSC:               nil,
+		HC:                nil,
 	}
 }
 
@@ -186,6 +186,7 @@ func CreateProtocol(cfg *ProtocolConfig) *Protocol {
 		votes:             make(map[common.Address]api.Vote),
 		lastExecutedBlock: cfg.InitialState.LastExecutedBlock,
 		hqc:               cfg.InitialState.HQC,
+		hc:                cfg.InitialState.HC,
 		me:                cfg.Me,
 		pacer:             cfg.Pacer,
 		validators:        cfg.Validators,
@@ -634,6 +635,9 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 		if e := p.validateMessage(v, pb.Message_VOTE); e != nil {
 			return e
 		}
+		if err := p.LoadCertBlockFork(ctx, v.Cert(), v.Sender()); err != nil {
+			return err
+		}
 		if err := p.OnReceiveVote(ctx, v); err != nil {
 			return err
 		}
@@ -645,6 +649,11 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 
 		if e := p.validateMessage(pr, pb.Message_PROPOSAL); e != nil {
 			return e
+		}
+
+		err2 := p.LoadCertBlockFork(ctx, pr.Cert(), pr.Sender())
+		if err2 != nil {
+			return err2
 		}
 
 		parent := pr.NewBlock().Header().Parent()
@@ -667,6 +676,9 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 					return err
 				}
 			}
+			if err := p.LoadCertBlockFork(ctx, pr.NewBlock().QC(), pr.Sender()); err != nil {
+				return err
+			}
 		}
 
 		if err := p.OnReceiveProposal(ctx, pr); err != nil {
@@ -674,6 +686,17 @@ func (p *Protocol) handleMessage(ctx context.Context, m *msg.Message) error {
 		}
 	}
 
+	return nil
+}
+
+func (p *Protocol) LoadCertBlockFork(ctx context.Context, cert api.Certificate, peer *comm.Peer) error {
+	qc, b := cert.(api.QuorumCertificate)
+	if b && !p.blockchain.Contains(qc.QrefBlock().Hash()) {
+		err := p.sync.LoadFork(ctx, qc.QrefBlock().Height(), qc.QrefBlock().Hash(), peer)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

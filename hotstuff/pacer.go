@@ -318,8 +318,18 @@ func (p *StaticPacer) OnSynchronize(ctx context.Context, m *msg.Message) error {
 	defer p.sync.guard.Unlock()
 
 	s, e := CreateSyncFromMessage(m)
+
 	if e != nil {
 		return e
+	}
+
+	//todo validate sync here
+	if e := p.protocol.validateMessage(s, m.GetType()); e != nil {
+		return e
+	}
+
+	if err := p.protocol.LoadCertBlockFork(ctx, s.Cert(), s.Sender()); err != nil {
+		return err
 	}
 
 	//TODO try to remove this check and update signatures in qc, can be useful in voting qcs
@@ -330,6 +340,8 @@ func (p *StaticPacer) OnSynchronize(ctx context.Context, m *msg.Message) error {
 	if e := p.protocol.validateMessage(s, pb.Message_SYNCHRONIZE); e != nil {
 		return e
 	}
+
+	p.protocol.Update(s.Cert())
 
 	actualHeight := int32(-1)
 	if p.protocol.hc != nil {
