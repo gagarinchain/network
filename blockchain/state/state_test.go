@@ -68,7 +68,7 @@ func TestSnapshot_ApplyTransactionFutureNonce(t *testing.T) {
 	assert.Equal(t, err, FutureTransactionError)
 }
 
-func TestSnapshot_ApplyTransactionNoMe(t *testing.T) {
+func TestSnapshot_ApplyTransactionNotMe(t *testing.T) {
 	snapshot := NewSnapshot(crypto.Keccak256Hash([]byte("Aaaaaa Rexxar")), common.HexToAddress("0xCFC6243DFe7A9eB2E7f31a1f6b239Fcc13c26339"))
 	record := NewRecord(snapshot, nil, []common.Address{}, &cmn.NullBus{})
 	Me = generate()
