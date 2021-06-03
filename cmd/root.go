@@ -58,7 +58,6 @@ func init() {
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Toggle")
 
-	rootCmd.PersistentFlags().StringP("rpc.address", "r", viper.GetString("rpc.address"), "Enables grpc service on this address")
 	rootCmd.PersistentFlags().StringP("me", "m", viper.GetString("hotstuff.me"), "Current node index in committee")
 	rootCmd.PersistentFlags().StringP("extaddr", "a", viper.GetString("network.ExtAddr"), "Current node external address for NAT lookup")
 	rootCmd.PersistentFlags().StringP("plugins.address", "p", viper.GetString("plugins.address"), "Plugin service address")
@@ -85,15 +84,6 @@ func init() {
 	if err := viper.BindEnv("Plugins.Interfaces", "GN_PLUGIN_I"); err != nil {
 		println(err.Error())
 	}
-	if err := viper.BindPFlag("Rpc.Address", rootCmd.PersistentFlags().Lookup("rpc.address")); err != nil {
-		println(err.Error())
-	}
-	if err := viper.BindEnv("Rpc.Address", "GN_RPC"); err != nil {
-		println(err.Error())
-	}
-
-	viper.SetDefault("Rpc.MaxConcurrentStreams", 10)
-
 }
 
 // initConfig reads in config file and ENV variables if set.

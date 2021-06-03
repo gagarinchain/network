@@ -42,7 +42,7 @@ var txSendCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(txSendCmd)
 	txSendCmd.PersistentFlags().StringVar(&ScenarioPath, "scenario.path", "", "Path to scenario.yaml file")
-	txSendCmd.PersistentFlags().StringVar(&RpcPath, "rpc.address", "", "Rpc service path")
+	txSendCmd.PersistentFlags().StringVar(&RpcPath, "web3.address", "", "Rpc service path")
 	txSendCmd.PersistentFlags().StringVar(&SendersPath, "senders.path", "", "Path to senders.yaml file")
 
 	// Here you will define your flags and configuration settings.

@@ -29,8 +29,8 @@ var startCmd = &cobra.Command{
 	Long:  "Is used to start network node",
 	Run: func(cmd *cobra.Command, args []string) {
 		//getString := viper.GetString("Hotstuff.SeedPath")
-		////rpc := viper.GetString("rpc")
-		//getBool, _ := cmd.PersistentFlags().GetBool("rpc")
+		////web3 := viper.GetString("web3")
+		//getBool, _ := cmd.PersistentFlags().GetBool("web3")
 
 		s := &common.Settings{}
 		if err := viper.Unmarshal(s); err != nil {
@@ -54,7 +54,9 @@ func init() {
 	// when this action is called directly.
 	startCmd.Flags().BoolP("toggle", "t", false, "Toggle")
 
-	startCmd.PersistentFlags().StringP("rpc.address", "r", viper.GetString("rpc.address"), "Enables grpc service on this address")
+	startCmd.PersistentFlags().StringP("rpc.type", "r", viper.GetString("rpc.type"), "Enables rpc service of given type, 'grpc' and 'web3' are supported now")
+	startCmd.PersistentFlags().StringP("rpc.host", "j", viper.GetString("rpc.host"), "Enables grpc service on this address")
+	startCmd.PersistentFlags().StringP("rpc.port", "o", viper.GetString("rpc.port"), "Enables grpc service on this port")
 	startCmd.PersistentFlags().StringP("me", "m", viper.GetString("hotstuff.me"), "Current node index in committee")
 	startCmd.PersistentFlags().StringP("extaddr", "a", viper.GetString("network.ExtAddr"), "Current node external address for NAT lookup")
 	startCmd.PersistentFlags().StringP("plugins.address", "p", viper.GetString("plugins.address"), "Plugin service address")
@@ -81,10 +83,22 @@ func init() {
 	if err := viper.BindEnv("Plugins.Interfaces", "GN_PLUGIN_I"); err != nil {
 		println(err.Error())
 	}
-	if err := viper.BindPFlag("Rpc.Address", startCmd.PersistentFlags().Lookup("rpc.address")); err != nil {
+	if err := viper.BindPFlag("Rpc.Type", startCmd.PersistentFlags().Lookup("rpc.type")); err != nil {
 		println(err.Error())
 	}
-	if err := viper.BindEnv("Rpc.Address", "GN_RPC"); err != nil {
+	if err := viper.BindEnv("Rpc.Type", "GN_RPC_TYPE"); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindPFlag("Rpc.Host", startCmd.PersistentFlags().Lookup("rpc.host")); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindEnv("Rpc.Host", "GN_RPC_HOST"); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindPFlag("Rpc.Port", startCmd.PersistentFlags().Lookup("rpc.port")); err != nil {
+		println(err.Error())
+	}
+	if err := viper.BindEnv("Rpc.Port", "GN_RPC_PORT"); err != nil {
 		println(err.Error())
 	}
 

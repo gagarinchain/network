@@ -25,8 +25,8 @@ import (
 // startCmd represents the start command
 var rpcSendCmd = &cobra.Command{
 	Use:   "rpc_send",
-	Short: `Sends rpc call`,
-	Long:  "Is used to send rpc calls to the network",
+	Short: `Sends web3 call`,
+	Long:  "Is used to send web3 calls to the network",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := &common.Settings{}
 		if err := viper.Unmarshal(s); err != nil {

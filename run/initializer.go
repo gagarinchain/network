@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gagarinchain/common"
 	"github.com/gagarinchain/common/api"
@@ -14,6 +15,7 @@ import (
 	"github.com/gagarinchain/network/blockchain/tx"
 	"github.com/gagarinchain/network/hotstuff"
 	"github.com/gagarinchain/network/rpc"
+	"github.com/gagarinchain/network/rpc/web3"
 	"github.com/gagarinchain/network/storage"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/multiformats/go-multiaddr"
@@ -35,9 +37,9 @@ type Context struct {
 	txService         *tx.TxService
 	eventBuss         *network.GagarinEventBus
 	rpc               *rpc.Service
+	web3              *web3.Web3Service
 	storage           storage.Storage
 	hotstuffChan      chan *message.Message
-	epochChan         chan *message.Message
 	blockProtocolChan chan *message.Message
 	txChan            chan *message.Message
 }
@@ -73,10 +75,9 @@ func CreateContext(s *common.Settings) *Context {
 
 	// Next we'll create the node config
 	msgChan := make(chan *message.Message)
-	epochChan := make(chan *message.Message)
 	blockChan := make(chan *message.Message)
 	txChan := make(chan *message.Message)
-	dispatcher := message.NewHotstuffDispatcher(msgChan, epochChan, blockChan)
+	dispatcher := message.NewHotstuffDispatcher(msgChan, blockChan)
 	txDispatcher := message.NewTxDispatcher(txChan)
 
 	dataDir := path.Join(s.Storage.Dir, strconv.Itoa(s.Hotstuff.Me))
@@ -172,8 +173,12 @@ func CreateContext(s *common.Settings) *Context {
 	bc.SetProposerGetter(pacer)
 
 	var rpcService *rpc.Service
-	if s.Rpc.Address != "" {
+	var web3Service *web3.Web3Service
+	if s.Rpc.Type == "grpc" {
 		rpcService = rpc.NewService(bc, pacer, db)
+	}
+	if s.Rpc.Type == "web3" {
+		web3Service = web3.NewWeb3Service(bc, pacer, db)
 	}
 
 	return &Context{
@@ -184,12 +189,12 @@ func CreateContext(s *common.Settings) *Context {
 		pacer:             pacer,
 		srv:               hotstuffSrv,
 		hotstuffChan:      msgChan,
-		epochChan:         epochChan,
 		blockProtocolChan: blockChan,
 		txService:         txService,
 		txChan:            txChan,
 		eventBuss:         bus,
 		rpc:               rpcService,
+		web3:              web3Service,
 		storage:           storage,
 	}
 }
@@ -319,12 +324,6 @@ END_BP:
 	c.pacer.SubscribeEvents(
 		rootCtx,
 		func(event api.Event) {
-			if event.T == api.EpochStarted {
-				epoch := event.Payload.(int32)
-				vMsg := &pb.EpochStartedPayload{Epoch: epoch}
-				ev := &common.Event{T: common.EpochStarted, Payload: vMsg}
-				c.eventBuss.FireEvent(ev)
-			}
 			if event.T == api.ChangedView {
 				view := event.Payload.(int32)
 				vMsg := &pb.ViewChangedPayload{View: view}
@@ -333,19 +332,23 @@ END_BP:
 			}
 		},
 		map[api.EventType]interface{}{
-			api.EpochStarted: struct{}{},
-			api.ChangedView:  struct{}{},
+			api.ChangedView: struct{}{},
 		})
 	go func() {
 		c.eventBuss.Run(rootCtx)
 	}()
 	go c.pacer.Run(rootCtx, c.hotstuffChan)
-	if s.Rpc.Address != "" {
+	if s.Rpc.Type == "grpc" {
 		if err := c.rpc.Bootstrap(rpc.Config{
-			Address:              s.Rpc.Address,
+			Address:              fmt.Sprintf("%v:%v", s.Rpc.Host, s.Rpc.Port),
 			MaxConcurrentStreams: s.Rpc.MaxConcurrentStreams,
 		}); err != nil {
 			log.Fatal("Can't start grpc service", err)
+		}
+	}
+	if s.Rpc.Type == "web3" {
+		if err := c.web3.Bootstrap(rootCtx, s.Rpc.Host, s.Rpc.Port); err != nil {
+			log.Fatal("Can't start web3 service", err)
 		}
 	}
 }
@@ -361,6 +364,12 @@ func (c *Context) handleInterrupt(cancel context.CancelFunc) chan bool {
 		cancel()
 		c.node.Shutdown()
 		c.storage.Close()
+		if c.web3 != nil {
+			c.web3.Stop(context.Background())
+		}
+		if c.rpc != nil {
+			c.rpc.Stop()
+		}
 
 		log.Info("Shut down completed")
 		os.Exit(0)

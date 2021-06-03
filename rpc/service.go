@@ -15,7 +15,7 @@ import (
 	"net"
 )
 
-var log = logging.MustGetLogger("rpc")
+var log = logging.MustGetLogger("web3")
 
 //TODO make pure libp2p service implementation
 type Service struct {
@@ -24,6 +24,7 @@ type Service struct {
 	pacer    api.Pacer
 	db       state.DB
 	txClient *tx2.TxSend
+	server   *grpc.Server
 }
 
 type Config struct {
@@ -264,6 +265,13 @@ func (s *Service) Bootstrap(cfg Config) error {
 	if err := grpcServer.Serve(lis); err != nil {
 		return err
 	}
+	s.server = grpcServer
 	log.Info("RPC bootstrapped successfully")
 	return nil
+}
+
+func (s *Service) Stop() {
+	if s.server != nil {
+		s.server.Stop()
+	}
 }
