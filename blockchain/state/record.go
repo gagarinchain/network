@@ -285,6 +285,9 @@ func (r *RecordImpl) ApplyTransaction(t api.Transaction) (receipts []api.Receipt
 		if withFee {
 			receipts = append(receipts, NewReceipt(t.Hash(), 0, t.From(), r.snap.proposer, t.Fee(), proposer.Balance(), sender.Balance()))
 		}
+
+	//case api.CreateAsset:
+
 	case api.Settlement:
 		cost := t.Fee()
 		if sender.Balance().Cmp(cost) < 0 {
